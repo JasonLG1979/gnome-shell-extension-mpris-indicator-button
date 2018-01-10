@@ -21,7 +21,6 @@
 
 const Main = imports.ui.main;
 const Gio = imports.gi.Gio;
-const GLib = imports.gi.GLib;
 const St = imports.gi.St;
 const Shell = imports.gi.Shell;
 
