@@ -79,8 +79,8 @@ function enable() {
     stockMprisOldShouldShow = stockMpris._shouldShow;
     stockMpris.actor.hide();
     stockMpris._shouldShow = function () {return false;};
-    indicator = new MprisIndicatorButton();
-    Main.panel.addToStatusArea("mprisindicatorbutton", indicator);
+    indicator = Main.panel.addToStatusArea("mprisindicatorbutton",
+                                           new MprisIndicatorButton(), 0, "right");
 }
 
 function disable() {
@@ -407,7 +407,9 @@ var MprisIndicatorButton = new Lang.Class({
             }
         }
 
-        if (this.menu._getMenuItems() < 1) {
+        children = this.menu._getMenuItems();
+
+        if (children.length < 1) {
             this._indicator.hide();
             this._indicator.set_width(0);
             this.actor.hide();
@@ -430,13 +432,13 @@ var MprisIndicatorButton = new Lang.Class({
     },
 
     _onNameOwnerChanged: function (proxy, sender, [name, oldOwner, newOwner]) {
-        if (!name.startsWith(MPRIS_PLAYER_PREFIX || this._destroyed)) {
+        if (!name.startsWith(MPRIS_PLAYER_PREFIX) || this._destroyed) {
             return;
         } else if (newOwner && !oldOwner) {
             this._addPlayer(name);
         } else if (oldOwner && !newOwner) {
             this._removePlayer(name);
-        } else {
+        } else if (oldOwner && newOwner) {
             this._changePlayerOwner(name);
         }
     },
