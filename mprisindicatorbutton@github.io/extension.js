@@ -231,7 +231,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             });
         } else {
             icon.icon_name = "audio-x-generic-symbolic";
-            icon.add_style_class_name("fallback");
         }
     }
 
