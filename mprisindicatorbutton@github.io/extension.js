@@ -112,7 +112,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this.actor.add(vbox, { expand: true });
 
-        let hbox = new St.BoxLayout({ style_class: "hbox" });
+        let hbox = new St.BoxLayout({ style_class: "popup-menu-item" });
 
         vbox.add(hbox, { expand: true });
 
