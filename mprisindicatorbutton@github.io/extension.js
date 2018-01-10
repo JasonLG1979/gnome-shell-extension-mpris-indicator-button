@@ -186,7 +186,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._playerProxy = new MprisPlayerProxy(Gio.DBus.session, busName,
                                                  "/org/mpris/MediaPlayer2",
                                                  this._onPlayerProxyReady.bind(this));
-
     }
 
     destroy() {
