@@ -1,0 +1,24 @@
+.media-indicator {
+  min-width: 336px;
+  max-width: 336px;
+}
+
+.cover-icon {
+  icon-size: 48px !important;
+}
+
+.hbox {
+    spacing: 12px;
+}
+
+.track-artist {
+  font-weight: bold;
+}
+
+.track-title {
+  font-size: small;
+}
+
+.track-album {
+  font-size: x-small;
+}
