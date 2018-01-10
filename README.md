@@ -10,7 +10,7 @@
 * horazont (Jonas Wielicki)
 * eonpatapon (Jean-Philippe Braun)
 * grawity (Mantas Mikulėnas)
-* And the authors of the GNOME Shell MPRIS controls. 
+* The authors of the GNOME Shell MPRIS controls. 
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
