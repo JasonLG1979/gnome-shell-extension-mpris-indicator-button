@@ -20,7 +20,6 @@
 "use strict";
 
 const Main = imports.ui.main;
-const Lang = imports.lang;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const St = imports.gi.St;
@@ -100,18 +99,14 @@ function disable() {
     stockMprisOldShouldShow = null;
 }
 
-var Player = new Lang.Class({
-    Name: "Player",
-    Extends: PopupMenu.PopupBaseMenuItem,
-
-    _init: function (busName) {
-        this.parent();
+class Player extends PopupMenu.PopupBaseMenuItem {
+    constructor(busName) {
+        super();
         this._destroyed = false;
         this._propsChangedId = null;
         this.busName = busName;
 
-        this.connect("destroy", Lang.bind(this, this._teardown));
-        this.connect("activate", Lang.bind(this, this._raise));
+        this.connect("activate", this._raise.bind(this));
 
         let vbox = new St.BoxLayout({ vertical: true });
 
@@ -157,7 +152,7 @@ var Player = new Lang.Class({
         this._prevButton = new St.Button({ style_class: "message-media-control",
                                            child: icon });
 
-        this._prevButton.connect("clicked", Lang.bind(this, this._previous));
+        this._prevButton.connect("clicked", this._previous.bind(this));
 
         playerButtonBox.add(this._prevButton);
 
@@ -167,7 +162,7 @@ var Player = new Lang.Class({
         this._playPauseButton = new St.Button({ style_class: "message-media-control",
                                                 child: icon });
 
-        this._playPauseButton.connect("clicked", Lang.bind(this, this._playPause));
+        this._playPauseButton.connect("clicked", this._playPause.bind(this));
 
         playerButtonBox.add(this._playPauseButton);
 
@@ -177,7 +172,7 @@ var Player = new Lang.Class({
         this._nextButton = new St.Button({ style_class: "message-media-control",
                                            child: icon });
 
-        this._nextButton.connect("clicked", Lang.bind(this, this._next));
+        this._nextButton.connect("clicked", this._next.bind(this));
 
         playerButtonBox.add(this._nextButton);
 
@@ -190,11 +185,11 @@ var Player = new Lang.Class({
 
         this._playerProxy = new MprisPlayerProxy(Gio.DBus.session, busName,
                                                  "/org/mpris/MediaPlayer2",
-                                                 Lang.bind(this, this._onPlayerProxyReady));
+                                                 this._onPlayerProxyReady.bind(this));
 
-    },
+    }
 
-    _teardown: function () {
+    destroy() {
         this._destroyed = true;
 
         if (this._playerProxy && this._propsChangedId) {
@@ -204,15 +199,17 @@ var Player = new Lang.Class({
         this._propsChangedId = null;
         this._playerProxy = null;
         this._mprisProxy = null;
-    },
 
-    _setCoverIcon: function (icon, coverUrl) {
+        super.destroy();
+    }
+
+    _setCoverIcon(icon, coverUrl) {
         if (this._destroyed) {
             return;
         } else {
             if (coverUrl) {
                 let file = Gio.File.new_for_uri(coverUrl);
-                file.load_contents_async(null, Lang.bind(this, function (source, result) {
+                file.load_contents_async(null, function (source, result) {
                     if (this._destroyed) {
                         return;
                     } else {
@@ -226,41 +223,41 @@ var Player = new Lang.Class({
                             icon.icon_name = "audio-x-generic-symbolic";
                         }
                     }
-                }));
+                }.bind(this));
             } else {
                 icon.icon_name = "audio-x-generic-symbolic";
                 icon.add_style_class_name("fallback");
             }
         }
-    },
+    }
 
-    _setText: function (actor, text) {
+    _setText(actor, text) {
         text = text || "";
 
         if (actor.text != text) {
             actor.text = text;
         }
-    },
+    }
 
-    _previous: function () {
+    _previous() {
         try {
             this._playerProxy.PreviousRemote();
         } catch (err) {}
-    },
+    }
 
-    _playPause: function () {
+    _playPause() {
         try {
             this._playerProxy.PlayPauseRemote();
         } catch (err) {}
-    },
+    }
 
-    _next: function () {
+    _next() {
         try {
             this._playerProxy.NextRemote();
         } catch (err) {}
-    },
+    }
 
-    _update: function () {
+    _update() {
         if (this._destroyed) {
             return;
         } else {
@@ -302,9 +299,9 @@ var Player = new Lang.Class({
 
             this._nextButton.reactive = this._playerProxy.CanGoNext;
         }
-    },
+    }
 
-    _raise: function () {
+    _raise() {
         try {
             let app = null;
 
@@ -319,32 +316,27 @@ var Player = new Lang.Class({
                 this._mprisProxy.RaiseRemote();
             }
         } catch (err) {}
-    },
+    }
 
-    _onPlayerProxyReady: function () {
+    _onPlayerProxyReady() {
         if (this._destroyed) {
             return;
         } else {
             this._propsChangedId = this._playerProxy.connect("g-properties-changed",
-                                                             Lang.bind(this, this._update));
+                                                             this._update.bind(this));
             this._update();
         }
     }
-});
+};
 
-var MprisIndicatorButton = new Lang.Class({
-    Name: "MprisIndicatorButton",
-    Extends: PanelMenu.Button,
-
-    _init: function () {
-        this.parent(0.0, "Mpris Indicator Button", false);
+class MprisIndicatorButton extends PanelMenu.Button {
+    constructor() {
+        super(0.0, "Mpris Indicator Button", false);
 
         this.menu.actor.add_style_class_name("aggregate-menu media-indicator");
 
         this._nameOwnerChangedId = null;
         this._destroyed = false;
-
-        this.connect("destroy", Lang.bind(this, this._teardown));
 
         this._indicator = new St.BoxLayout({ style_class: "panel-status-indicators-box" });
 
@@ -364,10 +356,10 @@ var MprisIndicatorButton = new Lang.Class({
         this._proxy = new DBusProxy(Gio.DBus.session,
                                     "org.freedesktop.DBus",
                                     "/org/freedesktop/DBus",
-                                    Lang.bind(this, this._onProxyReady));
-    },
+                                    this._onProxyReady.bind(this));
+    }
 
-    _teardown: function () {
+    destroy() {
         this._destroyed = true;
 
         let children = this.menu._getMenuItems();
@@ -385,18 +377,20 @@ var MprisIndicatorButton = new Lang.Class({
 
         this._proxy = null;
         this._nameOwnerChangedId = null;
-    },
+
+        super.destroy();
+    }
 
 
-    _addPlayer: function (busName) {
+    _addPlayer(busName) {
         this.menu.addMenuItem(new Player(busName));
         this._indicator.show();
         this.actor.show();
         this._indicator.set_width(-1);
         this.actor.set_width(-1);
-    },
+    }
 
-    _removePlayer: function (busName) {
+    _removePlayer(busName) {
         let children = this.menu._getMenuItems();
 
         for (let i = 0; i < children.length; i++) {
@@ -415,9 +409,9 @@ var MprisIndicatorButton = new Lang.Class({
             this.actor.hide();
             this.actor.set_width(0);
         }
-    },
+    }
 
-    _changePlayerOwner: function (busName) {
+    _changePlayerOwner(busName) {
         let children = this.menu._getMenuItems();
 
         for (let i = 0; i < children.length; i++) {
@@ -429,9 +423,9 @@ var MprisIndicatorButton = new Lang.Class({
         }
 
         this._addPlayer(busName);
-    },
+    }
 
-    _onNameOwnerChanged: function (proxy, sender, [name, oldOwner, newOwner]) {
+    _onNameOwnerChanged(proxy, sender, [name, oldOwner, newOwner]) {
         if (!name.startsWith(MPRIS_PLAYER_PREFIX) || this._destroyed) {
             return;
         } else if (newOwner && !oldOwner) {
@@ -441,24 +435,24 @@ var MprisIndicatorButton = new Lang.Class({
         } else if (oldOwner && newOwner) {
             this._changePlayerOwner(name);
         }
-    },
+    }
 
-    _onProxyReady: function () {
+    _onProxyReady() {
         if (this._destroyed) {
             return;
         } else {
-            this._proxy.ListNamesRemote(Lang.bind(this, function ([names]) {
-                names.forEach(Lang.bind(this, function (name) {
+            this._proxy.ListNamesRemote(function ([names]) {
+                names.forEach(function (name) {
                     if (!name.startsWith(MPRIS_PLAYER_PREFIX)) {
                         return;
                     } else {
                         this._addPlayer(name);
                     }
-                }));
-            }));
+                }.bind(this));
+            }.bind(this));
 
             this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
-                                                                 Lang.bind(this, this._onNameOwnerChanged));
+                                                                 this._onNameOwnerChanged.bind(this));
         }
     }
-});
+};
