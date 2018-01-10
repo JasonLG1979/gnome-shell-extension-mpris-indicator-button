@@ -223,7 +223,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                         icon.gicon = newIcon;
                     }
                 } catch (err) {
-                    if (!err instanceof Gio.IOErrorEnum) {
+                    if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
                         icon.icon_name = "audio-x-generic-symbolic";
                     }
                 }
