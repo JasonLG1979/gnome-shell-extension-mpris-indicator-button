@@ -1,10 +1,10 @@
 .media-indicator {
-  min-width: 336px;
-  max-width: 336px;
+    min-width: 336px;
+    max-width: 336px;
 }
 
 .cover-icon {
-  icon-size: 48px !important;
+    icon-size: 48px !important;
 }
 
 .hbox {
@@ -12,13 +12,13 @@
 }
 
 .track-artist {
-  font-weight: bold;
+    font-weight: bold;
 }
 
 .track-title {
-  font-size: small;
+    font-size: small;
 }
 
 .track-album {
-  font-size: x-small;
+    font-size: x-small;
 }

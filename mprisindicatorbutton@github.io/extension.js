@@ -17,7 +17,6 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 **/
-
 "use strict";
 
 const Main = imports.ui.main;
@@ -79,7 +78,7 @@ function enable() {
     stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
     stockMprisOldShouldShow = stockMpris._shouldShow;
     stockMpris.actor.hide();
-    stockMpris._shouldShow = function() {return false;};
+    stockMpris._shouldShow = function () {return false;};
     indicator = new MprisIndicatorButton();
     Main.panel.addToStatusArea("mprisindicatorbutton", indicator);
 }
@@ -88,12 +87,14 @@ function disable() {
     if (indicator) {
         indicator.destroy();
     }
+
     if (stockMpris && stockMprisOldShouldShow) {
         stockMpris._shouldShow = stockMprisOldShouldShow;
         if (stockMpris._shouldShow()) {
             stockMpris.actor.show();
         }
     }
+
     indicator = null;
     stockMpris = null;
     stockMprisOldShouldShow = null;
@@ -103,17 +104,21 @@ var Player = new Lang.Class({
     Name: "Player",
     Extends: PopupMenu.PopupBaseMenuItem,
 
-    _init: function(busName) {
+    _init: function (busName) {
         this.parent();
         this._destroyed = false;
         this._propsChangedId = null;
         this.busName = busName;
+
         this.connect("destroy", Lang.bind(this, this._teardown));
-        this.connect("activate", Lang.bind(this, this._raise)); 
+        this.connect("activate", Lang.bind(this, this._raise));
 
         let vbox = new St.BoxLayout({ vertical: true });
-        this.actor.add(vbox, {expand: true });
+
+        this.actor.add(vbox, { expand: true });
+
         let hbox = new St.BoxLayout({ style_class: "hbox" });
+
         vbox.add(hbox, { expand: true });
 
         this._coverIcon = new St.Icon({ style_class: "cover-icon" });
@@ -123,11 +128,22 @@ var Player = new Lang.Class({
         let info = new St.BoxLayout({ vertical: true });
 
         this._trackArtist = new St.Label({ style_class: "track-artist" });
+
         this._trackTitle = new St.Label({ style_class: "track-title" });
+
         this._trackAlbum = new St.Label({ style_class: "track-album" });
-        info.add(this._trackArtist, { expand: true, x_fill: false, x_align: St.Align.START });
-        info.add(this._trackTitle, { expand: true, x_fill: false, x_align: St.Align.START });
-        info.add(this._trackAlbum, { expand: true, x_fill: false, x_align: St.Align.START });
+
+        info.add(this._trackArtist, { expand: true,
+                                      x_fill: false,
+                                      x_align: St.Align.START });
+
+        info.add(this._trackTitle, { expand: true,
+                                     x_fill: false,
+                                     x_align: St.Align.START });
+
+        info.add(this._trackAlbum, { expand: true,
+                                     x_fill: false,
+                                     x_align: St.Align.START });
 
         hbox.add(info, { expand: true });
 
@@ -135,22 +151,39 @@ var Player = new Lang.Class({
 
         let icon;
 
-        icon = new St.Icon({ icon_name: "media-skip-backward-symbolic", icon_size: 16 });
-        this._prevButton = new St.Button({ style_class: "message-media-control", child: icon });
+        icon = new St.Icon({ icon_name: "media-skip-backward-symbolic",
+                             icon_size: 16 });
+
+        this._prevButton = new St.Button({ style_class: "message-media-control",
+                                           child: icon });
+
         this._prevButton.connect("clicked", Lang.bind(this, this._previous));
+
         playerButtonBox.add(this._prevButton);
 
-        icon = new St.Icon({ icon_name: "media-playback-pause-symbolic", icon_size: 16 });
-        this._playPauseButton = new St.Button({ style_class: "message-media-control", child: icon });
+        icon = new St.Icon({ icon_name: "media-playback-pause-symbolic",
+                             icon_size: 16 });
+
+        this._playPauseButton = new St.Button({ style_class: "message-media-control",
+                                                child: icon });
+
         this._playPauseButton.connect("clicked", Lang.bind(this, this._playPause));
+
         playerButtonBox.add(this._playPauseButton);
 
-        icon = new St.Icon({icon_name: "media-skip-forward-symbolic", icon_size: 16 });
-        this._nextButton = new St.Button({ style_class: "message-media-control", child: icon });
+        icon = new St.Icon({ icon_name: "media-skip-forward-symbolic",
+                             icon_size: 16 });
+
+        this._nextButton = new St.Button({ style_class: "message-media-control",
+                                           child: icon });
+
         this._nextButton.connect("clicked", Lang.bind(this, this._next));
+
         playerButtonBox.add(this._nextButton);
 
-        vbox.add(playerButtonBox, {expand: true, x_fill: false, x_align: St.Align.MIDDLE});
+        vbox.add(playerButtonBox, { expand: true,
+                                    x_fill: false,
+                                    x_align: St.Align.MIDDLE });
 
         this._mprisProxy = new MprisProxy(Gio.DBus.session, busName,
                                           "/org/mpris/MediaPlayer2");
@@ -161,115 +194,120 @@ var Player = new Lang.Class({
 
     },
 
-    _teardown: function() {
+    _teardown: function () {
         this._destroyed = true;
+
         if (this._playerProxy && this._propsChangedId) {
             this._playerProxy.disconnect(this._propsChangedId);
         }
+
         this._propsChangedId = null;
         this._playerProxy = null;
         this._mprisProxy = null;
     },
 
-    _setCoverIcon: function(icon, coverUrl) {
-        if (coverUrl) {
-            let file = Gio.File.new_for_uri(coverUrl);
-            file.load_contents_async(null, function(source, result) {
-                try {
-                    let bytes = source.load_contents_finish(result)[1];
-                    let newIcon = Gio.BytesIcon.new(bytes);
-                    if (!newIcon.equal(icon.gicon)) {
-                        icon.gicon = newIcon;
+    _setCoverIcon: function (icon, coverUrl) {
+        if (this._destroyed) {
+            return;
+        } else {
+            if (coverUrl) {
+                let file = Gio.File.new_for_uri(coverUrl);
+                file.load_contents_async(null, Lang.bind(this, function (source, result) {
+                    if (this._destroyed) {
+                        return;
+                    } else {
+                        try {
+                            let bytes = source.load_contents_finish(result)[1];
+                            let newIcon = Gio.BytesIcon.new(bytes);
+                            if (!newIcon.equal(icon.gicon)) {
+                                icon.gicon = newIcon;
+                            }
+                        } catch (err) {
+                            icon.icon_name = "audio-x-generic-symbolic";
+                        }
                     }
-                }
-                catch(err) {
-                    icon.icon_name = "audio-x-generic-symbolic";
-                }
-            });
-        }
-        else {
-            icon.icon_name = "audio-x-generic-symbolic";
-            icon.add_style_class_name("fallback");
+                }));
+            } else {
+                icon.icon_name = "audio-x-generic-symbolic";
+                icon.add_style_class_name("fallback");
+            }
         }
     },
 
-    _setText: function(actor, text) {
-
+    _setText: function (actor, text) {
         text = text || "";
+
         if (actor.text != text) {
             actor.text = text;
         }
-        if (!actor.text) {
-            actor.hide();
-        }
-        else {
-            actor.show();
-        }
     },
 
-    _previous: function() {
+    _previous: function () {
         try {
             this._playerProxy.PreviousRemote();
-        }
-        catch(err) {
-        }
+        } catch (err) {}
     },
 
-    _playPause: function() {
+    _playPause: function () {
         try {
             this._playerProxy.PlayPauseRemote();
-        }
-        catch(err) {
-        }
+        } catch (err) {}
     },
 
-    _next: function() {
+    _next: function () {
         try {
             this._playerProxy.NextRemote();
-        }
-        catch(err) {
-        }
-    }, 
-
-    _update: function() {
-        if (this._destroyed) {
-            return;
-        }
-        let metadata = this._playerProxy.Metadata;
-        if (!metadata || Object.keys(metadata).length < 2) {
-            metadata = {};
-        }
-        let artist;
-        let title;
-        let album;
-        let coverUrl;
-        artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(' / ') : "";
-        artist = metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"].unpack() : artist;
-        artist = artist || this._mprisProxy.Identity;
-        this._setText(this._trackArtist, artist);
-
-        title = metadata["xesam:title"] ? metadata["xesam:title"].unpack() : "";
-        this._setText(this._trackTitle, title);
-
-        album = metadata["xesam:album"] ? metadata["xesam:album"].unpack() : "";
-        this._setText(this._trackAlbum, album);
-
-        coverUrl = metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "";
-        this._setCoverIcon(this._coverIcon, coverUrl);
-
-        let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
-        let iconName = isPlaying ? "media-playback-pause-symbolic"
-                                 : "media-playback-start-symbolic";
-        this._playPauseButton.child.icon_name = iconName;
-
-        this._prevButton.reactive = this._playerProxy.CanGoPrevious;
-        this._playPauseButton.reactive = this._playerProxy.CanPlay || this._playerProxy.CanPause;
-        this._nextButton.reactive = this._playerProxy.CanGoNext;
+        } catch (err) {}
     },
 
-    _raise: function() {
+    _update: function () {
+        if (this._destroyed) {
+            return;
+        } else {
+            let metadata = this._playerProxy.Metadata;
+
+            if (!metadata || Object.keys(metadata).length < 2) {
+                metadata = {};
+            }
+
+            let artist, title, album, coverUrl;
+
+            artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(' / ') : "";
+            artist = metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"].unpack() : artist;
+            artist = artist || this._mprisProxy.Identity;
+
+            this._setText(this._trackArtist, artist);
+
+            title = metadata["xesam:title"] ? metadata["xesam:title"].unpack() : "";
+
+            this._setText(this._trackTitle, title);
+
+            album = metadata["xesam:album"] ? metadata["xesam:album"].unpack() : "";
+
+            this._setText(this._trackAlbum, album);
+
+            coverUrl = metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "";
+
+            this._setCoverIcon(this._coverIcon, coverUrl);
+
+            let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
+
+            let iconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
+
+            this._playPauseButton.child.icon_name = iconName;
+
+            this._prevButton.reactive = this._playerProxy.CanGoPrevious;
+
+            this._playPauseButton.reactive = this._playerProxy.CanPlay || this._playerProxy.CanPause;
+
+            this._nextButton.reactive = this._playerProxy.CanGoNext;
+        }
+    },
+
+    _raise: function () {
         try {
             let app = null;
+
             if (this._mprisProxy.DesktopEntry) {
                 let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
                 app = Shell.AppSystem.get_default().lookup_app(desktopId);
@@ -277,22 +315,20 @@ var Player = new Lang.Class({
 
             if (app) {
                 app.activate();
-            }
-            else if (this._mprisProxy.CanRaise) {
+            } else if (this._mprisProxy.CanRaise) {
                 this._mprisProxy.RaiseRemote();
             }
-        }
-        catch(err) {
-        }
+        } catch (err) {}
     },
 
-    _onPlayerProxyReady: function() {
+    _onPlayerProxyReady: function () {
         if (this._destroyed) {
             return;
+        } else {
+            this._propsChangedId = this._playerProxy.connect("g-properties-changed",
+                                                             Lang.bind(this, this._update));
+            this._update();
         }
-        this._propsChangedId = this._playerProxy.connect("g-properties-changed",
-                                                         Lang.bind(this, this._update));
-        this._update();
     }
 });
 
@@ -300,8 +336,9 @@ var MprisIndicatorButton = new Lang.Class({
     Name: "MprisIndicatorButton",
     Extends: PanelMenu.Button,
 
-    _init: function() {
+    _init: function () {
         this.parent(0.0, "Mpris Indicator Button", false);
+
         this.menu.actor.add_style_class_name("aggregate-menu media-indicator");
 
         this._nameOwnerChangedId = null;
@@ -310,14 +347,17 @@ var MprisIndicatorButton = new Lang.Class({
         this.connect("destroy", Lang.bind(this, this._teardown));
 
         this._indicator = new St.BoxLayout({ style_class: "panel-status-indicators-box" });
+
         this._indicator.hide();
         this._indicator.set_width(0);
-        this.actor.add_child(this._indicator);
-        this.actor.hide();
-        this.actor.set_width(0);        
 
-        let icon = new St.Icon({icon_name: "audio-x-generic-symbolic",
-                                style_class: "system-status-icon"});
+        this.actor.add_child(this._indicator);
+
+        this.actor.hide();
+        this.actor.set_width(0);
+
+        let icon = new St.Icon({ icon_name: "audio-x-generic-symbolic",
+                                 style_class: "system-status-icon" });
 
         this._indicator.add_child(icon);
 
@@ -327,23 +367,28 @@ var MprisIndicatorButton = new Lang.Class({
                                     Lang.bind(this, this._onProxyReady));
     },
 
-    _teardown: function() {
+    _teardown: function () {
         this._destroyed = true;
+
         let children = this.menu._getMenuItems();
+
         for (let i = 0; i < children.length; i++) {
             let player = children[i];
             player.destroy();
         }
+
         this.menu.removeAll();
+
         if (this._proxy && this._nameOwnerChangedId) {
             this._proxy.disconnect(this._nameOwnerChangedId);
         }
+
         this._proxy = null;
         this._nameOwnerChangedId = null;
     },
-     
 
-    _addPlayer: function(busName) {
+
+    _addPlayer: function (busName) {
         this.menu.addMenuItem(new Player(busName));
         this._indicator.show();
         this.actor.show();
@@ -351,8 +396,9 @@ var MprisIndicatorButton = new Lang.Class({
         this.actor.set_width(-1);
     },
 
-    _removePlayer: function(busName) {
+    _removePlayer: function (busName) {
         let children = this.menu._getMenuItems();
+
         for (let i = 0; i < children.length; i++) {
             let player = children[i];
             if (busName == player.busName) {
@@ -360,6 +406,7 @@ var MprisIndicatorButton = new Lang.Class({
                 break;
             }
         }
+
         if (this.menu._getMenuItems() < 1) {
             this._indicator.hide();
             this._indicator.set_width(0);
@@ -368,8 +415,9 @@ var MprisIndicatorButton = new Lang.Class({
         }
     },
 
-    _changePlayerOwner: function(busName) {
+    _changePlayerOwner: function (busName) {
         let children = this.menu._getMenuItems();
+
         for (let i = 0; i < children.length; i++) {
             let player = children[i];
             if (busName == player.busName) {
@@ -377,39 +425,38 @@ var MprisIndicatorButton = new Lang.Class({
                 break;
             }
         }
-        this._addPlayer(busName);
-    }, 
 
-    _onNameOwnerChanged: function(proxy, sender, [name, oldOwner, newOwner]) {
+        this._addPlayer(busName);
+    },
+
+    _onNameOwnerChanged: function (proxy, sender, [name, oldOwner, newOwner]) {
         if (!name.startsWith(MPRIS_PLAYER_PREFIX || this._destroyed)) {
             return;
-        }
-        else if (newOwner && !oldOwner) {
+        } else if (newOwner && !oldOwner) {
             this._addPlayer(name);
-        }
-        else if (oldOwner && !newOwner) {
+        } else if (oldOwner && !newOwner) {
             this._removePlayer(name);
-        }
-        else {
+        } else {
             this._changePlayerOwner(name);
         }
     },
 
-    _onProxyReady: function() {
+    _onProxyReady: function () {
         if (this._destroyed) {
             return;
-        }
-        this._proxy.ListNamesRemote(Lang.bind(this,
-            function([names]) {
-                names.forEach(Lang.bind(this,
-                    function(name) {
-                        if (!name.startsWith(MPRIS_PLAYER_PREFIX))
-                            return;
-
+        } else {
+            this._proxy.ListNamesRemote(Lang.bind(this, function ([names]) {
+                names.forEach(Lang.bind(this, function (name) {
+                    if (!name.startsWith(MPRIS_PLAYER_PREFIX)) {
+                        return;
+                    } else {
                         this._addPlayer(name);
-                    }));
+                    }
+                }));
             }));
-        this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
-                                 Lang.bind(this, this._onNameOwnerChanged));
+
+            this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
+                                                                 Lang.bind(this, this._onNameOwnerChanged));
+        }
     }
 });
