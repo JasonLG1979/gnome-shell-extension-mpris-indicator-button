@@ -156,7 +156,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         playerButtonBox.add(this._prevButton);
 
-        icon = new St.Icon({ icon_name: "media-playback-pause-symbolic",
+        icon = new St.Icon({ icon_name: "media-playback-start-symbolic",
                              icon_size: 16 });
 
         this._playPauseButton = new St.Button({ style_class: "message-media-control",
