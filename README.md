@@ -6,8 +6,8 @@
 ## Authors
   * JasonLG1979 (Jason Gray)
 
-## Based on the work of:
-* horazont (Jonas Wielicki).
+## Based on the work of
+* horazont (Jonas Wielicki)
 * eonpatapon (Jean-Philippe Braun)
 * grawity (Mantas Mikulėnas)
 * And the authors of the GNOME Shell MPRIS controls. 
