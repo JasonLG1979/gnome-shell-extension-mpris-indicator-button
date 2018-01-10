@@ -102,8 +102,8 @@ function disable() {
 class Player extends PopupMenu.PopupBaseMenuItem {
     constructor(busName) {
         super();
-        this._destroyed = false;
         this._propsChangedId = null;
+        this._cancellable = null;
         this.busName = busName;
 
         this.connect("activate", this._raise.bind(this));
@@ -190,12 +190,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     destroy() {
-        this._destroyed = true;
-
         if (this._playerProxy && this._propsChangedId) {
             this._playerProxy.disconnect(this._propsChangedId);
         }
 
+        if (this._cancellable && !this._cancellable.is_cancelled()) {
+            this._cancellable.cancel();
+        }
+
+        this._cancellable = null;
         this._propsChangedId = null;
         this._playerProxy = null;
         this._mprisProxy = null;
@@ -204,30 +207,31 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     _setCoverIcon(icon, coverUrl) {
-        if (this._destroyed) {
-            return;
-        } else {
-            if (coverUrl) {
-                let file = Gio.File.new_for_uri(coverUrl);
-                file.load_contents_async(null, function (source, result) {
-                    if (this._destroyed) {
-                        return;
-                    } else {
-                        try {
-                            let bytes = source.load_contents_finish(result)[1];
-                            let newIcon = Gio.BytesIcon.new(bytes);
-                            if (!newIcon.equal(icon.gicon)) {
-                                icon.gicon = newIcon;
-                            }
-                        } catch (err) {
-                            icon.icon_name = "audio-x-generic-symbolic";
-                        }
+        if (this._cancellable && !this._cancellable.is_cancelled()) {
+            this._cancellable.cancel();
+        }
+
+        this._cancellable = new Gio.Cancellable();
+
+        if (coverUrl) {
+            let file = Gio.File.new_for_uri(coverUrl);
+            file.load_contents_async(this._cancellable, (source, result) => {
+                try {
+                    let bytes = source.load_contents_finish(result)[1];
+                    let newIcon = Gio.BytesIcon.new(bytes);
+                    if (!newIcon.equal(icon.gicon)) {
+                        icon.gicon = newIcon;
                     }
-                }.bind(this));
-            } else {
-                icon.icon_name = "audio-x-generic-symbolic";
-                icon.add_style_class_name("fallback");
-            }
+                } catch (err) {
+                    if (!err instanceof Gio.IOErrorEnum) {
+                        icon.icon_name = "audio-x-generic-symbolic";
+                    }
+                }
+                this._cancellable = null;
+            });
+        } else {
+            icon.icon_name = "audio-x-generic-symbolic";
+            icon.add_style_class_name("fallback");
         }
     }
 
@@ -258,47 +262,43 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     _update() {
-        if (this._destroyed) {
-            return;
-        } else {
-            let metadata = this._playerProxy.Metadata;
+        let metadata = this._playerProxy.Metadata;
 
-            if (!metadata || Object.keys(metadata).length < 2) {
-                metadata = {};
-            }
-
-            let artist, title, album, coverUrl;
-
-            artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(' / ') : "";
-            artist = metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"].unpack() : artist;
-            artist = artist || this._mprisProxy.Identity;
-
-            this._setText(this._trackArtist, artist);
-
-            title = metadata["xesam:title"] ? metadata["xesam:title"].unpack() : "";
-
-            this._setText(this._trackTitle, title);
-
-            album = metadata["xesam:album"] ? metadata["xesam:album"].unpack() : "";
-
-            this._setText(this._trackAlbum, album);
-
-            coverUrl = metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "";
-
-            this._setCoverIcon(this._coverIcon, coverUrl);
-
-            let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
-
-            let iconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
-
-            this._playPauseButton.child.icon_name = iconName;
-
-            this._prevButton.reactive = this._playerProxy.CanGoPrevious;
-
-            this._playPauseButton.reactive = this._playerProxy.CanPlay || this._playerProxy.CanPause;
-
-            this._nextButton.reactive = this._playerProxy.CanGoNext;
+        if (!metadata || Object.keys(metadata).length < 2) {
+            metadata = {};
         }
+
+        let artist, title, album, coverUrl;
+
+        artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(' / ') : "";
+        artist = metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"].unpack() : artist;
+        artist = artist || this._mprisProxy.Identity;
+
+        this._setText(this._trackArtist, artist);
+
+        title = metadata["xesam:title"] ? metadata["xesam:title"].unpack() : "";
+
+        this._setText(this._trackTitle, title);
+
+        album = metadata["xesam:album"] ? metadata["xesam:album"].unpack() : "";
+
+        this._setText(this._trackAlbum, album);
+
+        coverUrl = metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "";
+
+        this._setCoverIcon(this._coverIcon, coverUrl);
+
+        let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
+
+        let iconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
+
+        this._playPauseButton.child.icon_name = iconName;
+
+        this._prevButton.reactive = this._playerProxy.CanGoPrevious;
+
+        this._playPauseButton.reactive = this._playerProxy.CanPlay || this._playerProxy.CanPause;
+
+        this._nextButton.reactive = this._playerProxy.CanGoNext;
     }
 
     _raise() {
@@ -319,13 +319,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     _onPlayerProxyReady() {
-        if (this._destroyed) {
-            return;
-        } else {
-            this._propsChangedId = this._playerProxy.connect("g-properties-changed",
-                                                             this._update.bind(this));
-            this._update();
-        }
+        this._propsChangedId = this._playerProxy.connect("g-properties-changed",
+                                                         this._update.bind(this));
+        this._update();
     }
 };
 
@@ -336,7 +332,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this.menu.actor.add_style_class_name("aggregate-menu media-indicator");
 
         this._nameOwnerChangedId = null;
-        this._destroyed = false;
 
         this._indicator = new St.BoxLayout({ style_class: "panel-status-indicators-box" });
 
@@ -360,17 +355,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     destroy() {
-        this._destroyed = true;
-
-        let children = this.menu._getMenuItems();
-
-        for (let i = 0; i < children.length; i++) {
-            let player = children[i];
-            player.destroy();
-        }
-
-        this.menu.removeAll();
-
         if (this._proxy && this._nameOwnerChangedId) {
             this._proxy.disconnect(this._nameOwnerChangedId);
         }
@@ -426,7 +410,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _onNameOwnerChanged(proxy, sender, [name, oldOwner, newOwner]) {
-        if (!name.startsWith(MPRIS_PLAYER_PREFIX) || this._destroyed) {
+        if (!name.startsWith(MPRIS_PLAYER_PREFIX)) {
             return;
         } else if (newOwner && !oldOwner) {
             this._addPlayer(name);
@@ -438,21 +422,17 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _onProxyReady() {
-        if (this._destroyed) {
-            return;
-        } else {
-            this._proxy.ListNamesRemote(function ([names]) {
-                names.forEach(function (name) {
-                    if (!name.startsWith(MPRIS_PLAYER_PREFIX)) {
-                        return;
-                    } else {
-                        this._addPlayer(name);
-                    }
-                }.bind(this));
-            }.bind(this));
+        this._proxy.ListNamesRemote(([names]) => {
+            names.forEach((name) => {
+                if (!name.startsWith(MPRIS_PLAYER_PREFIX)) {
+                    return;
+                } else {
+                    this._addPlayer(name);
+                }
+            });
+        });
 
-            this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
-                                                                 this._onNameOwnerChanged.bind(this));
-        }
+        this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
+                                                             this._onNameOwnerChanged.bind(this));
     }
 };
