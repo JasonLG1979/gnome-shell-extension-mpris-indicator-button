@@ -78,9 +78,11 @@ function enable() {
     stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
     stockMprisOldShouldShow = stockMpris._shouldShow;
     stockMpris.actor.hide();
-    stockMpris._shouldShow = function () {return false;};
+    stockMpris._shouldShow = function () {
+        return false;
+    };
     indicator = Main.panel.addToStatusArea("mprisindicatorbutton",
-                                           new MprisIndicatorButton(), 0, "right");
+        new MprisIndicatorButton(), 0, "right");
 }
 
 function disable() {
@@ -104,97 +106,136 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     constructor(busName) {
         super();
         this._cancellable = null;
-        this._propsChangedId = null;
         this._playerProxy = null;
         this._mprisProxy = null;
         this._fallbackIconName = null;
         this._themeContext = null;
-        this._themeChangeId = null;
+        this._propsChangedId = 0;
+        this._themeChangeId = 0;
         this.busName = busName;
 
-        let vbox = new St.BoxLayout({ vertical: true });
+        let vbox = new St.BoxLayout({
+            vertical: true
+        });
 
-        this.actor.add(vbox, { expand: true });
+        this.actor.add(vbox, {
+            expand: true
+        });
 
-        let hbox = new St.BoxLayout({ style_class: "popup-menu-item no-padding" });
+        let hbox = new St.BoxLayout({
+            style_class: "popup-menu-item no-padding"
+        });
 
-        vbox.add(hbox, { expand: true });
+        vbox.add(hbox, {
+            expand: true
+        });
 
-        this._coverIcon = new St.Icon({ icon_size: 48 });
+        this._coverIcon = new St.Icon({
+            icon_size: 48
+        });
 
         hbox.add(this._coverIcon);
 
-        let info = new St.BoxLayout({ vertical: true });
+        let info = new St.BoxLayout({
+            vertical: true
+        });
 
-        this._trackArtist = new St.Label({ style_class: "track-artist" });
+        this._trackArtist = new St.Label({
+            style_class: "track-artist"
+        });
 
-        this._trackTitle = new St.Label({ style_class: "track-title" });
+        this._trackTitle = new St.Label({
+            style_class: "track-title"
+        });
 
-        this._trackAlbum = new St.Label({ style_class: "track-album" });
+        this._trackAlbum = new St.Label({
+            style_class: "track-album"
+        });
 
-        info.add(this._trackArtist, { expand: true, x_align: St.Align.START });
+        info.add(this._trackArtist, {
+            expand: true,
+            x_align: St.Align.START
+        });
 
-        info.add(this._trackTitle, { expand: true, x_align: St.Align.START });
+        info.add(this._trackTitle, {
+            expand: true,
+            x_align: St.Align.START
+        });
 
-        info.add(this._trackAlbum, { expand: true, x_align: St.Align.START });
+        info.add(this._trackAlbum, {
+            expand: true,
+            x_align: St.Align.START
+        });
 
-        hbox.add(info, { expand: true });
+        hbox.add(info, {
+            expand: true
+        });
 
         let playerButtonBox = new St.BoxLayout();
 
         let icon;
 
-        icon = new St.Icon({ icon_name: "media-skip-backward-symbolic",
-                             icon_size: 16 });
+        icon = new St.Icon({
+            icon_name: "media-skip-backward-symbolic",
+            icon_size: 16
+        });
 
-        this._prevButton = new St.Button({ style_class: "message-media-control",
-                                           child: icon });
+        this._prevButton = new St.Button({
+            style_class: "message-media-control",
+            child: icon
+        });
 
         playerButtonBox.add(this._prevButton);
 
-        icon = new St.Icon({ icon_name: "media-playback-start-symbolic",
-                             icon_size: 16 });
+        icon = new St.Icon({
+            icon_name: "media-playback-start-symbolic",
+            icon_size: 16
+        });
 
-        this._playPauseButton = new St.Button({ style_class: "message-media-control",
-                                                child: icon });
+        this._playPauseButton = new St.Button({
+            style_class: "message-media-control",
+            child: icon
+        });
 
         playerButtonBox.add(this._playPauseButton);
 
-        icon = new St.Icon({ icon_name: "media-skip-forward-symbolic",
-                             icon_size: 16 });
+        icon = new St.Icon({
+            icon_name: "media-skip-forward-symbolic",
+            icon_size: 16
+        });
 
-        this._nextButton = new St.Button({ style_class: "message-media-control",
-                                           child: icon });
+        this._nextButton = new St.Button({
+            style_class: "message-media-control",
+            child: icon
+        });
 
         playerButtonBox.add(this._nextButton);
 
-        vbox.add(playerButtonBox, { expand: true, x_fill: false, x_align: St.Align.MIDDLE });
+        vbox.add(playerButtonBox, {
+            expand: true,
+            x_fill: false,
+            x_align: St.Align.MIDDLE
+        });
 
         new MprisProxy(Gio.DBus.session, busName,
-                       "/org/mpris/MediaPlayer2",
-                       this._onMprisProxy.bind(this));
+            "/org/mpris/MediaPlayer2",
+            this._onMprisProxy.bind(this));
     }
 
     destroy() {
         if (this._propsChangedId) {
             this._playerProxy.disconnect(this._propsChangedId);
+            this._propsChangedId = 0;
         }
 
         if (this._themeChangeId) {
             this._themeContext.disconnect(this._themeChangeId);
+            this._themeChangeId = 0;
         }
 
         if (this._cancellable && !this._cancellable.is_cancelled()) {
             this._cancellable.cancel();
         }
-
-        this._cancellable = null;
-        this._propsChangedId = null;
-        this._playerProxy = null;
-        this._mprisProxy = null;
-        this._fallbackIconName = null;
-        this._themeContext = null;
-        this._themeChangeId = null;
 
         super.destroy();
     }
@@ -223,14 +264,16 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                     if (!newIcon.equal(icon.gicon)) {
                         icon.gicon = newIcon;
                     }
-                } catch (err) {
+                }
+                catch (err) {
                     if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
                         icon.icon_name = this._fallbackIconName;
                     }
                 }
                 this._cancellable = null;
             });
-        } else {
+        }
+        else {
             icon.icon_name = this._fallbackIconName;
         }
     }
@@ -241,7 +284,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         //For example, Pithos:
         //Desktop Entry - 'io.github.Pithos'
         //Symbolic Icon Name - 'io.github.Pithos-symbolic'
-        if (desktopEntry) { 
+        if (desktopEntry) {
             let possibleIconName = desktopEntry + '-symbolic';
             let currentIconTheme = Gtk.IconTheme.get_default();
             let IconExists = currentIconTheme.has_icon(possibleIconName);
@@ -298,15 +341,16 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this.connect("activate", () => {
                 app.activate();
             });
-        } else if (this._mprisProxy.CanRaise) {
+        }
+        else if (this._mprisProxy.CanRaise) {
             this.connect("activate", () => {
                 this._mprisProxy.RaiseRemote();
             });
         }
 
         new MprisPlayerProxy(Gio.DBus.session, this.busName,
-                             "/org/mpris/MediaPlayer2",
-                             this._onPlayerProxyReady.bind(this));
+            "/org/mpris/MediaPlayer2",
+            this._onPlayerProxyReady.bind(this));
     }
 
     _onPlayerProxyReady(playerProxy) {
@@ -325,7 +369,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
 
         this._propsChangedId = this._playerProxy.connect("g-properties-changed",
-                                                         this._update.bind(this));
+            this._update.bind(this));
 
         this._themeContext = St.ThemeContext.get_for_stage(global.stage);
 
@@ -338,11 +382,14 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._update();
     }
-};
+}
 
 class MprisIndicatorButton extends PanelMenu.Button {
     constructor() {
         super(0.0, "Mpris Indicator Button", false);
+
+        this._proxy = null;
+        this._nameOwnerChangedId = 0;
 
         this.menu.actor.add_style_class_name("aggregate-menu");
 
@@ -358,8 +405,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         menuLayout.addSizeChild(dummySizeWidget);
 
-        this._nameOwnerChangedId = null;
-
         this._indicator = new St.BoxLayout();
 
         // Manually setting the width of the indicator
@@ -374,24 +419,24 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this.actor.hide();
         this.actor.set_width(0);
 
-        let icon = new St.Icon({ icon_name: "audio-x-generic-symbolic",
-                                 style_class: "system-status-icon" });
+        let icon = new St.Icon({
+            icon_name: "audio-x-generic-symbolic",
+            style_class: "system-status-icon"
+        });
 
         this._indicator.add_child(icon);
 
-        this._proxy = new DBusProxy(Gio.DBus.session,
-                                    "org.freedesktop.DBus",
-                                    "/org/freedesktop/DBus",
-                                    this._onProxyReady.bind(this));
+        new DBusProxy(Gio.DBus.session,
+            "org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            this._onProxyReady.bind(this));
     }
 
     destroy() {
-        if (this._proxy && this._nameOwnerChangedId) {
+        if (this._nameOwnerChangedId) {
             this._proxy.disconnect(this._nameOwnerChangedId);
+            this._nameOwnerChangedId = 0;
         }
-
-        this._proxy = null;
-        this._nameOwnerChangedId = null;
 
         super.destroy();
     }
@@ -440,30 +485,35 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this._addPlayer(busName);
     }
 
-    _onNameOwnerChanged(proxy, sender, [name, oldOwner, newOwner]) {
-        if (!name.startsWith(MPRIS_PLAYER_PREFIX)) {
+    _onNameOwnerChanged(proxy, sender, [busName, oldOwner, newOwner]) {
+        if (!busName.startsWith(MPRIS_PLAYER_PREFIX)) {
             return;
-        } else if (newOwner && !oldOwner) {
-            this._addPlayer(name);
-        } else if (oldOwner && !newOwner) {
-            this._removePlayer(name);
-        } else if (oldOwner && newOwner) {
-            this._changePlayerOwner(name);
+        }
+        else if (newOwner && !oldOwner) {
+            this._addPlayer(busName);
+        }
+        else if (oldOwner && !newOwner) {
+            this._removePlayer(busName);
+        }
+        else if (oldOwner && newOwner) {
+            this._changePlayerOwner(busName);
         }
     }
 
-    _onProxyReady() {
-        this._proxy.ListNamesRemote(([names]) => {
-            names.forEach((name) => {
-                if (!name.startsWith(MPRIS_PLAYER_PREFIX)) {
+    _onProxyReady(proxy) {
+        this._proxy = proxy;
+        this._proxy.ListNamesRemote(([busNames]) => {
+            busNames.forEach((busName) => {
+                if (!busName.startsWith(MPRIS_PLAYER_PREFIX)) {
                     return;
-                } else {
-                    this._addPlayer(name);
+                }
+                else {
+                    this._addPlayer(busName);
                 }
             });
         });
 
         this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
-                                                             this._onNameOwnerChanged.bind(this));
+            this._onNameOwnerChanged.bind(this));
     }
-};
+}
