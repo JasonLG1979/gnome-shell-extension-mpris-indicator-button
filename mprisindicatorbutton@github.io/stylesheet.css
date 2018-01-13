@@ -1,10 +1,5 @@
-.media-indicator {
-    min-width: 336px;
-    max-width: 336px;
-}
-
-.cover-icon {
-    icon-size: 48px !important;
+.no-padding {
+    padding: 0 0 0 0;
 }
 
 .track-artist {

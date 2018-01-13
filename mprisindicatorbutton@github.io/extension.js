@@ -21,11 +21,13 @@
 
 const Main = imports.ui.main;
 const Gio = imports.gi.Gio;
+const Gtk = imports.gi.Gtk;
 const St = imports.gi.St;
 const Shell = imports.gi.Shell;
 
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
+const Panel = imports.ui.panel;
 
 const DBusIface = '<node> \
 <interface name="org.freedesktop.DBus"> \
@@ -101,21 +103,24 @@ function disable() {
 class Player extends PopupMenu.PopupBaseMenuItem {
     constructor(busName) {
         super();
-        this._propsChangedId = null;
         this._cancellable = null;
+        this._propsChangedId = null;
+        this._playerProxy = null;
+        this._mprisProxy = null;
+        this._fallbackIconName = null;
+        this._themeContext = null;
+        this._themeChangeId = null;
         this.busName = busName;
-
-        this.connect("activate", this._raise.bind(this));
 
         let vbox = new St.BoxLayout({ vertical: true });
 
         this.actor.add(vbox, { expand: true });
 
-        let hbox = new St.BoxLayout({ style_class: "popup-menu-item" });
+        let hbox = new St.BoxLayout({ style_class: "popup-menu-item no-padding" });
 
         vbox.add(hbox, { expand: true });
 
-        this._coverIcon = new St.Icon({ style_class: "cover-icon" });
+        this._coverIcon = new St.Icon({ icon_size: 48 });
 
         hbox.add(this._coverIcon);
 
@@ -127,17 +132,11 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._trackAlbum = new St.Label({ style_class: "track-album" });
 
-        info.add(this._trackArtist, { expand: true,
-                                      x_fill: false,
-                                      x_align: St.Align.START });
+        info.add(this._trackArtist, { expand: true, x_align: St.Align.START });
 
-        info.add(this._trackTitle, { expand: true,
-                                     x_fill: false,
-                                     x_align: St.Align.START });
+        info.add(this._trackTitle, { expand: true, x_align: St.Align.START });
 
-        info.add(this._trackAlbum, { expand: true,
-                                     x_fill: false,
-                                     x_align: St.Align.START });
+        info.add(this._trackAlbum, { expand: true, x_align: St.Align.START });
 
         hbox.add(info, { expand: true });
 
@@ -151,8 +150,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._prevButton = new St.Button({ style_class: "message-media-control",
                                            child: icon });
 
-        this._prevButton.connect("clicked", this._previous.bind(this));
-
         playerButtonBox.add(this._prevButton);
 
         icon = new St.Icon({ icon_name: "media-playback-start-symbolic",
@@ -160,8 +157,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._playPauseButton = new St.Button({ style_class: "message-media-control",
                                                 child: icon });
-
-        this._playPauseButton.connect("clicked", this._playPause.bind(this));
 
         playerButtonBox.add(this._playPauseButton);
 
@@ -171,25 +166,22 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._nextButton = new St.Button({ style_class: "message-media-control",
                                            child: icon });
 
-        this._nextButton.connect("clicked", this._next.bind(this));
-
         playerButtonBox.add(this._nextButton);
 
-        vbox.add(playerButtonBox, { expand: true,
-                                    x_fill: false,
-                                    x_align: St.Align.MIDDLE });
+        vbox.add(playerButtonBox, { expand: true, x_fill: false, x_align: St.Align.MIDDLE });
 
-        this._mprisProxy = new MprisProxy(Gio.DBus.session, busName,
-                                          "/org/mpris/MediaPlayer2");
-
-        this._playerProxy = new MprisPlayerProxy(Gio.DBus.session, busName,
-                                                 "/org/mpris/MediaPlayer2",
-                                                 this._onPlayerProxyReady.bind(this));
+        new MprisProxy(Gio.DBus.session, busName,
+                       "/org/mpris/MediaPlayer2",
+                       this._onMprisProxy.bind(this));
     }
 
     destroy() {
-        if (this._playerProxy && this._propsChangedId) {
+        if (this._propsChangedId) {
             this._playerProxy.disconnect(this._propsChangedId);
+        }
+
+        if (this._themeChangeId) {
+            this._themeContext.disconnect(this._themeChangeId);
         }
 
         if (this._cancellable && !this._cancellable.is_cancelled()) {
@@ -200,11 +192,22 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._propsChangedId = null;
         this._playerProxy = null;
         this._mprisProxy = null;
+        this._fallbackIconName = null;
+        this._themeContext = null;
+        this._themeChangeId = null;
 
         super.destroy();
     }
 
     _setCoverIcon(icon, coverUrl) {
+        // Asynchronously set the cover icon.
+        // Much more fault tolerant than:
+        //
+        // let file = Gio.File.new_for_uri(coverUrl);
+        // icon.gicon = new Gio.FileIcon({ file: file });
+        //
+        // Which silently fails on error and can lead to the wrong cover being shown.
+        // On error this will fallback gracefully to this._fallbackIconName. 
         if (this._cancellable && !this._cancellable.is_cancelled()) {
             this._cancellable.cancel();
         }
@@ -222,68 +225,51 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                     }
                 } catch (err) {
                     if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-                        icon.icon_name = "audio-x-generic-symbolic";
+                        icon.icon_name = this._fallbackIconName;
                     }
                 }
                 this._cancellable = null;
             });
         } else {
-            icon.icon_name = "audio-x-generic-symbolic";
+            icon.icon_name = this._fallbackIconName;
         }
     }
 
-    _setText(actor, text) {
-        text = text || "";
-
-        if (actor.text != text) {
-            actor.text = text;
+    _getFallbackIconName(desktopEntry) {
+        //The Player's symbolic Icon name *should* be it's
+        //Desktop Entry + '-symbolic'.
+        //For example, Pithos:
+        //Desktop Entry - 'io.github.Pithos'
+        //Symbolic Icon Name - 'io.github.Pithos-symbolic'
+        if (desktopEntry) { 
+            let possibleIconName = desktopEntry + '-symbolic';
+            let currentIconTheme = Gtk.IconTheme.get_default();
+            let IconExists = currentIconTheme.has_icon(possibleIconName);
+            if (IconExists) {
+                return possibleIconName;
+            }
         }
-    }
-
-    _previous() {
-        try {
-            this._playerProxy.PreviousRemote();
-        } catch (err) {}
-    }
-
-    _playPause() {
-        try {
-            this._playerProxy.PlayPauseRemote();
-        } catch (err) {}
-    }
-
-    _next() {
-        try {
-            this._playerProxy.NextRemote();
-        } catch (err) {}
+        return "audio-x-generic-symbolic";
     }
 
     _update() {
-        let metadata = this._playerProxy.Metadata;
+        let artist, metadata = this._playerProxy.Metadata;
 
         if (!metadata || Object.keys(metadata).length < 2) {
             metadata = {};
         }
 
-        let artist, title, album, coverUrl;
-
         artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(' / ') : "";
         artist = metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"].unpack() : artist;
         artist = artist || this._mprisProxy.Identity;
 
-        this._setText(this._trackArtist, artist);
+        this._trackArtist.text = artist;
 
-        title = metadata["xesam:title"] ? metadata["xesam:title"].unpack() : "";
+        this._trackTitle.text = metadata["xesam:title"] ? metadata["xesam:title"].unpack() : "";
 
-        this._setText(this._trackTitle, title);
+        this._trackAlbum.text = metadata["xesam:album"] ? metadata["xesam:album"].unpack() : "";
 
-        album = metadata["xesam:album"] ? metadata["xesam:album"].unpack() : "";
-
-        this._setText(this._trackAlbum, album);
-
-        coverUrl = metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "";
-
-        this._setCoverIcon(this._coverIcon, coverUrl);
+        this._setCoverIcon(this._coverIcon, metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "");
 
         let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
 
@@ -298,26 +284,58 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._nextButton.reactive = this._playerProxy.CanGoNext;
     }
 
-    _raise() {
-        try {
-            let app = null;
+    _onMprisProxy(mprisProxy) {
+        this._mprisProxy = mprisProxy;
 
-            if (this._mprisProxy.DesktopEntry) {
-                let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
-                app = Shell.AppSystem.get_default().lookup_app(desktopId);
-            }
+        let app = null;
 
-            if (app) {
+        if (this._mprisProxy.DesktopEntry) {
+            let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
+            app = Shell.AppSystem.get_default().lookup_app(desktopId);
+        }
+
+        if (app) {
+            this.connect("activate", () => {
                 app.activate();
-            } else if (this._mprisProxy.CanRaise) {
+            });
+        } else if (this._mprisProxy.CanRaise) {
+            this.connect("activate", () => {
                 this._mprisProxy.RaiseRemote();
-            }
-        } catch (err) {}
+            });
+        }
+
+        new MprisPlayerProxy(Gio.DBus.session, this.busName,
+                             "/org/mpris/MediaPlayer2",
+                             this._onPlayerProxyReady.bind(this));
     }
 
-    _onPlayerProxyReady() {
+    _onPlayerProxyReady(playerProxy) {
+        this._playerProxy = playerProxy;
+
+        this._prevButton.connect("clicked", () => {
+            this._playerProxy.PreviousRemote();
+        });
+
+        this._playPauseButton.connect("clicked", () => {
+            this._playerProxy.PlayPauseRemote();
+        });
+
+        this._nextButton.connect("clicked", () => {
+            this._playerProxy.NextRemote();
+        });
+
         this._propsChangedId = this._playerProxy.connect("g-properties-changed",
                                                          this._update.bind(this));
+
+        this._themeContext = St.ThemeContext.get_for_stage(global.stage);
+
+        this._themeChangeId = this._themeContext.connect("changed", () => {
+            this._fallbackIconName = this._getFallbackIconName(this._mprisProxy.DesktopEntry);
+            this._update();
+        });
+
+        this._fallbackIconName = this._getFallbackIconName(this._mprisProxy.DesktopEntry);
+
         this._update();
     }
 };
@@ -326,12 +344,28 @@ class MprisIndicatorButton extends PanelMenu.Button {
     constructor() {
         super(0.0, "Mpris Indicator Button", false);
 
-        this.menu.actor.add_style_class_name("aggregate-menu media-indicator");
+        this.menu.actor.add_style_class_name("aggregate-menu");
+
+        // menuLayout keeps the Indicator the same size as the
+        // system menu (aggregate menu) and makes sure our text
+        // ellipses correctly.
+        let menuLayout = new Panel.AggregateLayout();
+
+        this.menu.box.set_layout_manager(menuLayout);
+
+        // It doesn't matter what this widget is.
+        let dummySizeWidget = new St.BoxLayout();
+
+        menuLayout.addSizeChild(dummySizeWidget);
 
         this._nameOwnerChangedId = null;
 
-        this._indicator = new St.BoxLayout({ style_class: "panel-status-indicators-box" });
+        this._indicator = new St.BoxLayout();
 
+        // Manually setting the width of the indicator
+        // on hide and show should not be necessary.
+        // But for some reason it is otherwise a hidden
+        // indicator still takes up space in the panel. 
         this._indicator.hide();
         this._indicator.set_width(0);
 
