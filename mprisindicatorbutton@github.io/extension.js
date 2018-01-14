@@ -460,6 +460,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._playerIconName = getPlayerIconName(this._mprisProxy.DesktopEntry);
 
+        this.emit('active')
         this._update();
     }
 }
@@ -500,7 +501,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this.actor.set_width(0);
 
         this._indicator_icon = new St.Icon({
-            icon_name: "audio-x-generic-symbolic",
             style_class: "system-status-icon"
         });
 
@@ -535,8 +535,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
     _addPlayer(busName) {
         let player = new Player(busName);
 
-        this._indicator_icon.icon_name = getPlayerIconName(player.desktopEntry);
-
         player.connect('active', (_player) => {
             this._indicator_icon.icon_name = getPlayerIconName(_player.desktopEntry);
         });
@@ -566,7 +564,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
             this._indicator.set_width(0);
             this.actor.hide();
             this.actor.set_width(0);
-            this._indicator_icon.icon_name = "audio-x-generic-symbolic";
+            this._indicator_icon.icon_name = null;
         } else {
             this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
         }
