@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-
 "use strict";
 
 const Main = imports.ui.main;
@@ -209,7 +208,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._quitButton.hide();
 
-        hbox.add(this._quitButton, { x_align: St.Align.END });
+        hbox.add(this._quitButton, {
+            x_align: St.Align.END
+        });
 
         let playerButtonBox = new St.BoxLayout();
 
@@ -308,7 +309,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         // icon.gicon = new Gio.FileIcon({ file: file });
         //
         // Which silently fails on error and can lead to the wrong cover being shown.
-        // On error this will fallback gracefully to this._playerIconName. 
+        // On error this will fallback gracefully to this._playerIconName.
         if (this._cancellable && !this._cancellable.is_cancelled()) {
             this._cancellable.cancel();
         }
@@ -324,16 +325,14 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                     if (!newIcon.equal(icon.gicon)) {
                         icon.gicon = newIcon;
                     }
-                }
-                catch (err) {
+                } catch (err) {
                     if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
                         icon.icon_name = this._playerIconName;
                     }
                 }
                 this._cancellable = null;
             });
-        }
-        else {
+        } else {
             icon.icon_name = this._playerIconName;
         }
     }
@@ -402,8 +401,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
             if (app) {
                 app.activate();
-            }
-            else if (this._mprisProxy.CanRaise) {
+            } else if (this._mprisProxy.CanRaise) {
                 this._mprisProxy.RaiseRemote();
             }
         });
@@ -492,7 +490,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         // Manually setting the width of the indicator
         // on hide and show should not be necessary.
         // But for some reason it is, otherwise a hidden
-        // indicator still takes up space in the panel. 
+        // indicator still takes up space in the panel.
         this._indicator.hide();
         this._indicator.set_width(0);
 
@@ -533,7 +531,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         super.destroy();
     }
-
 
     _addPlayer(busName) {
         let player = new Player(busName);
@@ -615,14 +612,11 @@ class MprisIndicatorButton extends PanelMenu.Button {
     _onNameOwnerChanged(proxy, sender, [busName, oldOwner, newOwner]) {
         if (!busName.startsWith(MPRIS_PLAYER_PREFIX)) {
             return;
-        }
-        else if (newOwner && !oldOwner) {
+        } else if (newOwner && !oldOwner) {
             this._addPlayer(busName);
-        }
-        else if (oldOwner && !newOwner) {
+        } else if (oldOwner && !newOwner) {
             this._removePlayer(busName);
-        }
-        else if (oldOwner && newOwner) {
+        } else if (oldOwner && newOwner) {
             this._changePlayerOwner(busName);
         }
     }
@@ -633,8 +627,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
             busNames.forEach((busName) => {
                 if (!busName.startsWith(MPRIS_PLAYER_PREFIX)) {
                     return;
-                }
-                else {
+                } else {
                     this._addPlayer(busName);
                 }
             });
