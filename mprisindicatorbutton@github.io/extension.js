@@ -17,6 +17,8 @@
  *
  */
 
+"use strict";
+
 const Main = imports.ui.main;
 const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
@@ -76,6 +78,23 @@ let indicator = null;
 let stockMpris = null;
 let stockMprisOldShouldShow = null;
 
+function getPlayerIconName(desktopEntry) {
+    // The Player's symbolic Icon name *should* be it's
+    // Desktop Entry + '-symbolic'.
+    // For example, Pithos:
+    // Desktop Entry - 'io.github.Pithos'
+    // Symbolic Icon Name - 'io.github.Pithos-symbolic'
+    if (desktopEntry) {
+        let possibleIconName = desktopEntry + '-symbolic';
+        let currentIconTheme = Gtk.IconTheme.get_default();
+        let IconExists = currentIconTheme.has_icon(possibleIconName);
+        if (IconExists) {
+            return possibleIconName;
+        }
+    }
+    return "audio-x-generic-symbolic";
+}
+
 function enable() {
     stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
     stockMprisOldShouldShow = stockMpris._shouldShow;
@@ -110,10 +129,13 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._cancellable = null;
         this._playerProxy = null;
         this._mprisProxy = null;
-        this._fallbackIconName = null;
         this._themeContext = null;
         this._propsChangedId = 0;
         this._themeChangeId = 0;
+        this._desktopEntry = "";
+        this._playerIconName = "audio-x-generic-symbolic";
+        this._isPlaying = false;
+        this._lastActiveTime = Date.now();
         this.busName = busName;
 
         let vbox = new St.BoxLayout({
@@ -252,6 +274,14 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._onMprisProxy.bind(this));
     }
 
+    get lastActiveTime() {
+        return this._lastActiveTime;
+    }
+
+    get desktopEntry() {
+        return this._desktopEntry;
+    }
+
     destroy() {
         if (this._propsChangedId) {
             this._playerProxy.disconnect(this._propsChangedId);
@@ -278,7 +308,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         // icon.gicon = new Gio.FileIcon({ file: file });
         //
         // Which silently fails on error and can lead to the wrong cover being shown.
-        // On error this will fallback gracefully to this._fallbackIconName. 
+        // On error this will fallback gracefully to this._playerIconName. 
         if (this._cancellable && !this._cancellable.is_cancelled()) {
             this._cancellable.cancel();
         }
@@ -297,38 +327,22 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                 }
                 catch (err) {
                     if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-                        icon.icon_name = this._fallbackIconName;
+                        icon.icon_name = this._playerIconName;
                     }
                 }
                 this._cancellable = null;
             });
         }
         else {
-            icon.icon_name = this._fallbackIconName;
+            icon.icon_name = this._playerIconName;
         }
-    }
-
-    _getFallbackIconName(desktopEntry) {
-        // The Player's symbolic Icon name *should* be it's
-        // Desktop Entry + '-symbolic'.
-        // For example, Pithos:
-        // Desktop Entry - 'io.github.Pithos'
-        // Symbolic Icon Name - 'io.github.Pithos-symbolic'
-        if (desktopEntry) {
-            let possibleIconName = desktopEntry + '-symbolic';
-            let currentIconTheme = Gtk.IconTheme.get_default();
-            let IconExists = currentIconTheme.has_icon(possibleIconName);
-            if (IconExists) {
-                return possibleIconName;
-            }
-        }
-        return "audio-x-generic-symbolic";
     }
 
     _update() {
         let artist, playPauseIconName, playPauseReactive;
         let metadata = this._playerProxy.Metadata;
         let isStopped = this._playerProxy.PlaybackStatus == "Stopped";
+        let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
 
         if (!metadata || isStopped || Object.keys(metadata).length < 2) {
             metadata = {};
@@ -348,7 +362,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
             this._stopButton.hide();
-            let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
             playPauseIconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
             playPauseReactive = true;
         } else {
@@ -366,6 +379,14 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._playPauseButton.reactive = playPauseReactive;
 
         this._nextButton.reactive = this._playerProxy.CanGoNext;
+
+        if (this._isPlaying != isPlaying) {
+            this._isPlaying = isPlaying;
+            if (isPlaying) {
+                this._lastActiveTime = Date.now();
+                this.emit('active')
+            }
+        }
     }
 
     _onMprisProxy(mprisProxy) {
@@ -430,14 +451,16 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._propsChangedId = this._playerProxy.connect("g-properties-changed",
             this._update.bind(this));
 
+        this._desktopEntry = this._mprisProxy.DesktopEntry || "";
+
         this._themeContext = St.ThemeContext.get_for_stage(global.stage);
 
         this._themeChangeId = this._themeContext.connect("changed", () => {
-            this._fallbackIconName = this._getFallbackIconName(this._mprisProxy.DesktopEntry);
+            this._playerIconName = getPlayerIconName(this.desktopEntry);
             this._update();
         });
 
-        this._fallbackIconName = this._getFallbackIconName(this._mprisProxy.DesktopEntry);
+        this._playerIconName = getPlayerIconName(this._mprisProxy.DesktopEntry);
 
         this._update();
     }
@@ -478,12 +501,18 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this.actor.hide();
         this.actor.set_width(0);
 
-        let icon = new St.Icon({
+        this._indicator_icon = new St.Icon({
             icon_name: "audio-x-generic-symbolic",
             style_class: "system-status-icon"
         });
 
-        this._indicator.add_child(icon);
+        this._indicator.add_child(this._indicator_icon);
+
+        this._themeContext = St.ThemeContext.get_for_stage(global.stage);
+
+        this._themeChangeId = this._themeContext.connect("changed", () => {
+            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
+        });
 
         new DBusProxy(Gio.DBus.session,
             "org.freedesktop.DBus",
@@ -497,12 +526,25 @@ class MprisIndicatorButton extends PanelMenu.Button {
             this._nameOwnerChangedId = 0;
         }
 
+        if (this._themeChangeId) {
+            this._themeContext.disconnect(this._themeChangeId);
+            this._themeChangeId = 0;
+        }
+
         super.destroy();
     }
 
 
     _addPlayer(busName) {
-        this.menu.addMenuItem(new Player(busName));
+        let player = new Player(busName);
+
+        this._indicator_icon.icon_name = getPlayerIconName(player.desktopEntry);
+
+        player.connect('active', (_player) => {
+            this._indicator_icon.icon_name = getPlayerIconName(_player.desktopEntry);
+        });
+
+        this.menu.addMenuItem(player);
         this._indicator.show();
         this.actor.show();
         this._indicator.set_width(-1);
@@ -527,7 +569,33 @@ class MprisIndicatorButton extends PanelMenu.Button {
             this._indicator.set_width(0);
             this.actor.hide();
             this.actor.set_width(0);
+            this._indicator_icon.icon_name = "audio-x-generic-symbolic";
+        } else {
+            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
         }
+    }
+
+    _getLastActivePlayerIcon() {
+        // A player's lastActiveTime is a timestamp.
+        // A player updates it's lastActiveTime when
+        // it's created and when it goes from "Stopped"
+        // or "Paused" to "Playing". In a perfect world
+        // The last active player is the player that the
+        // user last interacted with.
+        let children = this.menu._getMenuItems();
+        let mostRecentTime = 0;
+        let desktopEntry = "";
+
+        for (let i = 0; i < children.length; i++) {
+            let player = children[i];
+            let lastActiveTime = player.lastActiveTime;
+            if (mostRecentTime < lastActiveTime) {
+                mostRecentTime = lastActiveTime;
+                desktopEntry = player.desktopEntry;
+            }
+        }
+
+        return getPlayerIconName(desktopEntry);
     }
 
     _changePlayerOwner(busName) {
