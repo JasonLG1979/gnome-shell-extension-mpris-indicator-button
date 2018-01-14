@@ -56,6 +56,8 @@ const MprisPlayerIface = '<node> \
   <method name="PlayPause" /> \
   <method name="Next" /> \
   <method name="Previous" /> \
+  <method name="Stop" /> \
+  <method name="Play" /> \
   <property name="CanGoNext" type="b" access="read" /> \
   <property name="CanGoPrevious" type="b" access="read" /> \
   <property name="CanPlay" type="b" access="read" /> \
@@ -198,6 +200,20 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         playerButtonBox.add(this._playPauseButton);
 
         icon = new St.Icon({
+            icon_name: "media-playback-stop-symbolic",
+            icon_size: 16
+        });
+
+        this._stopButton = new St.Button({
+            style_class: "message-media-control",
+            child: icon
+        });
+
+        this._stopButton.hide();
+
+        playerButtonBox.add(this._stopButton);
+
+        icon = new St.Icon({
             icon_name: "media-skip-forward-symbolic",
             icon_size: 16
         });
@@ -277,11 +293,11 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     _getFallbackIconName(desktopEntry) {
-        //The Player's symbolic Icon name *should* be it's
-        //Desktop Entry + '-symbolic'.
-        //For example, Pithos:
-        //Desktop Entry - 'io.github.Pithos'
-        //Symbolic Icon Name - 'io.github.Pithos-symbolic'
+        // The Player's symbolic Icon name *should* be it's
+        // Desktop Entry + '-symbolic'.
+        // For example, Pithos:
+        // Desktop Entry - 'io.github.Pithos'
+        // Symbolic Icon Name - 'io.github.Pithos-symbolic'
         if (desktopEntry) {
             let possibleIconName = desktopEntry + '-symbolic';
             let currentIconTheme = Gtk.IconTheme.get_default();
@@ -294,7 +310,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     _update() {
-        let artist, metadata = this._playerProxy.Metadata;
+        let artist, isPlaying, isStopped, playPauseIconName, playPauseReactive, metadata = this._playerProxy.Metadata;
 
         if (!metadata || Object.keys(metadata).length < 2) {
             metadata = {};
@@ -312,15 +328,26 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._setCoverIcon(this._coverIcon, metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "");
 
-        let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
+        isPlaying = this._playerProxy.PlaybackStatus == "Playing";
+        isStopped = this._playerProxy.PlaybackStatus == "Stopped";
 
-        let iconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
-
-        this._playPauseButton.child.icon_name = iconName;
+        if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
+            this._stopButton.hide();
+            playPauseIconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
+            playPauseReactive = true;
+        } else {
+            if (this._playerProxy.CanPlay) {
+                this._stopButton.show();
+            }
+            playPauseIconName = "media-playback-start-symbolic";
+            playPauseReactive = this._playerProxy.CanPlay;
+        }
 
         this._prevButton.reactive = this._playerProxy.CanGoPrevious;
 
-        this._playPauseButton.reactive = this._playerProxy.CanPlay || this._playerProxy.CanPause;
+        this._playPauseButton.child.icon_name = playPauseIconName;
+
+        this._playPauseButton.reactive = playPauseReactive;
 
         this._nextButton.reactive = this._playerProxy.CanGoNext;
     }
@@ -359,7 +386,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
 
         this._playPauseButton.connect("clicked", () => {
-            this._playerProxy.PlayPauseRemote();
+            if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
+                this._playerProxy.PlayPauseRemote();
+            } else if (this._playerProxy.CanPlay) {
+                this._playerProxy.PlayRemote();
+            }
+        });
+
+        this._stopButton.connect("clicked", () => {
+            this._playerProxy.StopRemote();
         });
 
         this._nextButton.connect("clicked", () => {
@@ -407,7 +442,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         // Manually setting the width of the indicator
         // on hide and show should not be necessary.
-        // But for some reason it is otherwise a hidden
+        // But for some reason it is, otherwise a hidden
         // indicator still takes up space in the panel. 
         this._indicator.hide();
         this._indicator.set_width(0);
