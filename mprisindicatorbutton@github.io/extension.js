@@ -310,9 +310,11 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     _update() {
-        let artist, isPlaying, isStopped, playPauseIconName, playPauseReactive, metadata = this._playerProxy.Metadata;
+        let artist, playPauseIconName, playPauseReactive;
+        let metadata = this._playerProxy.Metadata;
+        let isStopped = this._playerProxy.PlaybackStatus == "Stopped";
 
-        if (!metadata || Object.keys(metadata).length < 2) {
+        if (!metadata || isStopped || Object.keys(metadata).length < 2) {
             metadata = {};
         }
 
@@ -328,11 +330,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._setCoverIcon(this._coverIcon, metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "");
 
-        isPlaying = this._playerProxy.PlaybackStatus == "Playing";
-        isStopped = this._playerProxy.PlaybackStatus == "Stopped";
-
         if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
             this._stopButton.hide();
+            let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
             playPauseIconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
             playPauseReactive = true;
         } else {
