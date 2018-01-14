@@ -44,7 +44,9 @@ const DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBusIface);
 const MprisIface = '<node> \
 <interface name="org.mpris.MediaPlayer2"> \
   <method name="Raise" /> \
+  <method name="Quit" /> \
   <property name="CanRaise" type="b" access="read" /> \
+  <property name="CanQuit" type="b" access="read" /> \
   <property name="Identity" type="s" access="read" />\
   <property name="DesktopEntry" type="s" access="read" /> \
 </interface> \
@@ -171,9 +173,23 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             expand: true
         });
 
-        let playerButtonBox = new St.BoxLayout();
-
         let icon;
+
+        icon = new St.Icon({
+            icon_name: "window-close-symbolic",
+            icon_size: 16
+        });
+
+        this._quitButton = new St.Button({
+            style_class: "message-media-control no-padding",
+            child: icon
+        });
+
+        this._quitButton.hide();
+
+        hbox.add(this._quitButton, { x_align: St.Align.END });
+
+        let playerButtonBox = new St.BoxLayout();
 
         icon = new St.Icon({
             icon_name: "media-skip-backward-symbolic",
@@ -355,23 +371,33 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     _onMprisProxy(mprisProxy) {
         this._mprisProxy = mprisProxy;
 
-        let app = null;
+        this.connect("activate", () => {
+            let app = null;
 
-        if (this._mprisProxy.DesktopEntry) {
-            let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
-            app = Shell.AppSystem.get_default().lookup_app(desktopId);
-        }
+            if (this._mprisProxy.DesktopEntry) {
+                let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
+                app = Shell.AppSystem.get_default().lookup_app(desktopId);
+            }
 
-        if (app) {
-            this.connect("activate", () => {
+            if (app) {
                 app.activate();
-            });
-        }
-        else if (this._mprisProxy.CanRaise) {
-            this.connect("activate", () => {
+            }
+            else if (this._mprisProxy.CanRaise) {
                 this._mprisProxy.RaiseRemote();
-            });
-        }
+            }
+        });
+
+        this._quitButton.connect("clicked", () => {
+            this._mprisProxy.QuitRemote();
+        });
+
+        this.actor.connect("notify::hover", (actor) => {
+            if (actor.hover && this._mprisProxy.CanQuit) {
+                this._quitButton.show();
+            } else {
+                this._quitButton.hide();
+            }
+        });
 
         new MprisPlayerProxy(Gio.DBus.session, this.busName,
             "/org/mpris/MediaPlayer2",
