@@ -8,9 +8,6 @@
 ## Why GNOME Shell 3.26+?
 This extension uses native JavaScript(ES6) Classes and therefore is incompatible with GNOME Shell < 3.26.
 
-## Features
-- <b>Smart player controls:</b> Most modern players don't really have a concept of Stop with the exception of players that play continuous streams that can't be paused (like internet radio). So for the most part a Stop Button is not needed, but when it is, not having one can really suck. So the Stop Button is shown when it's needed and hidden when it's not.
-
 ## Why does my favorite player not work as expected?
 This extension is a pretty by the book and very basic MPRIS implementation. Most players should just work. If something doesn't work as expected with your favorite player, I'm sorry, but to put it bluntly, your favorite player is broken. You should file a bug against your favorite player. Player bugs will not be worked around in this extension. They must be fixed upstream.
 
