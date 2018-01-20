@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ * If this extension breaks your desktop you get to keep both pieces...
  */
 "use strict";
 
@@ -28,67 +29,85 @@ const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const Panel = imports.ui.panel;
 
-const DBusIface = '<node> \
-<interface name="org.freedesktop.DBus"> \
-  <method name="ListNames"> \
-    <arg type="as" direction="out" name="names" /> \
-  </method> \
-  <signal name="NameOwnerChanged"> \
-    <arg type="s" direction="out" name="name" /> \
-    <arg type="s" direction="out" name="oldOwner" /> \
-    <arg type="s" direction="out" name="newOwner" /> \
-  </signal> \
-</interface> \
-</node>';
+const DBusIface = `<node>
+<interface name="org.freedesktop.DBus">
+  <method name="ListNames">
+    <arg type="as" direction="out" name="names" />
+  </method>
+  <signal name="NameOwnerChanged">
+    <arg type="s" direction="out" name="name" />
+    <arg type="s" direction="out" name="oldOwner" />
+    <arg type="s" direction="out" name="newOwner" />
+  </signal>
+</interface>
+</node>`;
 const DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBusIface);
 
-const MprisIface = '<node> \
-<interface name="org.mpris.MediaPlayer2"> \
-  <method name="Raise" /> \
-  <method name="Quit" /> \
-  <property name="CanRaise" type="b" access="read" /> \
-  <property name="CanQuit" type="b" access="read" /> \
-  <property name="Identity" type="s" access="read" />\
-  <property name="DesktopEntry" type="s" access="read" /> \
-</interface> \
-</node>';
+const MprisIface = `<node>
+<interface name="org.mpris.MediaPlayer2">
+  <method name="Raise" />
+  <method name="Quit" />
+  <property name="CanRaise" type="b" access="read" />
+  <property name="CanQuit" type="b" access="read" />
+  <property name="Identity" type="s" access="read" />
+  <property name="DesktopEntry" type="s" access="read" />
+</interface>
+</node>`;
 const MprisProxy = Gio.DBusProxy.makeProxyWrapper(MprisIface);
 
-const MprisPlayerIface = '<node> \
-<interface name="org.mpris.MediaPlayer2.Player"> \
-  <method name="PlayPause" /> \
-  <method name="Next" /> \
-  <method name="Previous" /> \
-  <method name="Stop" /> \
-  <method name="Play" /> \
-  <property name="CanGoNext" type="b" access="read" /> \
-  <property name="CanGoPrevious" type="b" access="read" /> \
-  <property name="CanPlay" type="b" access="read" /> \
-  <property name="CanPause" type="b" access="read" /> \
-  <property name="Metadata" type="a{sv}" access="read" /> \
-  <property name="PlaybackStatus" type="s" access="read" /> \
-</interface> \
-</node>';
+const MprisPlayerIface = `<node>
+<interface name="org.mpris.MediaPlayer2.Player">
+  <method name="PlayPause" />
+  <method name="Next" />
+  <method name="Previous" />
+  <method name="Stop" />
+  <method name="Play" />
+  <property name="CanGoNext" type="b" access="read" />
+  <property name="CanGoPrevious" type="b" access="read" />
+  <property name="CanPlay" type="b" access="read" />
+  <property name="CanPause" type="b" access="read" />
+  <property name="Metadata" type="a{sv}" access="read" />
+  <property name="PlaybackStatus" type="s" access="read" />
+</interface>
+</node>`;
 const MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(MprisPlayerIface);
 
-const MPRIS_PLAYER_PREFIX = 'org.mpris.MediaPlayer2.';
+const MPRIS_PLAYER_PREFIX = "org.mpris.MediaPlayer2.";
 
 let indicator = null;
 let stockMpris = null;
 let stockMprisOldShouldShow = null;
 
 function getPlayerIconName(desktopEntry) {
-    // The Player's symbolic Icon name *should* be it's
-    // Desktop Entry + '-symbolic'.
-    // For example, Pithos:
-    // Desktop Entry - 'io.github.Pithos'
-    // Symbolic Icon Name - 'io.github.Pithos-symbolic'
+    // Prefer symbolic icons.
+    // The default Spotify icon name is spotify-client,
+    // but the desktop entry is spotify.
+    // Icon names *should* match the desktop entry...
+    // Who knows if a 3rd party icon theme wil use spotify
+    // or spotify-client as their spotify icon's name and
+    // what they'll name their Spotify symbolic icon if
+    // they have one at all?
     if (desktopEntry) {
-        let possibleIconName = desktopEntry + '-symbolic';
+        let possibleIconNames = [];
+        if (desktopEntry.toLowerCase() === "spotify") {
+            possibleIconNames = [desktopEntry + "-symbolic",
+                desktopEntry + "-client-symbolic",
+                desktopEntry + "-client",
+                desktopEntry
+            ];
+        } else {
+            possibleIconNames = [desktopEntry + "-symbolic",
+                desktopEntry
+            ];
+        }
+
         let currentIconTheme = Gtk.IconTheme.get_default();
-        let IconExists = currentIconTheme.has_icon(possibleIconName);
-        if (IconExists) {
-            return possibleIconName;
+
+        for (let i = 0; i < possibleIconNames.length; i++) {
+            let iconName = possibleIconNames[i];
+            if (currentIconTheme.has_icon(iconName)) {
+                return iconName;
+            }
         }
     }
     return "audio-x-generic-symbolic";
@@ -129,12 +148,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._playerProxy = null;
         this._mprisProxy = null;
         this._themeContext = null;
+        this._status = null;
         this._propsChangedId = 0;
         this._themeChangeId = 0;
+        this._lastActiveTime = Date.now();
         this._desktopEntry = "";
         this._playerIconName = "audio-x-generic-symbolic";
-        this._isPlaying = false;
-        this._lastActiveTime = Date.now();
         this.busName = busName;
 
         let vbox = new St.BoxLayout({
@@ -279,6 +298,16 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return this._lastActiveTime;
     }
 
+    get statusValue() {
+        if (this._status === "Playing") {
+            return 0;
+        } else if (this._status === "Paused") {
+            return 1;
+        } else {
+            return 2;
+        }
+    }
+
     get desktopEntry() {
         return this._desktopEntry;
     }
@@ -340,14 +369,14 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     _update() {
         let artist, playPauseIconName, playPauseReactive;
         let metadata = this._playerProxy.Metadata;
-        let isStopped = this._playerProxy.PlaybackStatus == "Stopped";
-        let isPlaying = this._playerProxy.PlaybackStatus == "Playing";
+        let isStopped = this._playerProxy.PlaybackStatus === "Stopped";
+        let isPlaying = this._playerProxy.PlaybackStatus === "Playing";
 
         if (!metadata || isStopped || Object.keys(metadata).length < 2) {
             metadata = {};
         }
 
-        artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(' / ') : "";
+        artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(" / ") : "";
         artist = metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"].unpack() : artist;
         artist = artist || this._mprisProxy.Identity;
 
@@ -379,12 +408,10 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._nextButton.reactive = this._playerProxy.CanGoNext;
 
-        if (this._isPlaying != isPlaying) {
-            this._isPlaying = isPlaying;
-            if (isPlaying) {
-                this._lastActiveTime = Date.now();
-                this.emit('active')
-            }
+        if (this._status !== this._playerProxy.PlaybackStatus) {
+            this._status = this._playerProxy.PlaybackStatus;
+            this._lastActiveTime = Date.now();
+            this.emit("update");
         }
     }
 
@@ -459,8 +486,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
 
         this._playerIconName = getPlayerIconName(this._mprisProxy.DesktopEntry);
-
-        this.emit('active')
         this._update();
     }
 }
@@ -471,6 +496,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this._proxy = null;
         this._nameOwnerChangedId = 0;
+        this._checkForPreExistingPlayers = false;
 
         this.menu.actor.add_style_class_name("aggregate-menu");
 
@@ -535,15 +561,15 @@ class MprisIndicatorButton extends PanelMenu.Button {
     _addPlayer(busName) {
         let player = new Player(busName);
 
-        player.connect('active', (_player) => {
-            this._indicator_icon.icon_name = getPlayerIconName(_player.desktopEntry);
+        player.connect("update", () => {
+            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
+            this._indicator.show();
+            this.actor.show();
+            this._indicator.set_width(-1);
+            this.actor.set_width(-1);
         });
 
         this.menu.addMenuItem(player);
-        this._indicator.show();
-        this.actor.show();
-        this._indicator.set_width(-1);
-        this.actor.set_width(-1);
     }
 
     _removePlayer(busName) {
@@ -551,15 +577,13 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         for (let i = 0; i < children.length; i++) {
             let player = children[i];
-            if (busName == player.busName) {
+            if (busName === player.busName) {
                 player.destroy();
                 break;
             }
         }
 
-        children = this.menu._getMenuItems();
-
-        if (children.length < 1) {
+        if (this.menu.isEmpty()) {
             this._indicator.hide();
             this._indicator.set_width(0);
             this.actor.hide();
@@ -570,27 +594,73 @@ class MprisIndicatorButton extends PanelMenu.Button {
         }
     }
 
-    _getLastActivePlayerIcon() {
-        // A player's lastActiveTime is a timestamp.
-        // A player updates it's lastActiveTime when
-        // it's created and when it goes from "Stopped"
-        // or "Paused" to "Playing". In a perfect world
-        // The last active player is the player that the
-        // user last interacted with.
-        let children = this.menu._getMenuItems();
-        let mostRecentTime = 0;
-        let desktopEntry = "";
-
-        for (let i = 0; i < children.length; i++) {
-            let player = children[i];
-            let lastActiveTime = player.lastActiveTime;
-            if (mostRecentTime < lastActiveTime) {
-                mostRecentTime = lastActiveTime;
-                desktopEntry = player.desktopEntry;
+    _byStatusAndTime(a, b) {
+        if (a.statusValue < b.statusValue) {
+            return -1;
+        } else if (a.statusValue > b.statusValue) {
+            return 1;
+        } else {
+            if (a.lastActiveTime > b.lastActiveTime) {
+                return -1;
+            } else if (a.lastActiveTime < b.lastActiveTime) {
+                return 1;
+            } else {
+                return 0;
             }
         }
+    }
 
-        return getPlayerIconName(desktopEntry);
+    _averageLastActiveTimeDelta(players) {
+        let values = players.map(player => player.lastActiveTime);
+        let len = values.length;
+        let avg = values.reduce((sum, value) => sum + value) / len;
+        let deltas = values.map(value => Math.abs(value - avg));
+        let avgDelta = deltas.reduce((sum, value) => sum + value) / len;
+        return avgDelta;
+    }
+
+    _getLastActivePlayerIcon() {
+        // During the course of normal operation
+        // the active player is defined by the player
+        // with the highest priority status (Playing, Paused or Stopped).
+        // In the case that multiple players have the same status they will
+        // be sub sorted by their lastActiveTime time stamp.
+        // A lone single player will of course always be the active player.
+        // Things get a little more complicated when/if the extension is
+        // enabled with pre existing players present. At that point
+        // their lastActiveTimes are invalid for the purpose of sub sorting
+        // and in the case of a status "tie" we use the generic audio icon.
+        // _averageLastActiveTimeDelta is used to determine when to return to
+        // normal behavior. The theory is that pre existing players will have
+        // a much, much smaller average time stamp delta initially and then
+        // it will become larger once the player is actually interacted with.
+        let iconName = "audio-x-generic-symbolic";
+        if (!this.menu.isEmpty()) {
+            let players = this.menu._getMenuItems();
+            if (players.length === 1) {
+                iconName = getPlayerIconName(players[0].desktopEntry);
+            } else if (this._checkForPreExistingPlayers) {
+                if (this._averageLastActiveTimeDelta(players) < 250) {
+                    let playing = players.filter(player => player.statusValue === 0);
+                    if (playing.length === 1) {
+                        iconName = getPlayerIconName(playing[0].desktopEntry);
+                    } else if (playing.length === 0) {
+                        let paused = players.filter(player => player.statusValue === 1);
+                        if (paused.length === 1) {
+                            iconName = getPlayerIconName(paused[0].desktopEntry);
+                        }
+                    }
+                } else {
+                    this._checkForPreExistingPlayers = false;
+                    players.sort(this._byStatusAndTime);
+                    iconName = getPlayerIconName(players[0].desktopEntry);
+                }
+            } else {
+                players.sort(this._byStatusAndTime);
+                iconName = getPlayerIconName(players[0].desktopEntry);
+            }
+        }
+        return iconName;
     }
 
     _changePlayerOwner(busName) {
@@ -598,12 +668,11 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         for (let i = 0; i < children.length; i++) {
             let player = children[i];
-            if (busName == player.busName) {
+            if (busName === player.busName) {
                 player.destroy();
                 break;
             }
         }
-
         this._addPlayer(busName);
     }
 
@@ -622,13 +691,12 @@ class MprisIndicatorButton extends PanelMenu.Button {
     _onProxyReady(proxy) {
         this._proxy = proxy;
         this._proxy.ListNamesRemote(([busNames]) => {
-            busNames.forEach((busName) => {
-                if (!busName.startsWith(MPRIS_PLAYER_PREFIX)) {
-                    return;
-                } else {
-                    this._addPlayer(busName);
-                }
-            });
+            busNames = busNames.filter(name => name.startsWith(MPRIS_PLAYER_PREFIX));
+            busNames.sort();
+            if (busNames.length > 0) {
+                this._checkForPreExistingPlayers = true;
+            }
+            busNames.forEach(busName => this._addPlayer(busName));
         });
 
         this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
