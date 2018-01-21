@@ -6,15 +6,15 @@
 ![Screenshot](https://github.com/JasonLG1979/gnome-shell-extensions-mpris-indicator-button/blob/master/data/Screenshot.png)
 
 ## Why GNOME Shell 3.26+?
-This extension uses native JavaScript(ES6) Classes and therefore is incompatible with GNOME Shell < 3.26.
+This extension uses native JavaScript(ES6) features incompatible with GNOME Shell < 3.26.
 
 ## Why does my favorite player not work as expected?
-This extension is a pretty by the book and very basic MPRIS implementation. Most players should just work. If something doesn't work as expected with your favorite player, I'm sorry, but to put it bluntly, your favorite player is broken. You should file a bug against your favorite player. Player bugs will not be worked around in this extension. They must be fixed upstream.
+This extension is a pretty by the book and very basic MPRIS implementation. Most players should just work. If something doesn't work as expected with your favorite player, I'm sorry, but to put it bluntly, your favorite player is broken. You should file a bug against your favorite player.
 
 ## Can you or I add this new feature or functionality?
-No. This extension is purposely very simple. There are no plans to add any additional features or functionality. If you want features see [gnome-shell-extensions-mediaplayer](https://github.com/JasonLG1979/gnome-shell-extensions-mediaplayer).
+No. This extension is purposely very simple. There are no plans to add any additional features or functionality. If you want more features see [gnome-shell-extensions-mediaplayer](https://github.com/JasonLG1979/gnome-shell-extensions-mediaplayer).
 
-That is not to say that I am not interested in improving/fixing the existing code. I am always interested in improving code correctness, clearity and efficiency (in that order), and fixing bugs.
+That is not to say that I am not interested in improving/fixing the existing code. I am always interested in improving code correctness, clearity efficiency, and fixing bugs of course.
  
 ## Authors
   * JasonLG1979 (Jason Gray)
