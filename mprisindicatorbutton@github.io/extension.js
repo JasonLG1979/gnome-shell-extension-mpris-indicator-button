@@ -154,7 +154,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._lastActiveTime = Date.now();
         this._desktopEntry = "";
         this._playerIconName = "audio-x-generic-symbolic";
-        this.busName = busName;
+        this._busName = busName;
 
         let vbox = new St.BoxLayout({
             vertical: true
@@ -312,6 +312,10 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return this._desktopEntry;
     }
 
+    get busName() {
+        return this._busName;
+    }
+
     destroy() {
         if (this._propsChangedId) {
             this._playerProxy.disconnect(this._propsChangedId);
@@ -343,10 +347,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._cancellable.cancel();
         }
 
-        this._cancellable = new Gio.Cancellable();
-
         if (coverUrl) {
             let file = Gio.File.new_for_uri(coverUrl);
+            this._cancellable = new Gio.Cancellable();
             file.load_contents_async(this._cancellable, (source, result) => {
                 try {
                     let bytes = source.load_contents_finish(result)[1];
@@ -363,6 +366,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             });
         } else {
             icon.icon_name = this._playerIconName;
+            this._cancellable = null;
         }
     }
 
@@ -445,7 +449,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             }
         });
 
-        new MprisPlayerProxy(Gio.DBus.session, this.busName,
+        new MprisPlayerProxy(Gio.DBus.session, this._busName,
             "/org/mpris/MediaPlayer2",
             this._onPlayerProxyReady.bind(this));
     }
@@ -498,6 +502,8 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this._nameOwnerChangedId = 0;
         this._checkForPreExistingPlayers = false;
 
+        this.actor.hide();
+
         this.menu.actor.add_style_class_name("aggregate-menu");
 
         // menuLayout keeps the Indicator the same size as the
@@ -512,25 +518,11 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         menuLayout.addSizeChild(dummySizeWidget);
 
-        this._indicator = new St.BoxLayout();
-
-        // Manually setting the width of the indicator
-        // on hide and show should not be necessary.
-        // But for some reason it is, otherwise a hidden
-        // indicator still takes up space in the panel.
-        this._indicator.hide();
-        this._indicator.set_width(0);
-
-        this.actor.add_child(this._indicator);
-
-        this.actor.hide();
-        this.actor.set_width(0);
-
         this._indicator_icon = new St.Icon({
             style_class: "system-status-icon"
         });
 
-        this._indicator.add_child(this._indicator_icon);
+        this.actor.add_child(this._indicator_icon);
 
         this._themeContext = St.ThemeContext.get_for_stage(global.stage);
 
@@ -563,10 +555,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         player.connect("update", () => {
             this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
-            this._indicator.show();
             this.actor.show();
-            this._indicator.set_width(-1);
-            this.actor.set_width(-1);
         });
 
         this.menu.addMenuItem(player);
@@ -584,10 +573,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         }
 
         if (this.menu.isEmpty()) {
-            this._indicator.hide();
-            this._indicator.set_width(0);
             this.actor.hide();
-            this.actor.set_width(0);
             this._indicator_icon.icon_name = null;
         } else {
             this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
