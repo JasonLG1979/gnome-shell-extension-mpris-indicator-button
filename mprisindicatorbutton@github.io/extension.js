@@ -370,27 +370,56 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         }
     }
 
-    _update() {
-        let artist, playPauseIconName, playPauseReactive;
-        let metadata = this._playerProxy.Metadata;
-        let isStopped = this._playerProxy.PlaybackStatus === "Stopped";
-        let isPlaying = this._playerProxy.PlaybackStatus === "Playing";
+    _update(proxy, props) {
+        props = Object.keys(props.deep_unpack());
 
-        if (!metadata || isStopped || Object.keys(metadata).length < 2) {
-            metadata = {};
+        if (props.includes("Metadata")) {
+            this._updateMetadata();
         }
 
-        artist = metadata["xesam:artist"] ? metadata["xesam:artist"].deep_unpack().join(" / ") : "";
-        artist = metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"].unpack() : artist;
-        artist = artist || this._mprisProxy.Identity;
+        if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
+            this._updateProps();
+        }
+    }
 
-        this._trackArtist.text = artist;
+    _updateMetadata() {
+        let artist = null;
+        let title = null;
+        let album = null;
+        let coverUrl = null;
+        let metadata = this._playerProxy.Metadata || {};
+        let metadataKeys = Object.keys(metadata);
+        let notStopped = this._playerProxy.PlaybackStatus.match(/^(Playing|Paused)$/);
 
-        this._trackTitle.text = metadata["xesam:title"] ? metadata["xesam:title"].unpack() : "";
+        if (notStopped) {
+            if (metadataKeys.includes("rhythmbox:streamTitle")) {
+                artist = metadata["rhythmbox:streamTitle"].unpack();
+            } else if (metadataKeys.includes("xesam:artist")) {
+                artist = metadata["xesam:artist"].deep_unpack().join(" / ");
+            }
 
-        this._trackAlbum.text = metadata["xesam:album"] ? metadata["xesam:album"].unpack() : "";
+            if (metadataKeys.includes("xesam:title")) {
+                title = metadata["xesam:title"].unpack();
+            }
 
-        this._setCoverIcon(this._coverIcon, metadata["mpris:artUrl"] ? metadata["mpris:artUrl"].unpack() : "");
+            if (metadataKeys.includes("xesam:album")) {
+                album = metadata["xesam:album"].unpack();
+            }
+
+            if (metadataKeys.includes("mpris:artUrl")) {
+                coverUrl = metadata["mpris:artUrl"].unpack();
+            }
+        }
+
+        this._trackArtist.text = artist || this._mprisProxy.Identity;
+        this._trackTitle.text = title;
+        this._trackAlbum.text = album;
+        this._setCoverIcon(this._coverIcon, coverUrl);
+    }
+
+    _updateProps() {
+        let playPauseIconName, playPauseReactive;
+        let isPlaying = this._playerProxy.PlaybackStatus === "Playing";
 
         if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
             this._stopButton.hide();
@@ -486,11 +515,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._themeChangeId = this._themeContext.connect("changed", () => {
             this._playerIconName = getPlayerIconName(this.desktopEntry);
-            this._update();
+            this._updateMetadata();
         });
 
-        this._playerIconName = getPlayerIconName(this._mprisProxy.DesktopEntry);
-        this._update();
+        this._playerIconName = getPlayerIconName(this._desktopEntry);
+        this._updateMetadata();
+        this._updateProps();
     }
 }
 
