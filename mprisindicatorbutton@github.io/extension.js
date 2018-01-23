@@ -92,8 +92,8 @@ function getPlayerIconName(desktopEntry) {
         if (desktopEntry.toLowerCase() === "spotify") {
             possibleIconNames = [desktopEntry + "-symbolic",
                 desktopEntry + "-client-symbolic",
-                desktopEntry + "-client",
-                desktopEntry
+                desktopEntry,
+                desktopEntry + "-client"
             ];
         } else {
             possibleIconNames = [desktopEntry + "-symbolic",
