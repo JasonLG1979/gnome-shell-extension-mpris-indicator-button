@@ -144,11 +144,13 @@ function disable() {
 class Player extends PopupMenu.PopupBaseMenuItem {
     constructor(busName) {
         super();
+        this._app = null;
         this._cancellable = null;
         this._playerProxy = null;
         this._mprisProxy = null;
         this._themeContext = null;
         this._status = null;
+        this._hoverId = 0;
         this._propsChangedId = 0;
         this._themeChangeId = 0;
         this._lastActiveTime = Date.now();
@@ -327,6 +329,11 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._themeChangeId = 0;
         }
 
+        if (this._hoverId) {
+            this.actor.disconnect(this._hoverId);
+            this._hoverId = 0;
+        }
+
         if (this._cancellable && !this._cancellable.is_cancelled()) {
             this._cancellable.cancel();
         }
@@ -450,28 +457,27 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
     _onMprisProxy(mprisProxy) {
         this._mprisProxy = mprisProxy;
+        let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
+        this._app = Shell.AppSystem.get_default().lookup_app(desktopId);
 
         this.connect("activate", () => {
-            let app = null;
-
-            if (this._mprisProxy.DesktopEntry) {
-                let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
-                app = Shell.AppSystem.get_default().lookup_app(desktopId);
-            }
-
-            if (app) {
-                app.activate();
+            if (this._app) {
+                this._app.activate();
             } else if (this._mprisProxy.CanRaise) {
                 this._mprisProxy.RaiseRemote();
             }
         });
 
         this._quitButton.connect("clicked", () => {
-            this._mprisProxy.QuitRemote();
+            if (this._mprisProxy.CanQuit) {
+                this._mprisProxy.QuitRemote();
+            } else if (this._app) {
+                this._app.request_quit();
+            }
         });
 
-        this.actor.connect("notify::hover", (actor) => {
-            if (actor.hover && this._mprisProxy.CanQuit) {
+        this._hoverId = this.actor.connect("notify::hover", (actor) => {
+            if (actor.hover && (this._mprisProxy.CanQuit || this._app)) {
                 this._quitButton.show();
             } else {
                 this._quitButton.hide();
