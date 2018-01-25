@@ -148,11 +148,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._cancellable = null;
         this._playerProxy = null;
         this._mprisProxy = null;
-        this._themeContext = null;
         this._status = null;
-        this._hoverId = 0;
-        this._propsChangedId = 0;
-        this._themeChangeId = 0;
+        this._signals = [];
         this._lastActiveTime = Date.now();
         this._desktopEntry = "";
         this._playerIconName = "audio-x-generic-symbolic";
@@ -318,27 +315,27 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return this._busName;
     }
 
+    pushSignal(obj, signalId) {
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
+        });
+    }
+
     destroy() {
-        if (this._propsChangedId) {
-            this._playerProxy.disconnect(this._propsChangedId);
-            this._propsChangedId = 0;
-        }
-
-        if (this._themeChangeId) {
-            this._themeContext.disconnect(this._themeChangeId);
-            this._themeChangeId = 0;
-        }
-
-        if (this._hoverId) {
-            this.actor.disconnect(this._hoverId);
-            this._hoverId = 0;
-        }
-
         if (this._cancellable && !this._cancellable.is_cancelled()) {
             this._cancellable.cancel();
         }
 
+        this._disconnectSignals();
         super.destroy();
+    }
+
+    _disconnectSignals() {
+        if (this._signals) {
+            this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
+        }
+        this._signals = null;
     }
 
     _setCoverIcon(icon, coverUrl) {
@@ -460,29 +457,29 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         let desktopId = this._mprisProxy.DesktopEntry + ".desktop";
         this._app = Shell.AppSystem.get_default().lookup_app(desktopId);
 
-        this.connect("activate", () => {
+        this.pushSignal(this, this.connect("activate", () => {
             if (this._app) {
                 this._app.activate();
             } else if (this._mprisProxy.CanRaise) {
                 this._mprisProxy.RaiseRemote();
             }
-        });
+        }));
 
-        this._quitButton.connect("clicked", () => {
+        this.pushSignal(this._quitButton, this._quitButton.connect("clicked", () => {
             if (this._mprisProxy.CanQuit) {
                 this._mprisProxy.QuitRemote();
             } else if (this._app) {
                 this._app.request_quit();
             }
-        });
+        }));
 
-        this._hoverId = this.actor.connect("notify::hover", (actor) => {
+        this.pushSignal(this.actor, this.actor.connect("notify::hover", (actor) => {
             if (actor.hover && (this._mprisProxy.CanQuit || this._app)) {
                 this._quitButton.show();
             } else {
                 this._quitButton.hide();
             }
-        });
+        }));
 
         new MprisPlayerProxy(Gio.DBus.session, this._busName,
             "/org/mpris/MediaPlayer2",
@@ -492,37 +489,37 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     _onPlayerProxyReady(playerProxy) {
         this._playerProxy = playerProxy;
 
-        this._prevButton.connect("clicked", () => {
+        this.pushSignal(this._prevButton, this._prevButton.connect("clicked", () => {
             this._playerProxy.PreviousRemote();
-        });
+        }));
 
-        this._playPauseButton.connect("clicked", () => {
+        this.pushSignal(this._playPauseButton, this._playPauseButton.connect("clicked", () => {
             if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
                 this._playerProxy.PlayPauseRemote();
             } else if (this._playerProxy.CanPlay) {
                 this._playerProxy.PlayRemote();
             }
-        });
+        }));
 
-        this._stopButton.connect("clicked", () => {
+        this.pushSignal(this._stopButton, this._stopButton.connect("clicked", () => {
             this._playerProxy.StopRemote();
-        });
+        }));
 
-        this._nextButton.connect("clicked", () => {
+        this.pushSignal(this._nextButton, this._nextButton.connect("clicked", () => {
             this._playerProxy.NextRemote();
-        });
+        }));
 
-        this._propsChangedId = this._playerProxy.connect("g-properties-changed",
-            this._update.bind(this));
+        this.pushSignal(this._playerProxy, this._playerProxy.connect("g-properties-changed",
+            this._update.bind(this)));
 
         this._desktopEntry = this._mprisProxy.DesktopEntry || "";
 
-        this._themeContext = St.ThemeContext.get_for_stage(global.stage);
+        let themeContext = St.ThemeContext.get_for_stage(global.stage);
 
-        this._themeChangeId = this._themeContext.connect("changed", () => {
+        this.pushSignal(themeContext, themeContext.connect("changed", () => {
             this._playerIconName = getPlayerIconName(this.desktopEntry);
             this._updateMetadata();
-        });
+        }));
 
         this._playerIconName = getPlayerIconName(this._desktopEntry);
         this._updateMetadata();
@@ -535,7 +532,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         super(0.0, "Mpris Indicator Button", false);
 
         this._proxy = null;
-        this._nameOwnerChangedId = 0;
+        this._signals = [];
         this._checkForPreExistingPlayers = false;
 
         this.actor.hide();
@@ -560,11 +557,11 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this.actor.add_child(this._indicator_icon);
 
-        this._themeContext = St.ThemeContext.get_for_stage(global.stage);
+        let themeContext = St.ThemeContext.get_for_stage(global.stage);
 
-        this._themeChangeId = this._themeContext.connect("changed", () => {
+        this.pushSignal(themeContext, themeContext.connect("changed", () => {
             this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
-        });
+        }));
 
         new DBusProxy(Gio.DBus.session,
             "org.freedesktop.DBus",
@@ -573,26 +570,31 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     destroy() {
-        if (this._nameOwnerChangedId) {
-            this._proxy.disconnect(this._nameOwnerChangedId);
-            this._nameOwnerChangedId = 0;
-        }
-
-        if (this._themeChangeId) {
-            this._themeContext.disconnect(this._themeChangeId);
-            this._themeChangeId = 0;
-        }
-
+        this._disconnectSignals();
         super.destroy();
+    }
+
+    pushSignal(obj, signalId) {
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
+        });
+    }
+
+    _disconnectSignals() {
+        if (this._signals) {
+            this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
+        }
+        this._signals = null;
     }
 
     _addPlayer(busName) {
         let player = new Player(busName);
 
-        player.connect("update", () => {
+        player.pushSignal(player, player.connect("update", () => {
             this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
             this.actor.show();
-        });
+        }));
 
         this.menu.addMenuItem(player);
     }
@@ -721,7 +723,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
             busNames.forEach(busName => this._addPlayer(busName));
         });
 
-        this._nameOwnerChangedId = this._proxy.connectSignal("NameOwnerChanged",
-            this._onNameOwnerChanged.bind(this));
+        this.pushSignal(this._proxy, this._proxy.connectSignal("NameOwnerChanged",
+            this._onNameOwnerChanged.bind(this)));
     }
 }
