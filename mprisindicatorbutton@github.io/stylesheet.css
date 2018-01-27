@@ -2,6 +2,10 @@
     padding: 0 0 0 0;
 }
 
+.no-right-padding {
+    padding-right: 0;
+}
+
 .track-artist {
     font-weight: bold;
 }
