@@ -501,10 +501,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this.menu.box.set_layout_manager(menuLayout);
 
-        // It doesn't matter what this widget is.
-
-        menuLayout.addSizeChild(new St.Widget());
-
         this._indicator_icon = new St.Icon({
             style_class: "system-status-icon"
         });
