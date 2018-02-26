@@ -23,6 +23,7 @@ const Main = imports.ui.main;
 const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
 const St = imports.gi.St;
+const Clutter = imports.gi.Clutter;
 const Shell = imports.gi.Shell;
 
 const PanelMenu = imports.ui.panelMenu;
@@ -85,8 +86,11 @@ function getPlayerIconName(desktopEntry) {
     // or spotify-client as their spotify icon's name and
     // what they'll name their Spotify symbolic icon if
     // they have one at all?
+    let iconName = "audio-x-generic-symbolic";
+
     if (desktopEntry) {
         let possibleIconNames = [];
+
         if (desktopEntry.toLowerCase() === "spotify") {
             possibleIconNames = [desktopEntry + "-symbolic",
                 desktopEntry + "-client-symbolic",
@@ -102,13 +106,13 @@ function getPlayerIconName(desktopEntry) {
         let currentIconTheme = Gtk.IconTheme.get_default();
 
         for (let i = 0; i < possibleIconNames.length; i++) {
-            let iconName = possibleIconNames[i];
-            if (currentIconTheme.has_icon(iconName)) {
-                return iconName;
+            if (currentIconTheme.has_icon(possibleIconNames[i])) {
+                iconName = possibleIconNames[i];
+                break;
             }
         }
     }
-    return "audio-x-generic-symbolic";
+    return iconName;
 }
 
 function enable() {
@@ -272,6 +276,33 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._pushSignal(this, this.connect("update-player-status", callback));
     }
 
+    playPauseStop() {
+        if (this._playerProxy) {
+            let status = this._playerProxy.PlaybackStatus.toLowerCase();
+            let isPlaying = status === "playing";
+
+            if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
+                this._playerProxy.PlayPauseRemote();
+            } else if (this._playerProxy.CanPlay && !isPlaying) {
+                this._playerProxy.PlayRemote();
+            } else if (isPlaying) {
+                this._playerProxy.StopRemote();
+            }
+        }
+    }
+
+    previous() {
+        if (this._playerProxy && this._playerProxy.CanGoPrevious) {
+            this._playerProxy.PreviousRemote();
+        }
+    }
+
+    next() {
+        if (this._playerProxy && this._playerProxy.CanGoNext) {
+            this._playerProxy.NextRemote();
+        }
+    }
+
     destroy() {
         if (this._signals) {
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
@@ -315,7 +346,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
     }
 
-    _setCoverIcon(icon, coverUrl) {
+    _setCoverIcon(coverUrl) {
         // Asynchronously set the cover icon.
         // Much more fault tolerant than:
         //
@@ -339,17 +370,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                 try {
                     let bytes = source.load_contents_finish(result)[1];
                     let newIcon = Gio.BytesIcon.new(bytes);
-                    if (!newIcon.equal(icon.gicon)) {
-                        icon.gicon = newIcon;
+                    if (!newIcon.equal(this._coverIcon.gicon)) {
+                        this._coverIcon.gicon = newIcon;
                     }
                 } catch (err) {
                     if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-                        icon.icon_name = this._playerIconName;
+                        this._coverIcon.icon_name = this._playerIconName;
                     }
                 }
             });
         } else {
-            icon.icon_name = this._playerIconName;
+            this._coverIcon.icon_name = this._playerIconName;
         }
     }
 
@@ -376,7 +407,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             }
         }
 
-        this._setCoverIcon(this._coverIcon, coverUrl);
+        this._setCoverIcon(coverUrl);
         this._trackArtist.text = artist || this._playerName;
         this._trackTitle.text = title;
     }
@@ -494,12 +525,11 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this.menu.actor.add_style_class_name("aggregate-menu");
 
-        // menuLayout keeps the Indicator the same size as the
+        // AggregateLayout keeps the Indicator the same size as the
         // system menu (aggregate menu) and makes sure our text
         // ellipses correctly.
-        let menuLayout = new Panel.AggregateLayout();
 
-        this.menu.box.set_layout_manager(menuLayout);
+        this.menu.box.set_layout_manager(new Panel.AggregateLayout());
 
         this._indicator_icon = new St.Icon({
             style_class: "system-status-icon"
@@ -546,14 +576,12 @@ class MprisIndicatorButton extends PanelMenu.Button {
     _addPlayer(busName) {
         let player = new Player(busName);
 
-        player.connectUpdate(this._updateActivePlayer.bind(this));
+        player.connectUpdate(() => {
+            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
+            this.actor.show();
+        });
 
         this.menu.addMenuItem(player);
-    }
-
-    _updateActivePlayer() {
-        this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
-        this.actor.show();
     }
 
     _removePlayer(busName) {
@@ -600,48 +628,66 @@ class MprisIndicatorButton extends PanelMenu.Button {
         return avgDelta;
     }
 
-    _getLastActivePlayerIcon() {
-        // During the course of normal operation
-        // the active player is defined by the player
-        // with the highest priority status (Playing, Paused or Stopped).
-        // In the case that multiple players have the same status they will
-        // be sub sorted by their lastActiveTime time stamp.
-        // A lone single player will of course always be the active player.
-        // Things get a little more complicated when/if the extension is
-        // enabled with pre existing players present. At that point
-        // their lastActiveTimes are invalid for the purpose of sub sorting
-        // and in the case of a status "tie" we use the generic audio icon.
-        // _averageLastActiveTimeDelta is used to determine when to return to
-        // normal behavior. The theory is that pre existing players will have
-        // a much, much smaller average time stamp delta initially and then
-        // it will become larger once the player is actually interacted with.
-        let iconName = "audio-x-generic-symbolic";
+    _getLastActivePlayer() {
+        let player = null;
         if (!this.menu.isEmpty()) {
             let players = this.menu._getMenuItems();
             if (players.length === 1) {
-                iconName = getPlayerIconName(players[0].desktopEntry);
+                player = players[0];
             } else if (this._checkForPreExistingPlayers) {
                 if (this._averageLastActiveTimeDelta(players) < 250) {
                     let playing = players.filter(player => player.statusValue === 0);
                     if (playing.length === 1) {
-                        iconName = getPlayerIconName(playing[0].desktopEntry);
+                        player = playing[0];
                     } else if (playing.length === 0) {
                         let paused = players.filter(player => player.statusValue === 1);
                         if (paused.length === 1) {
-                            iconName = getPlayerIconName(paused[0].desktopEntry);
+                            player = paused[0];
                         }
                     }
                 } else {
                     this._checkForPreExistingPlayers = false;
                     players.sort(this._byStatusAndTime);
-                    iconName = getPlayerIconName(players[0].desktopEntry);
+                    player = players[0];
                 }
             } else {
                 players.sort(this._byStatusAndTime);
-                iconName = getPlayerIconName(players[0].desktopEntry);
+                player = players[0];
             }
         }
+        return player;
+    }
+
+    _getLastActivePlayerIcon() {
+        let player = this._getLastActivePlayer();
+        let iconName = player ? getPlayerIconName(player.desktopEntry) : "audio-x-generic-symbolic";
         return iconName;
+    }
+
+    _onEvent(actor, event) {
+        let eventType = event.type();
+        if (eventType === Clutter.EventType.BUTTON_PRESS) {
+            if (event.get_button() === 2) {
+                let player = this._getLastActivePlayer();
+                if (player) {
+                    player.playPauseStop();
+                    return Clutter.EVENT_STOP;
+                }
+            }
+        } else if (eventType === Clutter.EventType.SCROLL) {
+            let player = this._getLastActivePlayer();
+            if (player) {
+                let scrollDirection = event.get_scroll_direction();
+                if (scrollDirection === Clutter.ScrollDirection.UP) {
+                    player.previous();
+                    return Clutter.EVENT_STOP;
+                } else if (scrollDirection === Clutter.ScrollDirection.DOWN) {
+                    player.next();
+                    return Clutter.EVENT_STOP;
+                }
+            }
+        }
+        super._onEvent(actor, event);
     }
 
     _changePlayerOwner(busName) {
@@ -657,18 +703,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this._addPlayer(busName);
     }
 
-    _onNameOwnerChanged(proxy, sender, [busName, oldOwner, newOwner]) {
-        if (!busName.startsWith(MPRIS_PLAYER_PREFIX)) {
-            return;
-        } else if (newOwner && !oldOwner) {
-            this._addPlayer(busName);
-        } else if (oldOwner && !newOwner) {
-            this._removePlayer(busName);
-        } else if (oldOwner && newOwner) {
-            this._changePlayerOwner(busName);
-        }
-    }
-
     _onProxyReady(proxy) {
         this._proxy = proxy;
         this._proxy.ListNamesRemote(([busNames]) => {
@@ -680,6 +714,16 @@ class MprisIndicatorButton extends PanelMenu.Button {
             }
         });
 
-        this._proxy.connectSignal("NameOwnerChanged", this._onNameOwnerChanged.bind(this));
+        this._proxy.connectSignal("NameOwnerChanged", (proxy, sender, [busName, oldOwner, newOwner]) => {
+            if (busName.startsWith(MPRIS_PLAYER_PREFIX)) {
+                if (newOwner && !oldOwner) {
+                    this._addPlayer(busName);
+                } else if (oldOwner && !newOwner) {
+                    this._removePlayer(busName);
+                } else if (oldOwner && newOwner) {
+                    this._changePlayerOwner(busName);
+                }
+            }
+        });
     }
 }
