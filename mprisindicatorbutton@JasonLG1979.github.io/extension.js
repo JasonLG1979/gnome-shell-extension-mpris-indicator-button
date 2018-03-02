@@ -30,7 +30,8 @@ const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const Panel = imports.ui.panel;
 
-const DBusIface = `<node>
+const DBusProxy = Gio.DBusProxy.makeProxyWrapper(
+`<node>
 <interface name="org.freedesktop.DBus">
   <method name="ListNames">
     <arg type="as" direction="out" name="names" />
@@ -41,20 +42,20 @@ const DBusIface = `<node>
     <arg type="s" direction="out" name="newOwner" />
   </signal>
 </interface>
-</node>`;
-const DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBusIface);
+</node>`);
 
-const MprisIface = `<node>
+const MprisProxy = Gio.DBusProxy.makeProxyWrapper(
+`<node>
 <interface name="org.mpris.MediaPlayer2">
   <method name="Raise" />
   <property name="CanRaise" type="b" access="read" />
   <property name="Identity" type="s" access="read" />
   <property name="DesktopEntry" type="s" access="read" />
 </interface>
-</node>`;
-const MprisProxy = Gio.DBusProxy.makeProxyWrapper(MprisIface);
+</node>`);
 
-const MprisPlayerIface = `<node>
+const MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(
+`<node>
 <interface name="org.mpris.MediaPlayer2.Player">
   <method name="PlayPause" />
   <method name="Next" />
@@ -68,8 +69,7 @@ const MprisPlayerIface = `<node>
   <property name="Metadata" type="a{sv}" access="read" />
   <property name="PlaybackStatus" type="s" access="read" />
 </interface>
-</node>`;
-const MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(MprisPlayerIface);
+</node>`);
 
 const MPRIS_PLAYER_PREFIX = "org.mpris.MediaPlayer2.";
 
@@ -144,7 +144,7 @@ function disable() {
 }
 
 class Player extends PopupMenu.PopupBaseMenuItem {
-    constructor(busName) {
+    constructor(busName, updateCallback) {
         super();
         this._app = null;
         this._cancellable = null;
@@ -158,6 +158,11 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._playerName = "";
         this._playerIconName = "audio-x-generic-symbolic";
         this._busName = busName;
+
+        this._pushSignal(
+            this,
+            this.connect("update-player-status", updateCallback)
+        );
 
         let vbox = new St.BoxLayout({
             vertical: true,
@@ -181,21 +186,25 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             vertical: true
         });
 
+        hbox.add(info);
+
         this._trackArtist = new St.Label({
             style_class: "message-title"
         });
+
+        info.add(this._trackArtist);
 
         this._trackTitle = new St.Label({
             style_class: "message-body"
         });
 
-        info.add(this._trackArtist);
-
         info.add(this._trackTitle);
 
-        hbox.add(info);
-
         let playerButtonBox = new St.BoxLayout();
+
+        vbox.add(playerButtonBox, {
+            x_fill: false
+        });
 
         this._prevButton = new St.Button({
             style_class: "message-media-control",
@@ -239,12 +248,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         playerButtonBox.add(this._nextButton);
 
-        vbox.add(playerButtonBox, {
-            expand: true,
-            x_fill: false,
-            x_align: St.Align.MIDDLE
-        });
-
         new MprisProxy(Gio.DBus.session, busName,
             "/org/mpris/MediaPlayer2",
             this._onMprisProxy.bind(this));
@@ -270,10 +273,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
     get busName() {
         return this._busName;
-    }
-
-    connectUpdate(callback) {
-        this._pushSignal(this, this.connect("update-player-status", callback));
     }
 
     playPauseStop() {
@@ -574,17 +573,34 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _addPlayer(busName) {
-        let player = new Player(busName);
-
-        player.connectUpdate(() => {
-            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
-            this.actor.show();
-        });
-
-        this.menu.addMenuItem(player);
+        this.menu.addMenuItem(
+            new Player(
+                busName,
+                () => {
+                    this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
+                    this.actor.show();
+                }
+            )
+        );
     }
 
     _removePlayer(busName) {
+        this._destroyPlayer(busName);
+
+        if (this.menu.isEmpty()) {
+            this.actor.hide();
+            this._indicator_icon.icon_name = null;
+        } else {
+            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
+        }
+    }
+
+    _changePlayerOwner(busName) {
+        this._destroyPlayer(busName);
+        this._addPlayer(busName);
+    }
+
+    _destroyPlayer(busName) {
         let children = this.menu._getMenuItems();
 
         for (let i = 0; i < children.length; i++) {
@@ -593,13 +609,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
                 player.destroy();
                 break;
             }
-        }
-
-        if (this.menu.isEmpty()) {
-            this.actor.hide();
-            this._indicator_icon.icon_name = null;
-        } else {
-            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
         }
     }
 
@@ -688,19 +697,6 @@ class MprisIndicatorButton extends PanelMenu.Button {
             }
         }
         super._onEvent(actor, event);
-    }
-
-    _changePlayerOwner(busName) {
-        let children = this.menu._getMenuItems();
-
-        for (let i = 0; i < children.length; i++) {
-            let player = children[i];
-            if (busName === player.busName) {
-                player.destroy();
-                break;
-            }
-        }
-        this._addPlayer(busName);
     }
 
     _onProxyReady(proxy) {
