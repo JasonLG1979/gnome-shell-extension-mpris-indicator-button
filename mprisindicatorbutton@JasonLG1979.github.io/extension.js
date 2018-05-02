@@ -153,6 +153,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._status = null;
         this._themeContext = null;
         this._signals = [];
+        this._ratingStars = [];
+        this._rating = 0;
         this._lastActiveTime = Date.now();
         this._desktopEntry = "";
         this._playerName = "";
@@ -199,6 +201,19 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
 
         info.add(this._trackTitle);
+
+        let ratingsBox = new St.BoxLayout();
+
+        info.add(ratingsBox);
+
+        for(let i=0; i < 5; i++) {
+            this._ratingStars[i] = new St.Icon({
+                icon_name: "non-starred-symbolic",
+                icon_size: 16
+            });
+
+            ratingsBox.add(this._ratingStars[i]);
+        }
 
         let playerButtonBox = new St.BoxLayout();
 
@@ -329,6 +344,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._status = null;
         this._themeContext = null;
         this._signals = null;
+        this._ratingStars = null;
+        this._rating = null;
         this._lastActiveTime = null;
         this._desktopEntry = null;
         this._playerName = null;
@@ -383,32 +400,82 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         }
     }
 
+    _setRating(rating) {
+        // 5 Stars at half star increments.
+        if (this._rating !== rating) {
+            this._rating = rating;
+            for (let i = 0; i < 5; i++) {
+                let fullStar = (i + 1) * 2;
+                if (this._rating >= fullStar) {
+                    this._ratingStars[i].icon_name = "starred-symbolic";  
+                } else if (this._rating === fullStar - 1) {
+                    this._ratingStars[i].icon_name = "semi-starred-symbolic";
+                } else {
+                    this._ratingStars[i].icon_name = "non-starred-symbolic";
+                }
+            }
+        }
+    }
+
     _updateMetadata(playerProxy) {
         let artist = "";
         let title = "";
         let coverUrl = "";
+        let rating = 0;
         let metadata = playerProxy.Metadata || {};
         let metadataKeys = Object.keys(metadata);
 
         if (this.statusValue < 2) {
+            // Be rather exhaustive and liberal
+            // as far as what constitutes an "artist".  
             if (metadataKeys.includes("rhythmbox:streamTitle")) {
                 artist = metadata["rhythmbox:streamTitle"].unpack();
-            } else if (metadataKeys.includes("xesam:artist")) {
+            }
+            if (!artist && metadataKeys.includes("xesam:artist")) {
                 artist = metadata["xesam:artist"].deep_unpack().join(", ");
             }
+            if (!artist && metadataKeys.includes("xesam:albumArtist")) {
+                artist = metadata["xesam:albumArtist"].deep_unpack().join(", ");
+            }
+            if (!artist && metadataKeys.includes("xesam:composer")) {
+                artist = metadata["xesam:composer"].deep_unpack().join(", ");
+            }
+            if (!artist && metadataKeys.includes("xesam:lyricist")) {
+                artist = metadata["xesam:lyricist"].deep_unpack().join(", ");
+            }
 
+            // Prefer the track title, but in it's absence if the
+            // track number and album title are available use them.
+            // For Example, "5 - My favorite Album". 
             if (metadataKeys.includes("xesam:title")) {
                 title = metadata["xesam:title"].unpack();
+            }
+            if (!title && metadataKeys.includes("xesam:trackNumber")
+                && metadataKeys.includes("xesam:album")) {
+                let trackNumber = metadata["xesam:trackNumber"].unpack();
+                let album = metadata["xesam:album"].unpack();
+                if (trackNumber && album) {
+                    title = trackNumber + " - " + album;
+                }
             }
 
             if (metadataKeys.includes("mpris:artUrl")) {
                 coverUrl = metadata["mpris:artUrl"].unpack();
+            }
+
+            // Prefer user ratings but fallback to auto ratings.
+            // How a player determines auto ratings is up to the player.
+            if (metadataKeys.includes("xesam:userRating")) {
+                rating = Math.round(metadata["xesam:userRating"].unpack() * 10);
+            } else if (metadataKeys.includes("xesam:autoRating")) {
+                rating = Math.round(metadata["xesam:autoRating"].unpack() * 10);
             }
         }
 
         this._setCoverIcon(coverUrl);
         this._trackArtist.text = artist || this._playerName;
         this._trackTitle.text = title;
+        this._setRating(rating);
     }
 
     _updateProps(playerProxy) {
