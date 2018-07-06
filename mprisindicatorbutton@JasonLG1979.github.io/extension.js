@@ -153,7 +153,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._status = null;
         this._themeContext = null;
         this._signals = [];
-        this._ratingStars = [];
         this._rating = 0;
         this._lastActiveTime = Date.now();
         this._desktopEntry = "";
@@ -173,12 +172,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this.actor.add(vbox);
 
-        let hbox = new St.BoxLayout();
+        let hbox = new St.BoxLayout({
+            x_expand: true
+        });
 
         vbox.add(hbox);
 
         this._coverIcon = new St.Icon({
-            style_class: "media-message-cover-icon"
+            style_class: "popup-menu-icon",
+            icon_size: 56
         });
 
         hbox.add(this._coverIcon);
@@ -202,17 +204,18 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         info.add(this._trackTitle);
 
-        let ratingsBox = new St.BoxLayout();
+        this._ratingsBox = new St.BoxLayout();
 
-        info.add(ratingsBox);
+        info.add(this._ratingsBox);
 
         for(let i=0; i < 5; i++) {
-            this._ratingStars[i] = new St.Icon({
+            let star = new St.Icon({
                 icon_name: "non-starred-symbolic",
                 icon_size: 16
             });
-
-            ratingsBox.add(this._ratingStars[i]);
+            star._fullStarValue = (i + 1) * 2;
+            star._halfStarValue = star._fullStarValue - 1;
+            this._ratingsBox.add(star);
         }
 
         let playerButtonBox = new St.BoxLayout();
@@ -344,7 +347,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._status = null;
         this._themeContext = null;
         this._signals = null;
-        this._ratingStars = null;
         this._rating = null;
         this._lastActiveTime = null;
         this._desktopEntry = null;
@@ -404,16 +406,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         // 5 Stars at half star increments.
         if (this._rating !== rating) {
             this._rating = rating;
-            for (let i = 0; i < 5; i++) {
-                let fullStar = (i + 1) * 2;
-                if (this._rating >= fullStar) {
-                    this._ratingStars[i].icon_name = "starred-symbolic";  
-                } else if (this._rating === fullStar - 1) {
-                    this._ratingStars[i].icon_name = "semi-starred-symbolic";
+            this._ratingsBox.get_children().forEach(star => {
+                if (this._rating >= star._fullStarValue) {
+                    star.icon_name = "starred-symbolic";  
+                } else if (this._rating === star._halfStarValue) {
+                    star.icon_name = "semi-starred-symbolic";
                 } else {
-                    this._ratingStars[i].icon_name = "non-starred-symbolic";
+                    star.icon_name = "non-starred-symbolic";
                 }
-            }
+            });
         }
     }
 
@@ -467,7 +468,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             // How a player determines auto ratings is up to the player.
             if (metadataKeys.includes("xesam:userRating")) {
                 rating = Math.round(metadata["xesam:userRating"].unpack() * 10);
-            } else if (metadataKeys.includes("xesam:autoRating")) {
+            }
+            if (!rating && metadataKeys.includes("xesam:autoRating")) {
                 rating = Math.round(metadata["xesam:autoRating"].unpack() * 10);
             }
         }
