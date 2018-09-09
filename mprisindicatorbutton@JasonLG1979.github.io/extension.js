@@ -300,12 +300,16 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
             if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
                 this._playerProxy.PlayPauseRemote();
+                return true;
             } else if (this._playerProxy.CanPlay && !isPlaying) {
                 this._playerProxy.PlayRemote();
+                return true;
             } else if (isPlaying) {
                 this._playerProxy.StopRemote();
+                return true;
             }
         }
+        return false;
     }
 
     previous() {
@@ -318,6 +322,19 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         if (this._playerProxy && this._playerProxy.CanGoNext) {
             this._playerProxy.NextRemote();
         }
+    }
+
+    raise() {
+        if (this._playerProxy) {
+            if (this._app) {
+                this._app.activate();
+                return true;
+            } else if (this._mprisProxy.CanRaise) {
+                this._mprisProxy.RaiseRemote();
+                return true;
+            }
+        }
+        return false;
     }
 
     destroy() {
@@ -521,11 +538,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         if (this._app || this._mprisProxy.CanRaise) {
             this._pushSignal(this, this.connect("activate", () => {
-                if (this._app) {
-                    this._app.activate();
-                } else if (this._mprisProxy.CanRaise) {
-                    this._mprisProxy.RaiseRemote();
-                }
+                this.raise();
             }));
         }
 
@@ -745,10 +758,18 @@ class MprisIndicatorButton extends PanelMenu.Button {
     _onEvent(actor, event) {
         let eventType = event.type();
         if (eventType === Clutter.EventType.BUTTON_PRESS) {
-            if (event.get_button() === 2) {
+            let button = event.get_button();
+            if (button === 2 || button === 3) {
                 let player = this._getLastActivePlayer();
-                if (player) {
-                    player.playPauseStop();
+                // the expectation is that if a player can't be
+                // raised or can't play/pause/stop
+                // then button press events will be passed
+                // and the button will behave like the rest of
+                // GNOME Shell. i.e. clicking any button will
+                // open the menu.
+                if (player &&
+                    (button === 2 && player.playPauseStop()) ||
+                    (button === 3 && player.raise())) {
                     return Clutter.EVENT_STOP;
                 }
             }
