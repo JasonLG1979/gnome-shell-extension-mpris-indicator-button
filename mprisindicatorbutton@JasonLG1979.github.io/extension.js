@@ -315,13 +315,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     previous() {
         if (this._playerProxy && this._playerProxy.CanGoPrevious) {
             this._playerProxy.PreviousRemote();
+            return true;
         }
+        return false;
     }
 
     next() {
         if (this._playerProxy && this._playerProxy.CanGoNext) {
             this._playerProxy.NextRemote();
+            return true;
         }
+        return false;
     }
 
     raise() {
@@ -483,18 +487,24 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
             // Prefer user ratings but fallback to auto ratings.
             // How a player determines auto ratings is up to the player.
-            if (metadataKeys.includes("xesam:userRating")) {
-                rating = Math.round(metadata["xesam:userRating"].unpack() * 10);
-            }
-            if (!rating && metadataKeys.includes("xesam:autoRating")) {
-                rating = Math.round(metadata["xesam:autoRating"].unpack() * 10);
+            // If the player doesn't support ratings, hide them.
+            if (metadataKeys.includes("xesam:userRating") || metadataKeys.includes("xesam:autoRating")) {
+                if (metadataKeys.includes("xesam:userRating")) {
+                    rating = Math.round(metadata["xesam:userRating"].unpack() * 10);
+                }
+                if (!rating && metadataKeys.includes("xesam:autoRating")) {
+                    rating = Math.round(metadata["xesam:autoRating"].unpack() * 10);
+                }
+                this._setRating(rating);
+                this._ratingsBox.show();
+            } else {
+                this._ratingsBox.hide();
             }
         }
 
         this._setCoverIcon(coverUrl);
         this._trackArtist.text = artist || this._playerName;
         this._trackTitle.text = title;
-        this._setRating(rating);
     }
 
     _updateProps(playerProxy) {
@@ -774,14 +784,16 @@ class MprisIndicatorButton extends PanelMenu.Button {
                 }
             }
         } else if (eventType === Clutter.EventType.SCROLL) {
-            let player = this._getLastActivePlayer();
-            if (player) {
-                let scrollDirection = event.get_scroll_direction();
-                if (scrollDirection === Clutter.ScrollDirection.UP) {
-                    player.previous();
-                    return Clutter.EVENT_STOP;
-                } else if (scrollDirection === Clutter.ScrollDirection.DOWN) {
-                    player.next();
+            // Scroll events don't currently have a *default* GNOME Shell action
+            // like button press events, but we may as well not override scroll events
+            // if they aren't going to do anything for us.
+            let scrollDirection = event.get_scroll_direction();
+            if (scrollDirection === Clutter.ScrollDirection.UP ||
+                scrollDirection === Clutter.ScrollDirection.DOWN) {
+                let player = this._getLastActivePlayer();
+                if (player &&
+                    (scrollDirection === Clutter.ScrollDirection.UP && player.previous()) ||
+                    (scrollDirection === Clutter.ScrollDirection.DOWN && player.next())) {
                     return Clutter.EVENT_STOP;
                 }
             }
