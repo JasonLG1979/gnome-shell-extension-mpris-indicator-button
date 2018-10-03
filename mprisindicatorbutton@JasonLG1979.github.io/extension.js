@@ -22,6 +22,7 @@
 const Main = imports.ui.main;
 const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
+const Atk = imports.gi.Atk;
 const St = imports.gi.St;
 const Clutter = imports.gi.Clutter;
 const Shell = imports.gi.Shell;
@@ -30,48 +31,9 @@ const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const Panel = imports.ui.panel;
 
-const DBusProxy = Gio.DBusProxy.makeProxyWrapper(
-`<node>
-<interface name="org.freedesktop.DBus">
-  <method name="ListNames">
-    <arg type="as" direction="out" name="names" />
-  </method>
-  <signal name="NameOwnerChanged">
-    <arg type="s" direction="out" name="name" />
-    <arg type="s" direction="out" name="oldOwner" />
-    <arg type="s" direction="out" name="newOwner" />
-  </signal>
-</interface>
-</node>`);
-
-const MprisProxy = Gio.DBusProxy.makeProxyWrapper(
-`<node>
-<interface name="org.mpris.MediaPlayer2">
-  <method name="Raise" />
-  <property name="CanRaise" type="b" access="read" />
-  <property name="Identity" type="s" access="read" />
-  <property name="DesktopEntry" type="s" access="read" />
-</interface>
-</node>`);
-
-const MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(
-`<node>
-<interface name="org.mpris.MediaPlayer2.Player">
-  <method name="PlayPause" />
-  <method name="Next" />
-  <method name="Previous" />
-  <method name="Stop" />
-  <method name="Play" />
-  <property name="CanGoNext" type="b" access="read" />
-  <property name="CanGoPrevious" type="b" access="read" />
-  <property name="CanPlay" type="b" access="read" />
-  <property name="CanPause" type="b" access="read" />
-  <property name="Metadata" type="a{sv}" access="read" />
-  <property name="PlaybackStatus" type="s" access="read" />
-</interface>
-</node>`);
-
-const MPRIS_PLAYER_PREFIX = "org.mpris.MediaPlayer2.";
+const Me = imports.misc.extensionUtils.getCurrentExtension();
+const DBus = Me.imports.dbus;
+const Widgets = Me.imports.widgets;
 
 let indicator = null;
 let stockMpris = null;
@@ -144,28 +106,22 @@ function disable() {
 }
 
 class Player extends PopupMenu.PopupBaseMenuItem {
-    constructor(busName, updateCallback) {
+    constructor(busName) {
         super();
         this._app = null;
-        this._cancellable = null;
         this._playerProxy = null;
         this._mprisProxy = null;
         this._status = null;
-        this._themeContext = null;
         this._signals = [];
-        this._rating = 0;
         this._lastActiveTime = Date.now();
         this._desktopEntry = "";
         this._playerName = "";
         this._playerIconName = "audio-x-generic-symbolic";
         this._busName = busName;
 
-        this._pushSignal(
-            this,
-            this.connect("update-player-status", updateCallback)
-        );
-
         let vbox = new St.BoxLayout({
+            accessible_role: Atk.Role.INTERNAL_FRAME,
+            y_align: Clutter.ActorAlign.CENTER,
             vertical: true,
             x_expand: true
         });
@@ -173,100 +129,78 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this.actor.add(vbox);
 
         let hbox = new St.BoxLayout({
-            x_expand: true
+            accessible_role: Atk.Role.INTERNAL_FRAME
         });
 
         vbox.add(hbox);
 
-        this._coverIcon = new St.Icon({
-            style_class: "popup-menu-icon",
-            icon_size: 56
-        });
+        this._coverIcon = new Widgets.CoverIcon();
 
         hbox.add(this._coverIcon);
 
         let info = new St.BoxLayout({
-            style_class: "message-content",
+            style: "padding-left: 12px",
+            y_align: Clutter.ActorAlign.CENTER,
+            accessible_role: Atk.Role.INTERNAL_FRAME,
             vertical: true
         });
 
         hbox.add(info);
 
-        this._trackArtist = new St.Label({
-            style_class: "message-title"
-        });
+        this._trackArtist = new Widgets.TrackLabel(204, 255);
 
         info.add(this._trackArtist);
 
-        this._trackTitle = new St.Label({
-            style_class: "message-body"
-        });
+        this._trackTitle = new Widgets.TrackLabel(152, 204);
 
         info.add(this._trackTitle);
 
-        this._ratingsBox = new St.BoxLayout();
+        this._ratingsBox = new Widgets.RatingBox();
 
         info.add(this._ratingsBox);
 
-        for(let i=0; i < 5; i++) {
-            let star = new St.Icon({
-                icon_name: "non-starred-symbolic",
-                icon_size: 16
-            });
-            star._fullStarValue = (i + 1) * 2;
-            star._halfStarValue = star._fullStarValue - 1;
-            this._ratingsBox.add(star);
-        }
-
-        let playerButtonBox = new St.BoxLayout();
-
-        vbox.add(playerButtonBox, {
-            x_fill: false
+        this._pushSignal(this.actor, "notify::hover", (actor) => {
+            let hover = actor.hover;
+            this._coverIcon.onParentHover(hover);
+            this._trackArtist.onParentHover(hover);
+            this._trackTitle.onParentHover(hover);
+            this._ratingsBox.onParentHover(hover);
         });
 
-        this._prevButton = new St.Button({
-            style_class: "message-media-control",
-            child: new St.Icon({
-                icon_name: "media-skip-backward-symbolic",
-                icon_size: 16
-            })
+        let playerButtonBox = new St.BoxLayout({
+            x_align: Clutter.ActorAlign.CENTER,
+            accessible_role: Atk.Role.INTERNAL_FRAME
         });
+
+        vbox.add(playerButtonBox);
+
+        this._prevButton = new Widgets.MediaControlButton(
+            "media-skip-backward-symbolic"
+        );
 
         playerButtonBox.add(this._prevButton);
 
-        this._playPauseButton = new St.Button({
-            style_class: "message-media-control",
-            child: new St.Icon({
-                icon_name: "media-playback-start-symbolic",
-                icon_size: 16
-            })
-        });
+        this._playPauseButton = new Widgets.MediaControlButton(
+            "media-playback-start-symbolic"
+        );
 
         playerButtonBox.add(this._playPauseButton);
 
-        this._stopButton = new St.Button({
-            style_class: "message-media-control",
-            child: new St.Icon({
-                icon_name: "media-playback-stop-symbolic",
-                icon_size: 16
-            })
-        });
+        this._stopButton = new Widgets.MediaControlButton(
+            "media-playback-stop-symbolic"
+        );
 
         this._stopButton.hide();
 
         playerButtonBox.add(this._stopButton);
 
-        this._nextButton = new St.Button({
-            style_class: "message-media-control",
-            child: new St.Icon({
-                icon_name: "media-skip-forward-symbolic",
-                icon_size: 16
-            })
-        });
+        this._nextButton = new Widgets.MediaControlButton(
+            "media-skip-forward-symbolic"
+        );
 
         playerButtonBox.add(this._nextButton);
 
-        new MprisProxy(Gio.DBus.session, busName,
+        new DBus.MprisProxy(Gio.DBus.session, busName,
             "/org/mpris/MediaPlayer2",
             this._onMprisProxy.bind(this));
     }
@@ -346,13 +280,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         }
 
-        if (this._cancellable) {
-            if (!this._cancellable.is_cancelled()) {
-                this._cancellable.cancel();
-            }
-            this._cancellable.run_dispose();
-        }
-
         if (this._mprisProxy) {
             this._mprisProxy.run_dispose();
         }
@@ -362,13 +289,10 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         }
 
         this._app = null;
-        this._cancellable = null;
         this._playerProxy = null;
         this._mprisProxy = null;
         this._status = null;
-        this._themeContext = null;
         this._signals = null;
-        this._rating = null;
         this._lastActiveTime = null;
         this._desktopEntry = null;
         this._playerName = null;
@@ -378,133 +302,87 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         super.destroy();
     }
 
-    _pushSignal(obj, signalId) {
+    _pushSignal(obj, signalName, callback) {
+        let signalId = obj.connect(signalName, callback);
         this._signals.push({
             obj: obj,
             signalId: signalId
         });
     }
 
-    _setCoverIcon(coverUrl) {
-        // Asynchronously set the cover icon.
-        // Much more fault tolerant than:
-        //
-        // let file = Gio.File.new_for_uri(coverUrl);
-        // icon.gicon = new Gio.FileIcon({ file: file });
-        //
-        // Which silently fails on error and can lead to the wrong cover being shown.
-        // On error this will fallback gracefully to this._playerIconName.
-        if (this._cancellable) {
-            if (!this._cancellable.is_cancelled()) {
-                this._cancellable.cancel();
-            }
-            this._cancellable.run_dispose();
-            this._cancellable = null;
-        }
-
-        if (coverUrl) {
-            let file = Gio.File.new_for_uri(coverUrl);
-            this._cancellable = new Gio.Cancellable();
-            file.load_contents_async(this._cancellable, (source, result) => {
-                try {
-                    let bytes = source.load_contents_finish(result)[1];
-                    let newIcon = Gio.BytesIcon.new(bytes);
-                    if (!newIcon.equal(this._coverIcon.gicon)) {
-                        this._coverIcon.gicon = newIcon;
-                    }
-                } catch (err) {
-                    if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-                        this._coverIcon.icon_name = this._playerIconName;
-                    }
-                }
-            });
-        } else {
-            this._coverIcon.icon_name = this._playerIconName;
-        }
-    }
-
-    _setRating(rating) {
-        // 5 Stars at half star increments.
-        if (this._rating !== rating) {
-            this._rating = rating;
-            this._ratingsBox.get_children().forEach(star => {
-                if (this._rating >= star._fullStarValue) {
-                    star.icon_name = "starred-symbolic";  
-                } else if (this._rating === star._halfStarValue) {
-                    star.icon_name = "semi-starred-symbolic";
-                } else {
-                    star.icon_name = "non-starred-symbolic";
-                }
-            });
-        }
-    }
-
     _updateMetadata(playerProxy) {
         let artist = "";
         let title = "";
         let coverUrl = "";
-        let rating = 0;
+        let rating = null;
         let metadata = playerProxy.Metadata || {};
         let metadataKeys = Object.keys(metadata);
+        let artistKeys = [
+            "xesam:artist",
+            "xesam:albumArtist",
+            "xesam:composer",
+            "xesam:lyricist"
+        ];
+        let ratingKeys = [
+            "xesam:userRating",
+            "xesam:autoRating"
+        ];
 
-        if (this.statusValue < 2) {
-            // Be rather exhaustive and liberal
-            // as far as what constitutes an "artist".  
-            if (metadataKeys.includes("rhythmbox:streamTitle")) {
-                artist = metadata["rhythmbox:streamTitle"].unpack();
-            }
-            if (!artist && metadataKeys.includes("xesam:artist")) {
-                artist = metadata["xesam:artist"].deep_unpack().join(", ");
-            }
-            if (!artist && metadataKeys.includes("xesam:albumArtist")) {
-                artist = metadata["xesam:albumArtist"].deep_unpack().join(", ");
-            }
-            if (!artist && metadataKeys.includes("xesam:composer")) {
-                artist = metadata["xesam:composer"].deep_unpack().join(", ");
-            }
-            if (!artist && metadataKeys.includes("xesam:lyricist")) {
-                artist = metadata["xesam:lyricist"].deep_unpack().join(", ");
-            }
-
-            // Prefer the track title, but in it's absence if the
-            // track number and album title are available use them.
-            // For Example, "5 - My favorite Album". 
-            if (metadataKeys.includes("xesam:title")) {
-                title = metadata["xesam:title"].unpack();
-            }
-            if (!title && metadataKeys.includes("xesam:trackNumber")
-                && metadataKeys.includes("xesam:album")) {
-                let trackNumber = metadata["xesam:trackNumber"].unpack();
-                let album = metadata["xesam:album"].unpack();
-                if (trackNumber && album) {
-                    title = trackNumber + " - " + album;
+        // Be rather exhaustive and liberal
+        // as far as what constitutes an "artist".
+        if (metadataKeys.includes("rhythmbox:streamTitle")) {
+            artist = metadata["rhythmbox:streamTitle"].unpack();
+        }
+        if (!artist) {
+            for (let i=0; i < 4; i++) {
+                let artistKey = artistKeys[i];
+                if (metadataKeys.includes(artistKey)) {
+                    artist = metadata[artistKey].deep_unpack().join(", ");
+                    if (artist) {
+                        break;
+                    }
                 }
-            }
-
-            if (metadataKeys.includes("mpris:artUrl")) {
-                coverUrl = metadata["mpris:artUrl"].unpack();
-            }
-
-            // Prefer user ratings but fallback to auto ratings.
-            // How a player determines auto ratings is up to the player.
-            // If the player doesn't support ratings, hide them.
-            if (metadataKeys.includes("xesam:userRating") || metadataKeys.includes("xesam:autoRating")) {
-                if (metadataKeys.includes("xesam:userRating")) {
-                    rating = Math.round(metadata["xesam:userRating"].unpack() * 10);
-                }
-                if (!rating && metadataKeys.includes("xesam:autoRating")) {
-                    rating = Math.round(metadata["xesam:autoRating"].unpack() * 10);
-                }
-                this._setRating(rating);
-                this._ratingsBox.show();
-            } else {
-                this._ratingsBox.hide();
             }
         }
 
-        this._setCoverIcon(coverUrl);
-        this._trackArtist.text = artist || this._playerName;
-        this._trackTitle.text = title;
+        // Prefer the track title, but in it's absence if the
+        // track number and album title are available use them.
+        // For Example, "5 - My favorite Album". 
+        if (metadataKeys.includes("xesam:title")) {
+            title = metadata["xesam:title"].unpack();
+        }
+        if (!title && metadataKeys.includes("xesam:trackNumber")
+            && metadataKeys.includes("xesam:album")) {
+            let trackNumber = metadata["xesam:trackNumber"].unpack();
+            let album = metadata["xesam:album"].unpack();
+            if (trackNumber && album) {
+                title = trackNumber + " - " + album;
+            }
+        }
+
+        if (metadataKeys.includes("mpris:artUrl")) {
+            coverUrl = metadata["mpris:artUrl"].unpack();
+        }
+
+        // Prefer user ratings but fallback to auto ratings.
+        // How a player determines auto ratings is up to the player.
+        // If the player doesn't support ratings, hide them.
+        if (ratingKeys.some(key => metadataKeys.indexOf(key) >= 0)) {
+            for (let i=0; i < 2; i++) {
+                let ratingKey = ratingKeys[i];
+                if (metadataKeys.includes(ratingKey)) {
+                    rating = Math.round(metadata[ratingKey].unpack() * 10);
+                    if (rating) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        this._coverIcon.setCover(coverUrl);
+        this._trackArtist.set_text(artist || this._playerName);
+        this._trackTitle.set_text(title);
+        this._ratingsBox.setRating(rating);
     }
 
     _updateProps(playerProxy) {
@@ -542,17 +420,18 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     _onMprisProxy(mprisProxy) {
         this._mprisProxy = mprisProxy;
         this._playerName = this._mprisProxy.Identity || "";
+        this.actor.accessible_name = this._playerName;
         this._desktopEntry = this._mprisProxy.DesktopEntry || "";
         let desktopId = this._desktopEntry + ".desktop";
         this._app = Shell.AppSystem.get_default().lookup_app(desktopId);
 
         if (this._app || this._mprisProxy.CanRaise) {
-            this._pushSignal(this, this.connect("activate", () => {
+            this._pushSignal(this, "activate", () => {
                 this.raise();
-            }));
+            });
         }
 
-        new MprisPlayerProxy(Gio.DBus.session, this._busName,
+        new DBus.MprisPlayerProxy(Gio.DBus.session, this._busName,
             "/org/mpris/MediaPlayer2",
             this._onPlayerProxyReady.bind(this));
     }
@@ -560,34 +439,36 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     _onPlayerProxyReady(playerProxy) {
         this._playerProxy = playerProxy;
 
-        this._pushSignal(this._prevButton, this._prevButton.connect("clicked", () => {
+        this._pushSignal(this._prevButton, "clicked", () => {
             this._playerProxy.PreviousRemote();
-        }));
+        });
 
-        this._pushSignal(this._playPauseButton, this._playPauseButton.connect("clicked", () => {
+        this._pushSignal(this._playPauseButton, "clicked", () => {
             if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
                 this._playerProxy.PlayPauseRemote();
             } else if (this._playerProxy.CanPlay) {
                 this._playerProxy.PlayRemote();
             }
-        }));
+        });
 
-        this._pushSignal(this._stopButton, this._stopButton.connect("clicked", () => {
+        this._pushSignal(this._stopButton, "clicked", () => {
             this._playerProxy.StopRemote();
-        }));
+        });
 
-        this._pushSignal(this._nextButton, this._nextButton.connect("clicked", () => {
+        this._pushSignal(this._nextButton, "clicked", () => {
             this._playerProxy.NextRemote();
-        }));
+        });
 
-        this._themeContext = St.ThemeContext.get_for_stage(global.stage);
+        let themeContext = St.ThemeContext.get_for_stage(global.stage);
 
-        this._pushSignal(this._themeContext, this._themeContext.connect("changed", () => {
+        this._pushSignal(themeContext, "changed", () => {
             this._playerIconName = getPlayerIconName(this._desktopEntry);
+            this._coverIcon.setFallbackName(this._playerIconName);
             this._updateMetadata(this._playerProxy);
-        }));
+        });
 
         this._playerIconName = getPlayerIconName(this._desktopEntry);
+        this._coverIcon.setFallbackName(this._playerIconName);
         this._updateProps(this._playerProxy);
         this._updateMetadata(this._playerProxy);
 
@@ -602,39 +483,55 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             }
         });
     }
+
+    _onKeyPressEvent(actor, event) {
+        let state = event.get_state();
+
+        if (state === Clutter.ModifierType.CONTROL_MASK) {
+            let symbol = event.get_key_symbol();           
+            if (symbol === Clutter.KEY_space) {
+                this.playPauseStop();
+                return Clutter.EVENT_STOP;
+            } else if (symbol === Clutter.Left) {
+                this.previous();
+                return Clutter.EVENT_STOP;
+            } else if (symbol === Clutter.Right) {
+                this.next();
+                return Clutter.EVENT_STOP;
+            }
+        }
+        super._onKeyPressEvent(actor, event);
+    }
 }
 
 class MprisIndicatorButton extends PanelMenu.Button {
     constructor() {
         super(0.0, "Mpris Indicator Button", false);
+        this.actor.accessible_name = "Mpris";
         this._proxy = null;
-        this._themeContext = null;
         this._signals = [];
         this._checkForPreExistingPlayers = false;
 
         this.actor.hide();
 
-        this.menu.actor.add_style_class_name("aggregate-menu");
+        this.setMenu(new Widgets.ScrollablePopupMenu(this.actor));
 
-        // AggregateLayout keeps the Indicator the same size as the
-        // system menu (aggregate menu) and makes sure our text
-        // ellipses correctly.
-
-        this.menu.box.set_layout_manager(new Panel.AggregateLayout());
-
-        this._indicator_icon = new St.Icon({
+        this._indicatorIcon = new St.Icon({
+            accessible_role: Atk.Role.ICON,
             style_class: "system-status-icon"
         });
 
-        this.actor.add_child(this._indicator_icon);
+        this.actor.add_child(this._indicatorIcon);
 
-        this._themeContext = St.ThemeContext.get_for_stage(global.stage);
+        let themeContext = St.ThemeContext.get_for_stage(global.stage);
 
-        this._pushSignal(this._themeContext, this._themeContext.connect("changed", () => {
-            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
-        }));
+        this._pushSignal(themeContext, "changed", () => {
+            this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
+        });
 
-        new DBusProxy(Gio.DBus.session,
+        this._pushSignal(this.actor, "key-press-event", this._onKeyPressEvent.bind(this));
+
+        new DBus.DBusProxy(Gio.DBus.session,
             "org.freedesktop.DBus",
             "/org/freedesktop/DBus",
             this._onProxyReady.bind(this));
@@ -650,14 +547,14 @@ class MprisIndicatorButton extends PanelMenu.Button {
         }
 
         this._proxy = null;
-        this._themeContext = null;
         this._signals = null;
         this._checkForPreExistingPlayers = null;
 
         super.destroy();
     }
 
-    _pushSignal(obj, signalId) {
+    _pushSignal(obj, signalName, func) {
+        let signalId = obj.connect(signalName, func);
         this._signals.push({
             obj: obj,
             signalId: signalId
@@ -665,15 +562,12 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _addPlayer(busName) {
-        this.menu.addMenuItem(
-            new Player(
-                busName,
-                () => {
-                    this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
-                    this.actor.show();
-                }
-            )
-        );
+        let player = new Player(busName);
+        this.menu.addMenuItem(player);
+        player._pushSignal(player, "update-player-status", () => {
+            this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
+            this.actor.show();            
+        });
     }
 
     _removePlayer(busName) {
@@ -681,9 +575,9 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         if (this.menu.isEmpty()) {
             this.actor.hide();
-            this._indicator_icon.icon_name = null;
+            this._indicatorIcon.icon_name = null;
         } else {
-            this._indicator_icon.icon_name = this._getLastActivePlayerIcon();
+            this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
         }
     }
 
@@ -801,10 +695,32 @@ class MprisIndicatorButton extends PanelMenu.Button {
         super._onEvent(actor, event);
     }
 
+    _onKeyPressEvent(actor, event) {
+        let state = event.get_state();
+
+        if (state === Clutter.ModifierType.CONTROL_MASK) {
+            let player = this._getLastActivePlayer();
+            if (player) {
+                let symbol = event.get_key_symbol();           
+                if (symbol === Clutter.KEY_space) {
+                    player.playPauseStop();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Left) {
+                    player.previous();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Right) {
+                    player.next();
+                    return Clutter.EVENT_STOP;
+                }
+            }
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
     _onProxyReady(proxy) {
         this._proxy = proxy;
         this._proxy.ListNamesRemote(([busNames]) => {
-            busNames = busNames.filter(name => name.startsWith(MPRIS_PLAYER_PREFIX));
+            busNames = busNames.filter(name => name.startsWith("org.mpris.MediaPlayer2."));
             if (busNames.length > 0) {
                 busNames.sort();
                 this._checkForPreExistingPlayers = true;
@@ -813,7 +729,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         });
 
         this._proxy.connectSignal("NameOwnerChanged", (proxy, sender, [busName, oldOwner, newOwner]) => {
-            if (busName.startsWith(MPRIS_PLAYER_PREFIX)) {
+            if (busName.startsWith("org.mpris.MediaPlayer2.")) {
                 if (newOwner && !oldOwner) {
                     this._addPlayer(busName);
                 } else if (oldOwner && !newOwner) {
