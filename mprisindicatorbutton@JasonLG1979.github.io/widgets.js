@@ -29,6 +29,7 @@ const Clutter = imports.gi.Clutter;
 const PopupMenu = imports.ui.popupMenu;
 const BoxPointer = imports.ui.boxpointer;
 const Panel = imports.ui.panel;
+const Slider = imports.ui.slider;
 
 var CoverIcon = GObject.registerClass({
     GTypeName: "CoverIcon"
@@ -36,7 +37,7 @@ var CoverIcon = GObject.registerClass({
     _init() {
         super._init({
             icon_name: "audio-x-generic-symbolic",
-            icon_size: 56,
+            icon_size: 32,
             opacity: 153,
             y_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.ICON
@@ -133,83 +134,15 @@ var TrackLabel = GObject.registerClass({
 
         this._baseOpacity = baseOpacity;
         this._hoverOpacity = hoverOpacity;
-
-        this.hide();
     }
 
     onParentHover(hover) {
         this.opacity = hover ? this._hoverOpacity : this._baseOpacity;
     }
 
-    set_text(text) {
-        if (text) {
-            this.show();
-        } else {
-            this.hide();
-        }
-        super.set_text(text);
-    }
-
     vfunc_destroy() {
         this._baseOpacity = null;
         this._hoverOpacity = null;
-        super.destroy();
-    }
-});
-
-var RatingBox = GObject.registerClass({
-    GTypeName: "RatingBox"
-}, class RatingBox extends St.BoxLayout {
-    _init() {
-        super._init({
-            accessible_role: Atk.Role.INTERNAL_FRAME,
-            opacity: 204
-        });
-
-        this._rating = null;
-
-        for (let i=0; i < 5; i++) {
-            let star = new St.Icon({
-                icon_name: "non-starred-symbolic",
-                accessible_role: Atk.Role.ICON,
-                icon_size: 16
-            });
-            star._fullStarValue = (i + 1) * 2;
-            star._halfStarValue = star._fullStarValue - 1;
-            this.add(star);
-        }
-
-        this.hide();
-    }
-
-    setRating(rating) {
-        // 5 Stars at half star increments.
-        if (this._rating !== rating) {
-            this._rating = rating;
-            if (rating === null) {
-                this.hide();
-                rating = 0;
-            } else {
-                this.show();
-            }            
-            this.get_children().forEach(star => {
-                if (rating >= star._fullStarValue) {
-                    star.icon_name = "starred-symbolic";  
-                } else if (rating === star._halfStarValue) {
-                    star.icon_name = "semi-starred-symbolic";
-                } else {
-                    star.icon_name = "non-starred-symbolic";
-                }
-            });
-        }
-    }
-
-    onParentHover(hover) {
-        this.opacity = hover ? 255 : 204;
-    }
-
-    vfunc_destroy() {
-        this._rating = null;
         super.destroy();
     }
 });

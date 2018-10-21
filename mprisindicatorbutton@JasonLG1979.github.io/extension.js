@@ -20,10 +20,12 @@
 "use strict";
 
 const Main = imports.ui.main;
-const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
+const Gio = imports.gi.Gio;
+const GObject = imports.gi.GObject;
 const Atk = imports.gi.Atk;
 const St = imports.gi.St;
+const Meta = imports.gi.Meta;
 const Clutter = imports.gi.Clutter;
 const Shell = imports.gi.Shell;
 
@@ -105,23 +107,207 @@ function disable() {
     stockMprisOldShouldShow = null;
 }
 
-class Player extends PopupMenu.PopupBaseMenuItem {
-    constructor(busName) {
-        super();
+// Things get a little weird when there are more
+// than one instance of a player running at the same time.
+// As far as ShellApp is concerned they are the same app.
+// So we have to jump though a bunch of hoops to keep track
+// of and differentiate the instance windows by pid or
+// gtk_unique_bus_name/nameOwner.
+var AppFocusWrapper = GObject.registerClass({
+    GTypeName: "AppFocusWrapper",
+    Properties: {
+        "focused": GObject.ParamSpec.boolean(
+            "focused",
+            "focused-prop",
+            "If the instance of the app is focused",
+            GObject.ParamFlags.READABLE,
+            false
+        ),
+        "user-time": GObject.ParamSpec.int(
+            "user-time",
+            "user-time-prop",
+            "The last time the user interacted with the instance",
+            GObject.ParamFlags.READABLE,
+            0
+        )
+    }
+}, class AppFocusWrapper extends GObject.Object {
+    _init(shellApp, pid, nameOwner) {
+        super._init();
+        this._app = shellApp;
+        this._pid = pid;
+        this._nameOwner = nameOwner;
+        this._focused = false;
+        this._user_time = 0;
+        this._window = null;
+        this._appearsFocusedId = null;
+        this._userTimeId = null;
+        this._unmanagedId = null;
+        this._windowsChangedId = this._app.connect(
+            "windows-changed", 
+            this._onWindowsChanged.bind(this)
+        );
+        this._onWindowsChanged(); 
+    }
+
+    get focused() {
+        return this._focused;
+    }
+
+    get user_time() {
+        return this._user_time;
+    }
+
+    toggleWindow(minimize) {
+        if (!this._focused) {
+            if (this._window) {
+                // Go ahead and skip the whole "Player is Ready"
+                // dialog, after all the user wants the player focused,
+                // that's why they clicked on it...  
+                Main.activateWindow(this._window);
+            } else {
+                this._app.activate();
+            }
+            return true;
+        } else if (minimize && this._window && this._window.can_minimize()) {
+            this._window.minimize();
+            return true;
+        }
+        return false;
+    }
+
+    destroy() {
+        // Nothing to see here, move along...
+        if (this._windowsChangedId) {
+            this._app.disconnect(this._windowsChangedId);
+        }
+        this._onUnmanaged()
+        this._windowsChangedId = null;
         this._app = null;
+        this._pid = null;
+        this._focused = null;
+        this._user_time = null;
+        super.run_dispose();
+    }
+
+    _getNormalAppWindows() {
+        // We don't want dialogs or what not...
+        return Array.from(this._app.get_windows()).filter(w =>
+            !w.skip_taskbar && w.window_type === Meta.WindowType.NORMAL
+        );
+    }
+
+    _getNewAppWindow() {
+        // Try to get a hold of an actual window...
+        let windows = this._getNormalAppWindows();
+        if (windows.length) {
+            // Check for multiple instances and flatpak'd apps. (may also work for snaps?)
+            for (let w of windows) {
+                if (w.get_pid() === this._pid || w.gtk_unique_bus_name === this._nameOwner) {
+                    return w;
+                }
+            }
+            // If all else fails
+            // return the 1st window
+            // for single instance
+            // apps it will be the
+            // apps main window.
+            return windows[0];
+        }
+        return null;
+    }
+
+    _grabAppWindow(appWindow) {
+        // Connect our window signals
+        // and check the new window's focus.
+        if (appWindow) {
+            this._onUnmanaged();
+            this._window = appWindow;
+            this._appearsFocusedId = this._window.connect(
+               "notify::appears-focused",
+                this._onAppearsFocused.bind(this)
+            );
+            this._userTimeId = this._window.connect(
+               "notify::user-time",
+                this._onUserTime.bind(this)
+            );
+            this._unmanagedId = this._window.connect(
+                "unmanaged",
+            this._onUnmanaged.bind(this)
+            );
+            this._onUserTime();
+            this._onAppearsFocused();
+        }
+    }
+
+    _onWindowsChanged() {
+        // We get this signal when window show up
+        // Really only useful when a player "unhides"
+        // or at _init
+        let appWindow = this._getNewAppWindow();
+        if (this._window !== appWindow) {
+            this._grabAppWindow(appWindow);
+        }
+    }
+
+    _onAppearsFocused() {
+        // Pretty self explanatory...
+        let focused = this._window && this._window.has_focus();
+        if (this._focused != focused) {
+            this._focused = focused;
+            this.notify("focused");
+        }
+    }
+
+    _onUserTime() {
+        // Also pretty self explanatory...
+        if (this._window && this._window.user_time > this._user_time) {
+            this._user_time = this._window.user_time;
+            this.notify("user-time");
+        }
+    }
+
+    _onUnmanaged() {
+        // "unmanaged" windows are either hidden and/or
+        // will soon be destroyed. Disconnect from them
+        // and null the window.
+        if (this._window) {
+            if (this._appearsFocusedId) {
+                this._window.disconnect(this._appearsFocusedId);
+            }
+            if (this._userTimeId) {
+                this._window.disconnect(this._userTimeId);
+            }
+            if (this._unmanagedId) {
+                this._window.disconnect(this._unmanagedId);
+            }
+        }
+        this._window = null;
+        this._appearsFocusedId = null;
+        this._userTimeId = null;
+        this._unmanagedId = null;
+    }
+});
+
+class Player extends PopupMenu.PopupBaseMenuItem {
+    constructor(busName, pid, nameOwner, statusCallback, destructCallback) {
+        super();
+        this._focusWrapper = null;
         this._playerProxy = null;
         this._mprisProxy = null;
-        this._status = null;
+        this._status = "stopped";
         this._signals = [];
-        this._lastActiveTime = Date.now();
+        this._statusTime = 0;
         this._desktopEntry = "";
         this._playerName = "";
         this._playerIconName = "audio-x-generic-symbolic";
         this._busName = busName;
+        this._pid = parseInt(pid, 10);
+        this._nameOwner = nameOwner;
 
         let vbox = new St.BoxLayout({
-            accessible_role: Atk.Role.INTERNAL_FRAME,
             y_align: Clutter.ActorAlign.CENTER,
+            accessible_role: Atk.Role.INTERNAL_FRAME,
             vertical: true,
             x_expand: true
         });
@@ -129,7 +315,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this.actor.add(vbox);
 
         let hbox = new St.BoxLayout({
-            accessible_role: Atk.Role.INTERNAL_FRAME
+            y_align: Clutter.ActorAlign.CENTER,
+            accessible_role: Atk.Role.INTERNAL_FRAME,
+            x_expand: true
         });
 
         vbox.add(hbox);
@@ -142,7 +330,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             style: "padding-left: 12px",
             y_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.INTERNAL_FRAME,
-            vertical: true
+            vertical: true,
+            x_expand: true
         });
 
         hbox.add(info);
@@ -155,21 +344,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         info.add(this._trackTitle);
 
-        this._ratingsBox = new Widgets.RatingBox();
-
-        info.add(this._ratingsBox);
-
         this._pushSignal(this.actor, "notify::hover", (actor) => {
             let hover = actor.hover;
             this._coverIcon.onParentHover(hover);
             this._trackArtist.onParentHover(hover);
             this._trackTitle.onParentHover(hover);
-            this._ratingsBox.onParentHover(hover);
         });
 
         let playerButtonBox = new St.BoxLayout({
             x_align: Clutter.ActorAlign.CENTER,
-            accessible_role: Atk.Role.INTERNAL_FRAME
+            accessible_role: Atk.Role.INTERNAL_FRAME,
+            x_expand: true
         });
 
         vbox.add(playerButtonBox);
@@ -200,13 +385,119 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         playerButtonBox.add(this._nextButton);
 
-        new DBus.MprisProxy(Gio.DBus.session, busName,
+        this._pushSignal(this, "update-player-status", statusCallback);
+        this._pushSignal(this, "self-destruct", destructCallback);
+
+        this._cancellable = new DBus.MprisProxy(
+            busName,
             "/org/mpris/MediaPlayer2",
-            this._onMprisProxy.bind(this));
+            Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS,
+            this._onMprisProxyReady.bind(this)
+        );
+    }
+    _onMprisProxyReady(mprisProxy, error) {
+        this._cancellable.run_dispose();
+        this._cancellable = null;
+        if (mprisProxy) {
+            this._mprisProxy = mprisProxy;
+            this._playerName = this._mprisProxy.Identity || "";
+            this.actor.accessible_name = this._playerName;
+            let desktopEntry = this._mprisProxy.DesktopEntry || "";
+            this._desktopEntry = desktopEntry.split("/").pop().replace(".desktop", "");
+            let desktopId = this._desktopEntry + ".desktop";
+            let appSystem = Shell.AppSystem.get_default();
+            let shellApp = appSystem.lookup_app(desktopId) || appSystem.lookup_startup_wmclass(this._playerName);
+            if (shellApp) {
+                this._focusWrapper = new AppFocusWrapper(shellApp, this._pid, this._nameOwner);
+                this._pushSignal(this._focusWrapper, "notify::focused", () => {
+                    this.emit("update-player-status");
+                });
+                this._pushSignal(this._focusWrapper, "notify::user-time", () => {
+                    this.emit("update-player-status");
+                });
+                
+            }
+            this._pushSignal(this, "activate", () => {
+                this.toggleWindow(false);
+            });
+
+            this._cancellable = new DBus.MprisPlayerProxy(
+                this._busName,
+                "/org/mpris/MediaPlayer2",
+                Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS,
+                this._onPlayerProxyReady.bind(this)
+            );
+        } else {
+            DBus.logDBusError(error);
+            this.emit("self-destruct");
+        }
     }
 
-    get lastActiveTime() {
-        return this._lastActiveTime;
+    _onPlayerProxyReady(playerProxy, error) {
+        this._cancellable.run_dispose();
+        this._cancellable = null;
+        if (playerProxy) {
+            this._playerProxy = playerProxy;
+
+            this._pushSignal(this._prevButton, "clicked", () => {
+                this._playerProxy.PreviousRemote();
+            });
+
+            this._pushSignal(this._playPauseButton, "clicked", () => {
+                if (this.canPause && this.canPlay) {
+                    this._playerProxy.PlayPauseRemote();
+                } else if (this.canPlay) {
+                    this._playerProxy.PlayRemote();
+                }
+            });
+
+            this._pushSignal(this._stopButton, "clicked", () => {
+                this._playerProxy.StopRemote();
+            });
+
+            this._pushSignal(this._nextButton, "clicked", () => {
+                this._playerProxy.NextRemote();
+            });
+
+            let themeContext = St.ThemeContext.get_for_stage(global.stage);
+
+            this._pushSignal(themeContext, "changed", () => {
+                this._playerIconName = getPlayerIconName(this._desktopEntry);
+                this._coverIcon.setFallbackName(this._playerIconName);
+                this._updateMetadata();
+            });
+
+            this._playerIconName = getPlayerIconName(this._desktopEntry);
+            this._coverIcon.setFallbackName(this._playerIconName);
+            this._updateProps();
+            this._updateMetadata();
+
+            this._playerProxy.connect("g-properties-changed", (proxy, props, invalidated_props) => {
+                props = Object.keys(props.deep_unpack()).concat(invalidated_props);
+                if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
+                    this._updateProps();
+                }
+
+                if (props.includes("Metadata")) {
+                    this._updateMetadata();
+                }
+            });
+        } else {
+            DBus.logDBusError(error);
+            this.emit("self-destruct");
+        }
+    }
+
+    get userTime() {
+        if (this._focusWrapper) {
+            return this._focusWrapper.user_time;
+        } else {
+            return 0;
+        }
+    }
+
+    get statusTime() {
+        return this._statusTime;
     }
 
     get statusValue() {
@@ -219,6 +510,13 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         }
     }
 
+    get focused() {
+        if (this._focusWrapper) {
+            return this._focusWrapper.focused;
+        }
+        return false;
+    }
+
     get desktopEntry() {
         return this._desktopEntry;
     }
@@ -227,27 +525,62 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return this._busName;
     }
 
-    playPauseStop() {
+    get metadata() {
         if (this._playerProxy) {
-            let status = this._playerProxy.PlaybackStatus.toLowerCase();
-            let isPlaying = status === "playing";
+            return this._playerProxy.Metadata || {};
+        }
+        return {};
+    }
 
-            if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
-                this._playerProxy.PlayPauseRemote();
-                return true;
-            } else if (this._playerProxy.CanPlay && !isPlaying) {
-                this._playerProxy.PlayRemote();
-                return true;
-            } else if (isPlaying) {
-                this._playerProxy.StopRemote();
-                return true;
+    get playbackStatus() {
+        if (this._playerProxy) {
+            let status = (this._playerProxy.PlaybackStatus || "").toLowerCase();
+            if (status === "playing" || "paused") {
+                return status;
             }
+             
+        }
+        return "stopped";
+    }
+
+    get canRaise() {
+        return this._mprisProxy && this._mprisProxy.CanRaise;
+    } 
+
+    get canGoNext() {
+        return this._playerProxy && this._playerProxy.CanGoNext;
+    }
+
+    get canGoPrevious() {
+        return this._playerProxy && this._playerProxy.CanGoPrevious;
+    }
+
+    get canPlay() {
+        return this._playerProxy && this._playerProxy.CanPlay;
+    }
+
+    get canPause() {
+        return this._playerProxy && this._playerProxy.CanPause;
+    }
+
+    playPauseStop() {
+        let isPlaying = this.playbackStatus === "playing";
+
+        if (this.canPause && this.canPlay) {
+            this._playerProxy.PlayPauseRemote();
+            return true;
+        } else if (this.canPlay && !isPlaying) {
+            this._playerProxy.PlayRemote();
+            return true;
+        } else if (isPlaying) {
+            this._playerProxy.StopRemote();
+            return true;
         }
         return false;
     }
 
     previous() {
-        if (this._playerProxy && this._playerProxy.CanGoPrevious) {
+        if (this.canGoPrevious) {
             this._playerProxy.PreviousRemote();
             return true;
         }
@@ -255,22 +588,19 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     next() {
-        if (this._playerProxy && this._playerProxy.CanGoNext) {
+        if (this.canGoNext) {
             this._playerProxy.NextRemote();
             return true;
         }
         return false;
     }
 
-    raise() {
-        if (this._playerProxy) {
-            if (this._app) {
-                this._app.activate();
-                return true;
-            } else if (this._mprisProxy.CanRaise) {
-                this._mprisProxy.RaiseRemote();
-                return true;
-            }
+    toggleWindow(minimize) {
+        if (this._focusWrapper) {
+            return this._focusWrapper.toggleWindow(minimize);
+        } else if (this.canRaise) {
+            this._mprisProxy.RaiseRemote();
+            return true;
         }
         return false;
     }
@@ -280,20 +610,36 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         }
 
+        this._signals = null;
+
+        if (this._focusWrapper) {
+            this._focusWrapper.destroy();
+        }
+
+        this._focusWrapper = null;
+
+        if (this._cancellable) {
+            if (!this._cancellable.is_cancelled()) {
+                this._cancellable.cancel();
+            }
+            this._cancellable.run_dispose();
+        }
+
+        this._cancellable = null;
+
         if (this._mprisProxy) {
             this._mprisProxy.run_dispose();
         }
+
+        this._mprisProxy = null;
 
         if (this._playerProxy) {
             this._playerProxy.run_dispose();
         }
 
-        this._app = null;
         this._playerProxy = null;
-        this._mprisProxy = null;
         this._status = null;
-        this._signals = null;
-        this._lastActiveTime = null;
+        this._statusTime = null;
         this._desktopEntry = null;
         this._playerName = null;
         this._playerIconName = null;
@@ -310,22 +656,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
     }
 
-    _updateMetadata(playerProxy) {
+    _updateMetadata() {
         let artist = "";
         let title = "";
         let coverUrl = "";
-        let rating = null;
-        let metadata = playerProxy.Metadata || {};
+        let metadata = this.metadata;
         let metadataKeys = Object.keys(metadata);
         let artistKeys = [
             "xesam:artist",
             "xesam:albumArtist",
             "xesam:composer",
             "xesam:lyricist"
-        ];
-        let ratingKeys = [
-            "xesam:userRating",
-            "xesam:autoRating"
         ];
 
         // Be rather exhaustive and liberal
@@ -363,125 +704,41 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         if (metadataKeys.includes("mpris:artUrl")) {
             coverUrl = metadata["mpris:artUrl"].unpack();
         }
-
-        // Prefer user ratings but fallback to auto ratings.
-        // How a player determines auto ratings is up to the player.
-        // If the player doesn't support ratings, hide them.
-        if (ratingKeys.some(key => metadataKeys.indexOf(key) >= 0)) {
-            for (let i=0; i < 2; i++) {
-                let ratingKey = ratingKeys[i];
-                if (metadataKeys.includes(ratingKey)) {
-                    rating = Math.round(metadata[ratingKey].unpack() * 10);
-                    if (rating) {
-                        break;
-                    }
-                }
-            }
-        }
-
         this._coverIcon.setCover(coverUrl);
         this._trackArtist.set_text(artist || this._playerName);
         this._trackTitle.set_text(title);
-        this._ratingsBox.setRating(rating);
     }
 
-    _updateProps(playerProxy) {
+    _updateProps() {
         let playPauseIconName, playPauseReactive;
-        let status = playerProxy.PlaybackStatus.toLowerCase();
+        let status = this.playbackStatus;
         let isPlaying = status === "playing";
 
-        if (playerProxy.CanPause && playerProxy.CanPlay) {
+        if (this.canPause && this.canPlay) {
             this._stopButton.hide();
             playPauseIconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
             playPauseReactive = true;
         } else {
-            if (playerProxy.CanPlay) {
+            if (this.canPlay) {
                 this._stopButton.show();
             }
             playPauseIconName = "media-playback-start-symbolic";
-            playPauseReactive = playerProxy.CanPlay;
+            playPauseReactive = this.canPlay;
         }
 
-        this._prevButton.reactive = playerProxy.CanGoPrevious;
+        this._prevButton.reactive = this.canGoPrevious;
 
         this._playPauseButton.child.icon_name = playPauseIconName;
 
         this._playPauseButton.reactive = playPauseReactive;
 
-        this._nextButton.reactive = playerProxy.CanGoNext;
+        this._nextButton.reactive = this.canGoNext;
 
         if (this._status !== status) {
             this._status = status;
-            this._lastActiveTime = Date.now();
+            this._statusTime = global.get_current_time();
             this.emit("update-player-status");
         }
-    }
-
-    _onMprisProxy(mprisProxy) {
-        this._mprisProxy = mprisProxy;
-        this._playerName = this._mprisProxy.Identity || "";
-        this.actor.accessible_name = this._playerName;
-        this._desktopEntry = this._mprisProxy.DesktopEntry || "";
-        let desktopId = this._desktopEntry + ".desktop";
-        this._app = Shell.AppSystem.get_default().lookup_app(desktopId);
-
-        if (this._app || this._mprisProxy.CanRaise) {
-            this._pushSignal(this, "activate", () => {
-                this.raise();
-            });
-        }
-
-        new DBus.MprisPlayerProxy(Gio.DBus.session, this._busName,
-            "/org/mpris/MediaPlayer2",
-            this._onPlayerProxyReady.bind(this));
-    }
-
-    _onPlayerProxyReady(playerProxy) {
-        this._playerProxy = playerProxy;
-
-        this._pushSignal(this._prevButton, "clicked", () => {
-            this._playerProxy.PreviousRemote();
-        });
-
-        this._pushSignal(this._playPauseButton, "clicked", () => {
-            if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
-                this._playerProxy.PlayPauseRemote();
-            } else if (this._playerProxy.CanPlay) {
-                this._playerProxy.PlayRemote();
-            }
-        });
-
-        this._pushSignal(this._stopButton, "clicked", () => {
-            this._playerProxy.StopRemote();
-        });
-
-        this._pushSignal(this._nextButton, "clicked", () => {
-            this._playerProxy.NextRemote();
-        });
-
-        let themeContext = St.ThemeContext.get_for_stage(global.stage);
-
-        this._pushSignal(themeContext, "changed", () => {
-            this._playerIconName = getPlayerIconName(this._desktopEntry);
-            this._coverIcon.setFallbackName(this._playerIconName);
-            this._updateMetadata(this._playerProxy);
-        });
-
-        this._playerIconName = getPlayerIconName(this._desktopEntry);
-        this._coverIcon.setFallbackName(this._playerIconName);
-        this._updateProps(this._playerProxy);
-        this._updateMetadata(this._playerProxy);
-
-        this._playerProxy.connect("g-properties-changed", (proxy, props, invalidated_props) => {
-            props = Object.keys(props.deep_unpack()).concat(invalidated_props);
-            if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
-                this._updateProps(proxy);
-            }
-
-            if (props.includes("Metadata")) {
-                this._updateMetadata(proxy);
-            }
-        });
     }
 
     _onKeyPressEvent(actor, event) {
@@ -489,14 +746,11 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         if (state === Clutter.ModifierType.CONTROL_MASK) {
             let symbol = event.get_key_symbol();           
-            if (symbol === Clutter.KEY_space) {
-                this.playPauseStop();
+            if (symbol === Clutter.KEY_space && this.playPauseStop()) {
                 return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Left) {
-                this.previous();
+            } else if (symbol === Clutter.Left && this.previous()) {
                 return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Right) {
-                this.next();
+            } else if (symbol === Clutter.Right && this.next()) {
                 return Clutter.EVENT_STOP;
             }
         }
@@ -508,9 +762,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
     constructor() {
         super(0.0, "Mpris Indicator Button", false);
         this.actor.accessible_name = "Mpris";
-        this._proxy = null;
         this._signals = [];
-        this._checkForPreExistingPlayers = false;
 
         this.actor.hide();
 
@@ -531,10 +783,10 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this._pushSignal(this.actor, "key-press-event", this._onKeyPressEvent.bind(this));
 
-        new DBus.DBusProxy(Gio.DBus.session,
-            "org.freedesktop.DBus",
-            "/org/freedesktop/DBus",
-            this._onProxyReady.bind(this));
+        this._proxyHandler = new DBus.DBusProxyHandler();
+        this._pushSignal(this._proxyHandler, "add-player", this._addPlayer.bind(this));
+        this._pushSignal(this._proxyHandler, "remove-player", this._removePlayer.bind(this));
+        this._pushSignal(this._proxyHandler, "change-player-owner", this._changePlayerOwner.bind(this));
     }
 
     destroy() {
@@ -542,13 +794,9 @@ class MprisIndicatorButton extends PanelMenu.Button {
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         }
 
-        if (this._proxy) {
-            this._proxy.run_dispose();
-        }
-
-        this._proxy = null;
+        this._proxyHandler.destroy();
+        this._proxyHandler = null;
         this._signals = null;
-        this._checkForPreExistingPlayers = null;
 
         super.destroy();
     }
@@ -561,16 +809,29 @@ class MprisIndicatorButton extends PanelMenu.Button {
         });
     }
 
-    _addPlayer(busName) {
-        let player = new Player(busName);
-        this.menu.addMenuItem(player);
-        player._pushSignal(player, "update-player-status", () => {
-            this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
-            this.actor.show();            
-        });
+    _onUpdatePlayerStatus() {
+        this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
+        this.actor.show();
     }
 
-    _removePlayer(busName) {
+    _onPlayerSelfDestruct(player) {
+        this._removePlayer(this._proxyHandler, player.busName);
+    }
+
+    _addPlayer(proxyHandler, busNamePid) {
+        let [busName, nameOwner, pid] = busNamePid.split(" ");
+        this.menu.addMenuItem(
+            new Player(
+                busName,
+                pid,
+                nameOwner,
+                this._onUpdatePlayerStatus.bind(this),
+                this._onPlayerSelfDestruct.bind(this)
+            )
+        );
+    }
+
+    _removePlayer(proxyHandler, busName) {
         this._destroyPlayer(busName);
 
         if (this.menu.isEmpty()) {
@@ -581,82 +842,51 @@ class MprisIndicatorButton extends PanelMenu.Button {
         }
     }
 
-    _changePlayerOwner(busName) {
+    _changePlayerOwner(proxyHandler, busNamePid) {
+        let [busName, nameOwner, pid] = busNamePid.split(" ");
         this._destroyPlayer(busName);
-        this._addPlayer(busName);
+        this._addPlayer(proxyHandler, busNamePid);
     }
 
     _destroyPlayer(busName) {
-        let children = this.menu._getMenuItems();
-
-        for (let i = 0; i < children.length; i++) {
-            let player = children[i];
-            if (busName === player.busName) {
+        for (let player of this.menu._getMenuItems()) {
+            if (player.busName === busName) {
                 player.destroy();
                 break;
             }
         }
     }
 
-    _byStatusAndTime(a, b) {
-        if (a.statusValue < b.statusValue) {
-            return -1;
-        } else if (a.statusValue > b.statusValue) {
-            return 1;
-        } else {
-            if (a.lastActiveTime > b.lastActiveTime) {
-                return -1;
-            } else if (a.lastActiveTime < b.lastActiveTime) {
-                return 1;
-            } else {
-                return 0;
-            }
-        }
-    }
-
-    _averageLastActiveTimeDelta(players) {
-        let values = players.map(player => player.lastActiveTime);
-        let len = values.length;
-        let avg = values.reduce((sum, value) => sum + value) / len;
-        let deltas = values.map(value => Math.abs(value - avg));
-        let avgDelta = deltas.reduce((sum, value) => sum + value) / len;
-        return avgDelta;
-    }
-
     _getLastActivePlayer() {
-        let player = null;
         if (!this.menu.isEmpty()) {
-            let players = this.menu._getMenuItems();
-            if (players.length === 1) {
-                player = players[0];
-            } else if (this._checkForPreExistingPlayers) {
-                if (this._averageLastActiveTimeDelta(players) < 250) {
-                    let playing = players.filter(player => player.statusValue === 0);
-                    if (playing.length === 1) {
-                        player = playing[0];
-                    } else if (playing.length === 0) {
-                        let paused = players.filter(player => player.statusValue === 1);
-                        if (paused.length === 1) {
-                            player = paused[0];
-                        }
-                    }
+            return this.menu._getMenuItems().sort((a, b) => {
+                if (a.focused) {
+                    return -1;
+                } else if (b.focused) {
+                    return 1;
+                } else if (a.statusValue < b.statusValue) {
+                    return -1;
+                } else if (a.statusValue > b.statusValue) {
+                    return 1;
+                } else if (a.userTime > b.userTime) {
+                    return -1;
+                } else if (a.userTime < b.userTime) {
+                    return 1;
+                } else if (a.statusTime > b.statusTime) {
+                    return -1;
+                } else if (a.statusTime < b.statusTime) {
+                    return 1;
                 } else {
-                    this._checkForPreExistingPlayers = false;
-                    players.sort(this._byStatusAndTime);
-                    player = players[0];
+                    return 0;
                 }
-            } else {
-                players.sort(this._byStatusAndTime);
-                player = players[0];
-            }
+            })[0];
         }
-        return player;
+        return null;
     }
 
     _getLastActivePlayerIcon() {
         let player = this._getLastActivePlayer();
-        let iconName = player ? getPlayerIconName(player.desktopEntry) : "audio-x-generic-symbolic";
-        return iconName;
+        return player ? getPlayerIconName(player.desktopEntry) : "audio-x-generic-symbolic";
     }
 
     _onEvent(actor, event) {
@@ -671,10 +901,19 @@ class MprisIndicatorButton extends PanelMenu.Button {
                 // and the button will behave like the rest of
                 // GNOME Shell. i.e. clicking any button will
                 // open the menu.
-                if (player &&
-                    (button === 2 && player.playPauseStop()) ||
-                    (button === 3 && player.raise())) {
-                    return Clutter.EVENT_STOP;
+                if (player) {
+                    if (button === 2 && player.playPauseStop()) {
+                        return Clutter.EVENT_STOP;
+                    }
+                    else if (button === 3) {
+                        let playerWasFocused = player.focused;
+                        if (player.toggleWindow(true)) {
+                            if (!playerWasFocused) {
+                                this.menu.close(true);
+                            }
+                            return Clutter.EVENT_STOP;
+                        }
+                    }
                 }
             }
         } else if (eventType === Clutter.EventType.SCROLL) {
@@ -685,10 +924,12 @@ class MprisIndicatorButton extends PanelMenu.Button {
             if (scrollDirection === Clutter.ScrollDirection.UP ||
                 scrollDirection === Clutter.ScrollDirection.DOWN) {
                 let player = this._getLastActivePlayer();
-                if (player &&
-                    (scrollDirection === Clutter.ScrollDirection.UP && player.previous()) ||
-                    (scrollDirection === Clutter.ScrollDirection.DOWN && player.next())) {
-                    return Clutter.EVENT_STOP;
+                if (player) {
+                    if (scrollDirection === Clutter.ScrollDirection.UP && player.previous()) {
+                        return Clutter.EVENT_STOP;
+                    } else if (scrollDirection === Clutter.ScrollDirection.DOWN && player.next()) {
+                        return Clutter.EVENT_STOP;
+                    }
                 }
             }
         }
@@ -702,42 +943,15 @@ class MprisIndicatorButton extends PanelMenu.Button {
             let player = this._getLastActivePlayer();
             if (player) {
                 let symbol = event.get_key_symbol();           
-                if (symbol === Clutter.KEY_space) {
-                    player.playPauseStop();
+                if (symbol === Clutter.KEY_space && player.playPauseStop()) {
                     return Clutter.EVENT_STOP;
-                } else if (symbol === Clutter.Left) {
-                    player.previous();
+                } else if (symbol === Clutter.Left && player.previous()) {
                     return Clutter.EVENT_STOP;
-                } else if (symbol === Clutter.Right) {
-                    player.next();
+                } else if (symbol === Clutter.Right && player.next()) {
                     return Clutter.EVENT_STOP;
                 }
             }
         }
         return Clutter.EVENT_PROPAGATE;
-    }
-
-    _onProxyReady(proxy) {
-        this._proxy = proxy;
-        this._proxy.ListNamesRemote(([busNames]) => {
-            busNames = busNames.filter(name => name.startsWith("org.mpris.MediaPlayer2."));
-            if (busNames.length > 0) {
-                busNames.sort();
-                this._checkForPreExistingPlayers = true;
-                busNames.forEach(busName => this._addPlayer(busName));
-            }
-        });
-
-        this._proxy.connectSignal("NameOwnerChanged", (proxy, sender, [busName, oldOwner, newOwner]) => {
-            if (busName.startsWith("org.mpris.MediaPlayer2.")) {
-                if (newOwner && !oldOwner) {
-                    this._addPlayer(busName);
-                } else if (oldOwner && !newOwner) {
-                    this._removePlayer(busName);
-                } else if (oldOwner && newOwner) {
-                    this._changePlayerOwner(busName);
-                }
-            }
-        });
     }
 }
