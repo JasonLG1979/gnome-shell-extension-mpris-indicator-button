@@ -50,33 +50,29 @@ function getPlayerIconName(desktopEntry) {
     // or spotify-client as their spotify icon's name and
     // what they'll name their Spotify symbolic icon if
     // they have one at all?
-    let iconName = "audio-x-generic-symbolic";
-
     if (desktopEntry) {
-        let possibleIconNames = [];
-
+        let iconNames = [];
         if (desktopEntry.toLowerCase() === "spotify") {
-            possibleIconNames = [desktopEntry + "-symbolic",
+            iconNames = [
+                desktopEntry + "-symbolic",
                 desktopEntry + "-client-symbolic",
                 desktopEntry,
                 desktopEntry + "-client"
             ];
         } else {
-            possibleIconNames = [desktopEntry + "-symbolic",
+            iconNames = [
+                desktopEntry + "-symbolic",
                 desktopEntry
             ];
         }
-
         let currentIconTheme = Gtk.IconTheme.get_default();
-
-        for (let i = 0; i < possibleIconNames.length; i++) {
-            if (currentIconTheme.has_icon(possibleIconNames[i])) {
-                iconName = possibleIconNames[i];
-                break;
+        for (let iconName of iconNames) {
+            if (currentIconTheme.has_icon(iconName)) {
+                return iconName;
             }
         }
     }
-    return iconName;
+    return null;
 }
 
 function enable() {
@@ -156,6 +152,14 @@ var AppFocusWrapper = GObject.registerClass({
 
     get user_time() {
         return this._user_time;
+    }
+
+    get gicon() {
+        let app_info = this._app.get_app_info();
+        if (app_info) {
+            return app_info.get_icon() || null;
+        }
+        return null;
     }
 
     toggleWindow(minimize) {
@@ -300,7 +304,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._statusTime = 0;
         this._desktopEntry = "";
         this._playerName = "";
-        this._playerIconName = "audio-x-generic-symbolic";
         this._busName = busName;
         this._pid = parseInt(pid, 10);
         this._nameOwner = nameOwner;
@@ -411,6 +414,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             }
         }
         return shellApp;
+    }
 
     _onMprisProxyReady(mprisProxy, error) {
         this._cancellable.run_dispose();
@@ -477,13 +481,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             let themeContext = St.ThemeContext.get_for_stage(global.stage);
 
             this._pushSignal(themeContext, "changed", () => {
-                this._playerIconName = getPlayerIconName(this._desktopEntry);
-                this._coverIcon.setFallbackName(this._playerIconName);
+                let playerIconName = getPlayerIconName(this._desktopEntry);
+                this._coverIcon.setFallbackName(playerIconName);
+                this._coverIcon.setFallbackGicon(this.gicon);
                 this._updateMetadata();
             });
 
-            this._playerIconName = getPlayerIconName(this._desktopEntry);
-            this._coverIcon.setFallbackName(this._playerIconName);
+            let playerIconName = getPlayerIconName(this._desktopEntry);
+            this._coverIcon.setFallbackName(playerIconName);
+            this._coverIcon.setFallbackGicon(this.gicon);
             this._updateProps();
             this._updateMetadata();
 
@@ -523,6 +529,13 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         } else {
             return 2;
         }
+    }
+
+    get gicon() {
+        if (this._focusWrapper) {
+            return this._focusWrapper.gicon;
+        }
+        return null;
     }
 
     get focused() {
@@ -657,7 +670,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._statusTime = null;
         this._desktopEntry = null;
         this._playerName = null;
-        this._playerIconName = null;
         this._busName = null;
 
         super.destroy();
@@ -793,7 +805,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         let themeContext = St.ThemeContext.get_for_stage(global.stage);
 
         this._pushSignal(themeContext, "changed", () => {
-            this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
+            this._setIndicatorIcon();
         });
 
         this._pushSignal(this.actor, "key-press-event", this._onKeyPressEvent.bind(this));
@@ -825,7 +837,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _onUpdatePlayerStatus() {
-        this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
+        this._setIndicatorIcon();
         this.actor.show();
     }
 
@@ -853,7 +865,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
             this.actor.hide();
             this._indicatorIcon.icon_name = null;
         } else {
-            this._indicatorIcon.icon_name = this._getLastActivePlayerIcon();
+            this._setIndicatorIcon();
         }
     }
 
@@ -899,9 +911,21 @@ class MprisIndicatorButton extends PanelMenu.Button {
         return null;
     }
 
-    _getLastActivePlayerIcon() {
+    _setIndicatorIcon() {
         let player = this._getLastActivePlayer();
-        return player ? getPlayerIconName(player.desktopEntry) : "audio-x-generic-symbolic";
+        if (player) {
+            let playerIconName = getPlayerIconName(player.desktopEntry);
+            if (playerIconName) {
+                this._indicatorIcon.icon_name = playerIconName;
+            } else {
+                let gicon = player.gicon;
+                if (gicon) {
+                    this._indicatorIcon.gicon = gicon;
+                } else {
+                    this._indicatorIcon.icon_name = "audio-x-generic-symbolic";
+                }
+            }
+        }
     }
 
     _onEvent(actor, event) {

@@ -45,7 +45,8 @@ var CoverIcon = GObject.registerClass({
 
         this._parentHoverState = false;
         this._cancellable = null;
-        this._fallbackName = "audio-x-generic-symbolic";
+        this._fallbackName = null;
+        this._fallbackGicon = null;
     }
 
     onParentHover(hover) {
@@ -55,7 +56,11 @@ var CoverIcon = GObject.registerClass({
     }
 
     setFallbackName(iconName) {
-        this._fallbackName = iconName || "audio-x-generic-symbolic";
+        this._fallbackName = iconName
+    }
+
+    setFallbackGicon(gicon) {
+        this._fallbackGicon = gicon;
     }
 
     setCover(coverUrl) {
@@ -116,8 +121,14 @@ var CoverIcon = GObject.registerClass({
     }
 
     _fallback() {
-        this.icon_name = this._fallbackName;
-        let symbolicCover = this._fallbackName.endsWith("-symbolic");
+        if (this._fallbackName) {
+            this.icon_name = this._fallbackName;
+        } else if (this._fallbackGicon) {
+            this.gicon = this._fallbackGicon;
+        } else {
+            this.icon_name = "audio-x-generic-symbolic";
+        }
+        let symbolicCover = this.icon_name && this.icon_name.endsWith("-symbolic");
         this.opacity = !symbolicCover ? 255 : this._parentHoverState ? 204 : 153;
         this.accessible_role = Atk.Role.ICON;
     }
