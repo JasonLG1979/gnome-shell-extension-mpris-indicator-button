@@ -395,6 +395,23 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._onMprisProxyReady.bind(this)
         );
     }
+
+    _getShellApp(desktopId, identity) {
+        let appSystem = Shell.AppSystem.get_default();
+        let shellApp = appSystem.lookup_app(desktopId) ||
+            appSystem.lookup_startup_wmclass(identity);
+        if (!shellApp) {
+            // Last resort... Needed for at least the Spotify snap.
+            let lcIdentity = identity.toLowerCase();
+            for (let app of appSystem.get_running()) {
+                if (lcIdentity === app.get_name().toLowerCase()) {
+                    shellApp = app;
+                    break;
+                }
+            }
+        }
+        return shellApp;
+
     _onMprisProxyReady(mprisProxy, error) {
         this._cancellable.run_dispose();
         this._cancellable = null;
@@ -405,8 +422,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             let desktopEntry = this._mprisProxy.DesktopEntry || "";
             this._desktopEntry = desktopEntry.split("/").pop().replace(".desktop", "");
             let desktopId = this._desktopEntry + ".desktop";
-            let appSystem = Shell.AppSystem.get_default();
-            let shellApp = appSystem.lookup_app(desktopId) || appSystem.lookup_startup_wmclass(this._playerName);
+            let shellApp = this._getShellApp(desktopId, this._playerName);
             if (shellApp) {
                 this._focusWrapper = new AppFocusWrapper(shellApp, this._pid, this._nameOwner);
                 this._pushSignal(this._focusWrapper, "notify::focused", () => {
@@ -414,8 +430,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                 });
                 this._pushSignal(this._focusWrapper, "notify::user-time", () => {
                     this.emit("update-player-status");
-                });
-                
+                });               
             }
             this._pushSignal(this, "activate", () => {
                 this.toggleWindow(false);
