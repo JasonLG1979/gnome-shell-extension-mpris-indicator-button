@@ -396,7 +396,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
 
         this._pushSignal(this, "activate", () => {
-            this.toggleWindow(false);
+            this.toggleWindow();
         });
 
         this._pushSignal(this._prevButton, "clicked", () => {
@@ -468,22 +468,22 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return shellApp;
     }
 
-    _onMprisAsyncInitComplete(error) {
-        if (!error) {
+    _onMprisAsyncInitComplete(success) {
+        if (success) {
             this.actor.accessible_name = this._mpris.player_name;
             this._desktopEntry = this._mpris.desktop_entry;
             let shellApp = this._getShellApp(this._desktopEntry + ".desktop", this._mpris.player_name);
             if (shellApp) {
                 this._focusWrapper = new AppFocusWrapper(shellApp, this._pid, this._nameOwner);
                 this._fallbackGicon = this._focusWrapper.getGicon();
+                this._coverIcon.setFallbackGicon(this._fallbackGicon);
                 this._pushSignal(this._focusWrapper, "notify::focused", () => {
                     this.emit("update-player-status");
                 });               
             }
             this._fallbackIconName = this._getPlayerIconName();
             this._coverIcon.setFallbackName(this._fallbackIconName);
-            this._coverIcon.setFallbackGicon(this._fallbackGicon);
-            this._coverIcon.setCover("");
+            this._coverIcon.setCover();
         } else {
             this.emit("self-destruct");
         }
@@ -547,11 +547,13 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     onThemeChanged() {
         if (this._focusWrapper) {
             this._fallbackGicon = this._focusWrapper.getGicon();
+            this._coverIcon.setFallbackGicon(this._fallbackGicon);
         }
         this._fallbackIconName = this._getPlayerIconName();
         this._coverIcon.setFallbackName(this._fallbackIconName);
-        this._coverIcon.setFallbackGicon(this._fallbackGicon);
-        this._coverIcon.setCover(this._mpris.cover_url);
+        if (!this._mpris.cover_url) {
+            this._coverIcon.setCover();
+        }
     }
 
     destroy() {

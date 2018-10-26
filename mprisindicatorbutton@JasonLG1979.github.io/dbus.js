@@ -574,7 +574,7 @@ var MprisProxyHandler = GObject.registerClass({
             );
         } else {
             logError(error);
-            this._onAsyncInitComplete(true);
+            this._onAsyncInitComplete();
         }
     }
 
@@ -583,7 +583,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._cancellable = null;
         if (playerProxy) {
             this._playerProxy = playerProxy;
-            this._onAsyncInitComplete(false);
+            this._onAsyncInitComplete(true);
             this._updateProps();
             this._updateMetadata();
             this._playerProxy.connect("g-properties-changed", (proxy, props, invalidated_props) => {
@@ -598,7 +598,7 @@ var MprisProxyHandler = GObject.registerClass({
             });
         } else {
             logError(error);
-            this._onAsyncInitComplete(true);
+            this._onAsyncInitComplete();
         }
     }
 
