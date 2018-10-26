@@ -32,8 +32,6 @@ function _makeProxyWrapper(interfaceXml) {
     let info = nodeInfo.interfaces[0];
     let iname = info.name;
     return function(name, object, flags, asyncCallback) {
-        let error = null;
-        let proxy = null;
         let cancellable = new Gio.Cancellable();
         Gio.DBusProxy.new(
             Gio.DBus.session,
