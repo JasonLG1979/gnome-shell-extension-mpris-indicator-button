@@ -86,10 +86,11 @@ var AppFocusWrapper = GObject.registerClass({
         )
     }
 }, class AppFocusWrapper extends GObject.Object {
-    _init(shellApp, pid, nameOwner) {
+    _init(shellApp, busName, pid, nameOwner) {
         super._init();
         this._app = shellApp;
         this._pid = pid;
+        this._instanceNum = this._getNumbersFromTheEndOf(busName);
         this._nameOwner = nameOwner;
         this._focused = false;
         this._user_time = 0;
@@ -154,6 +155,14 @@ var AppFocusWrapper = GObject.registerClass({
         super.run_dispose();
     }
 
+    _getNumbersFromTheEndOf(someString) {
+        let matches = someString.match(/[0-9]+$/);
+        if (matches) {
+            return parseInt(matches[0], 10);
+        }
+        return null;
+    }
+
     _getNormalAppWindows() {
         // We don't want dialogs or what not...
         return Array.from(this._app.get_windows()).filter(w =>
@@ -167,7 +176,16 @@ var AppFocusWrapper = GObject.registerClass({
         if (windows.length) {
             // Check for multiple instances and flatpak'd apps. (may also work for snaps?)
             for (let w of windows) {
-                if (w.get_pid() === this._pid || w.gtk_unique_bus_name === this._nameOwner) {
+                if (this._instanceNum && w.gtk_window_object_path) {
+                    let windowNum = this._getNumbersFromTheEndOf(w.gtk_window_object_path);
+                    if (this._instanceNum === windowNum) {
+                        return w;
+                    }
+                } else if (w.gtk_unique_bus_name) {
+                    if (w.gtk_unique_bus_name === this._nameOwner) {
+                        return w;
+                    }
+                } else if (w.get_pid() === this._pid) {
                     return w;
                 }
             }
@@ -175,7 +193,7 @@ var AppFocusWrapper = GObject.registerClass({
             // return the 1st window
             // for single instance
             // apps it will be the
-            // apps main window.
+            // app's main window.
             return windows[0];
         }
         return null;
@@ -327,46 +345,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._pushSignal(this, "update-player-status", statusCallback);
         this._pushSignal(this, "self-destruct", destructCallback);
 
-        this._mpris = new DBus.MprisProxyHandler(
-            this._busName,
-            (success) => {
-                if (success) {
-                    this.actor.accessible_name = this._mpris.player_name;
-                    let desktopId = this._mpris.desktop_entry + ".desktop";
-                    let identity = this._mpris.player_name;
-                    let appSystem = Shell.AppSystem.get_default();
-                    let shellApp = appSystem.lookup_app(desktopId) ||
-                        appSystem.lookup_startup_wmclass(identity);
-                    if (!shellApp) {
-                        // Last resort... Needed for at least the Spotify snap.
-                        let lcIdentity = identity.toLowerCase();
-                        for (let app of appSystem.get_running()) {
-                            if (lcIdentity === app.get_name().toLowerCase()) {
-                                shellApp = app;
-                                break;
-                            }
-                        }
-                    }
-                    if (shellApp) {
-                        this._focusWrapper = new AppFocusWrapper(
-                            shellApp,
-                            parseInt(pid, 10),
-                            nameOwner
-                        );
-                        this._fallbackGicon = this._focusWrapper.getGicon();
-                        this._coverIcon.setFallbackGicon(this._fallbackGicon);
-                        this._pushSignal(this._focusWrapper, "notify::focused", () => {
-                            this.emit("update-player-status");
-                        });               
-                    }
-                    this._fallbackIconName = this._getPlayerIconName();
-                    this._coverIcon.setFallbackName(this._fallbackIconName);
-                    this._coverIcon.setCover();
-                } else {
-                    this.emit("self-destruct");
-                }
-            }
-        );
+        this._mpris = new DBus.MprisProxyHandler(this._busName);
 
         let bindingFlags = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
@@ -418,6 +397,43 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             "text",
             bindingFlags 
         );
+
+        this._pushSignal(this._mpris, "notify::desktop-entry", () => {
+            if (this._mpris.player_name && this._mpris.desktop_entry) {
+                this.actor.accessible_name = this._mpris.player_name;
+                let desktopId = this._mpris.desktop_entry + ".desktop";
+                let identity = this._mpris.player_name;
+                let appSystem = Shell.AppSystem.get_default();
+                let shellApp = appSystem.lookup_app(desktopId) ||
+                    appSystem.lookup_startup_wmclass(identity);
+                if (!shellApp) {
+                    // Last resort... Needed for at least the Spotify snap.
+                    let lcIdentity = identity.toLowerCase();
+                    for (let app of appSystem.get_running()) {
+                        if (lcIdentity === app.get_name().toLowerCase()) {
+                            shellApp = app;
+                            break;
+                        }
+                    }
+                }
+                if (shellApp) {
+                    this._focusWrapper = new AppFocusWrapper(
+                        shellApp,
+                        busName,
+                        parseInt(pid, 10),
+                        nameOwner
+                    );
+                    this._fallbackGicon = this._focusWrapper.getGicon();
+                    this._coverIcon.setFallbackGicon(this._fallbackGicon);
+                    this._pushSignal(this._focusWrapper, "notify::focused", () => {
+                        this.emit("update-player-status");
+                    });               
+                }
+                this._fallbackIconName = this._getPlayerIconName();
+                this._coverIcon.setFallbackName(this._fallbackIconName);
+                this._coverIcon.setCover();
+            } 
+        });
 
         this._pushSignal(this._mpris, "notify::cover-url", () => {
             this._coverIcon.setCover(this._mpris.cover_url);
@@ -599,6 +615,30 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 }
 
+// A slight modified version of ScrollablePopupMenu from:
+// https://github.com/petres/gnome-shell-extension-extensions
+// Used in case of the unlikely event that a user would have so many
+// players open at once that the menu would overflow the screen. 
+class ScrollablePopupMenu extends PopupMenu.PopupMenu {
+    constructor(sourceActor) {
+        super(sourceActor, St.Align.START, St.Side.TOP);
+        PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, "popup-menu-content");
+
+        this.actor.add_style_class_name("aggregate-menu");
+        this.box.set_layout_manager(new Panel.AggregateLayout());
+
+        let scrollView = new St.ScrollView({
+            overlay_scrollbars: true,
+            hscrollbar_policy: Gtk.PolicyType.NEVER,
+            vscrollbar_policy: Gtk.PolicyType.AUTOMATIC
+        });
+
+        scrollView.add_actor(this.box);
+
+        this._boxPointer.bin.set_child(scrollView);
+    }
+}
+
 class MprisIndicatorButton extends PanelMenu.Button {
     constructor() {
         super(0.0, "Mpris Indicator Button", false);
@@ -607,7 +647,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this.actor.hide();
 
-        this.setMenu(new Widgets.ScrollablePopupMenu(this.actor));
+        this.setMenu(new ScrollablePopupMenu(this.actor));
 
         this._indicatorIcon = new St.Icon({
             accessible_role: Atk.Role.ICON,

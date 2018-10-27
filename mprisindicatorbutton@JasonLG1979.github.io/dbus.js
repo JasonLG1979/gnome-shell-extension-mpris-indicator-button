@@ -21,6 +21,7 @@
 
 const Gio = imports.gi.Gio;
 const GObject = imports.gi.GObject;
+const GLib = imports.gi.GLib;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
@@ -32,29 +33,30 @@ function _makeProxyWrapper(interfaceXml) {
     let info = nodeInfo.interfaces[0];
     let iname = info.name;
     return function(name, object, flags, asyncCallback) {
+        let error = null;
+        let proxy = null;
+        let obj = new Gio.DBusProxy({
+            g_connection: Gio.DBus.session,
+            g_interface_name: iname,
+            g_interface_info: info,
+            g_name: name,
+            g_object_path: object,
+            g_flags: Gio.DBusProxyFlags.DO_NOT_AUTO_START | flags
+        });
         let cancellable = new Gio.Cancellable();
-        Gio.DBusProxy.new(
-            Gio.DBus.session,
-            Gio.DBusProxyFlags.DO_NOT_AUTO_START | flags,
-            info,
-            name,
-            object,
-            iname,
-            cancellable,
-            (source, result) => {
-                let proxy = null;
-                let error = null;
-                try {
-                    proxy = Gio.DBusProxy.new_finish(result);
-                } catch (e) {
-                    error = e;
-                }
+        obj.init_async(GLib.PRIORITY_DEFAULT, cancellable, (initable, result) => {
+            try {
+                initable.init_finish(result);
+                proxy = initable;
+            } catch(e) {
+                error = e;
+            } finally {
                 if (proxy) {
-                    if (proxy.g_name_owner) {
+                    if (proxy.get_name_owner()) {
                         asyncCallback(proxy, null);
                     } else {
                         error = Gio.DBusError.new_for_dbus_error(
-                            " No Owner",
+                           " No Name Owner",
                             name + " has no owner."
                         );
                         asyncCallback(null, error);
@@ -69,7 +71,7 @@ function _makeProxyWrapper(interfaceXml) {
                     asyncCallback(null, error);
                 }
             }
-        ); 
+        });
         return cancellable;
     };
 }
@@ -103,7 +105,7 @@ const DBusProxy = _makeProxyWrapper(
 </interface>
 </node>`);
 
-var MprisProxy = _makeProxyWrapper(
+const MprisProxy = _makeProxyWrapper(
 `<node>
 <interface name="org.mpris.MediaPlayer2">
   <method name="Raise" />
@@ -113,7 +115,7 @@ var MprisProxy = _makeProxyWrapper(
 </interface>
 </node>`);
 
-var MprisPlayerProxy = _makeProxyWrapper(
+const MprisPlayerProxy = _makeProxyWrapper(
 `<node>
 <interface name="org.mpris.MediaPlayer2.Player">
   <method name="PlayPause" />
@@ -174,7 +176,7 @@ var DBusProxyHandler = GObject.registerClass({
             });
 
             this._proxy.connectSignal("NameOwnerChanged", (proxy, sender, [busName, oldOwner, newOwner]) => {
-                if (busName.startsWith("org.mpris.MediaPlayer2.")) { 
+                if (busName.startsWith("org.mpris.MediaPlayer2.")) {
                     if (newOwner && !oldOwner) {
                         this._proxy.GetConnectionUnixProcessIDRemote(busName, (pid) => {
                             this.emit("add-player", [busName, newOwner, pid].join(" "));
@@ -268,6 +270,13 @@ var MprisProxyHandler = GObject.registerClass({
             GObject.ParamFlags.READABLE,
             ""
         ),
+        "desktop-entry": GObject.ParamSpec.string(
+            "desktop-entry",
+            "desktop-entry-prop",
+            "The desktop entry of the player",
+            GObject.ParamFlags.READABLE,
+            ""
+        ),
         "playback-status": GObject.ParamSpec.int(
             "playback-status",
             "playback-status-prop",
@@ -277,10 +286,9 @@ var MprisProxyHandler = GObject.registerClass({
         )
     }
 }, class MprisProxyHandler extends GObject.Object {
-    _init(busName, onAsyncInitComplete) {
+    _init(busName) {
         super._init();
         this._busName = busName;
-        this._onAsyncInitComplete = onAsyncInitComplete;
         this._playerProxy = null;
         this._mprisProxy = null;
         this._player_name = "";
@@ -514,7 +522,7 @@ var MprisProxyHandler = GObject.registerClass({
         }
     }
 
-    _updateProps() {
+    _updatePlayerProps() {
         let playPauseIconName = "media-playback-start-symbolic";
         let playPauseReactive = false;
         let showStop = false;
@@ -568,8 +576,10 @@ var MprisProxyHandler = GObject.registerClass({
         this._cancellable = null;
         if (mprisProxy) {
             this._mprisProxy = mprisProxy;
-            this._player_name = this._mprisProxy.Identity || "";
-            this._desktop_entry = (this._mprisProxy.DesktopEntry || "").split("/").pop().replace(".desktop", "");
+            this._updateMprisProps();
+            this._mprisProxy.connect("g-properties-changed", () => {
+                this._updateMprisProps();
+            });
             this._cancellable = new MprisPlayerProxy(
                 this._busName,
                 "/org/mpris/MediaPlayer2",
@@ -578,7 +588,18 @@ var MprisProxyHandler = GObject.registerClass({
             );
         } else {
             logError(error);
-            this._onAsyncInitComplete();
+        }
+    }
+
+    _updateMprisProps() {
+        let player_name = this._mprisProxy.Identity || "";
+        if (this._player_name !== player_name) {
+            this._player_name = player_name;
+        }
+        let desktop_entry = (this._mprisProxy.DesktopEntry || "").split("/").pop().replace(".desktop", "");
+        if (this._desktop_entry !== desktop_entry) {
+            this._desktop_entry = desktop_entry;
+            this.notify("desktop-entry");
         }
     }
 
@@ -587,13 +608,12 @@ var MprisProxyHandler = GObject.registerClass({
         this._cancellable = null;
         if (playerProxy) {
             this._playerProxy = playerProxy;
-            this._onAsyncInitComplete(true);
-            this._updateProps();
+            this._updatePlayerProps();
             this._updateMetadata();
             this._playerProxy.connect("g-properties-changed", (proxy, props, invalidated_props) => {
                 props = Object.keys(props.deep_unpack()).concat(invalidated_props);
                 if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
-                    this._updateProps();
+                    this._updatePlayerProps();
                 }
 
                 if (props.includes("Metadata")) {
@@ -602,7 +622,6 @@ var MprisProxyHandler = GObject.registerClass({
             });
         } else {
             logError(error);
-            this._onAsyncInitComplete();
         }
     }
 
@@ -620,7 +639,6 @@ var MprisProxyHandler = GObject.registerClass({
             this._mprisProxy.run_dispose();
         }
         this._busName = null;
-        this._onAsyncInitComplete = null;
         this._playerProxy = null;
         this._mprisProxy = null;
         this._player_name = null;

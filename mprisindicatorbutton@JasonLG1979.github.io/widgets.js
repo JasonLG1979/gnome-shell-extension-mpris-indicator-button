@@ -26,11 +26,6 @@ const GObject = imports.gi.GObject;
 const St = imports.gi.St;
 const Clutter = imports.gi.Clutter;
 
-const PopupMenu = imports.ui.popupMenu;
-const BoxPointer = imports.ui.boxpointer;
-const Panel = imports.ui.panel;
-const Slider = imports.ui.slider;
-
 var CoverIcon = GObject.registerClass({
     GTypeName: "CoverIcon"
 }, class CoverIcon extends St.Icon {
@@ -191,27 +186,3 @@ var MediaControlButton = GObject.registerClass({
         super.destroy();
     }
 });
-
-// A slight modified version of ScrollablePopupMenu from:
-// https://github.com/petres/gnome-shell-extension-extensions
-// Used in case of the unlikely event that a user would have so many
-// players open at once that the menu would overflow the screen. 
-class ScrollablePopupMenu extends PopupMenu.PopupMenu {
-    constructor(sourceActor) {
-        super(sourceActor, St.Align.START, St.Side.TOP);
-        PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, "popup-menu-content");
-
-        this.actor.add_style_class_name("aggregate-menu");
-        this.box.set_layout_manager(new Panel.AggregateLayout());
-
-        let scrollView = new St.ScrollView({
-            overlay_scrollbars: true,
-            hscrollbar_policy: Gtk.PolicyType.NEVER,
-            vscrollbar_policy: Gtk.PolicyType.AUTOMATIC
-        });
-
-        scrollView.add_actor(this.box);
-
-        this._boxPointer.bin.set_child(scrollView);
-    }
-}
