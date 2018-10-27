@@ -241,15 +241,10 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     constructor(busName, pid, nameOwner, statusCallback, destructCallback) {
         super();
         this._focusWrapper = null;
-        this._status = 0;
         this._signals = [];
-        this._statusTime = 0;
-        this._desktopEntry = "";
         this._fallbackIconName = null;
         this._fallbackGicon = null;
         this._busName = busName;
-        this._pid = parseInt(pid, 10);
-        this._nameOwner = nameOwner;
 
         let vbox = new St.BoxLayout({
             y_align: Clutter.ActorAlign.CENTER,
@@ -332,7 +327,46 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._pushSignal(this, "update-player-status", statusCallback);
         this._pushSignal(this, "self-destruct", destructCallback);
 
-        this._mpris = new DBus.MprisProxyHandler(this._busName, this._onMprisAsyncInitComplete.bind(this));
+        this._mpris = new DBus.MprisProxyHandler(
+            this._busName,
+            (success) => {
+                if (success) {
+                    this.actor.accessible_name = this._mpris.player_name;
+                    let desktopId = this._mpris.desktop_entry + ".desktop";
+                    let identity = this._mpris.player_name;
+                    let appSystem = Shell.AppSystem.get_default();
+                    let shellApp = appSystem.lookup_app(desktopId) ||
+                        appSystem.lookup_startup_wmclass(identity);
+                    if (!shellApp) {
+                        // Last resort... Needed for at least the Spotify snap.
+                        let lcIdentity = identity.toLowerCase();
+                        for (let app of appSystem.get_running()) {
+                            if (lcIdentity === app.get_name().toLowerCase()) {
+                                shellApp = app;
+                                break;
+                            }
+                        }
+                    }
+                    if (shellApp) {
+                        this._focusWrapper = new AppFocusWrapper(
+                            shellApp,
+                            parseInt(pid, 10),
+                            nameOwner
+                        );
+                        this._fallbackGicon = this._focusWrapper.getGicon();
+                        this._coverIcon.setFallbackGicon(this._fallbackGicon);
+                        this._pushSignal(this._focusWrapper, "notify::focused", () => {
+                            this.emit("update-player-status");
+                        });               
+                    }
+                    this._fallbackIconName = this._getPlayerIconName();
+                    this._coverIcon.setFallbackName(this._fallbackIconName);
+                    this._coverIcon.setCover();
+                } else {
+                    this.emit("self-destruct");
+                }
+            }
+        );
 
         let bindingFlags = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
@@ -390,8 +424,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
 
         this._pushSignal(this._mpris, "notify::playback-status", () => {
-            this._status = this._mpris.playback_status;
-            this._statusTime = global.get_current_time();
             this.emit("update-player-status");
         });
 
@@ -416,79 +448,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
     }
 
-    _getPlayerIconName() {
-        // Prefer symbolic icons.
-        // The default Spotify icon name is spotify-client,
-        // but the desktop entry is spotify.
-        // Icon names *should* match the desktop entry...
-        // Who knows if a 3rd party icon theme wil use spotify
-        // or spotify-client as their spotify icon's name and
-        // what they'll name their Spotify symbolic icon if
-        // they have one at all?
-        let desktopEntry = this._desktopEntry;
-        if (desktopEntry) {
-            let iconNames = [];
-            if (desktopEntry.toLowerCase() === "spotify") {
-                iconNames = [
-                    desktopEntry + "-symbolic",
-                    desktopEntry + "-client-symbolic",
-                    desktopEntry,
-                    desktopEntry + "-client"
-                ];
-            } else {
-                iconNames = [
-                    desktopEntry + "-symbolic",
-                    desktopEntry
-                ];
-            }
-            let currentIconTheme = Gtk.IconTheme.get_default();
-            for (let iconName of iconNames) {
-                if (currentIconTheme.has_icon(iconName)) {
-                    return iconName;
-                }
-            }
-        }
-        return null;
-    }
-
-    _getShellApp(desktopId, identity) {
-        let appSystem = Shell.AppSystem.get_default();
-        let shellApp = appSystem.lookup_app(desktopId) ||
-            appSystem.lookup_startup_wmclass(identity);
-        if (!shellApp) {
-            // Last resort... Needed for at least the Spotify snap.
-            let lcIdentity = identity.toLowerCase();
-            for (let app of appSystem.get_running()) {
-                if (lcIdentity === app.get_name().toLowerCase()) {
-                    shellApp = app;
-                    break;
-                }
-            }
-        }
-        return shellApp;
-    }
-
-    _onMprisAsyncInitComplete(success) {
-        if (success) {
-            this.actor.accessible_name = this._mpris.player_name;
-            this._desktopEntry = this._mpris.desktop_entry;
-            let shellApp = this._getShellApp(this._desktopEntry + ".desktop", this._mpris.player_name);
-            if (shellApp) {
-                this._focusWrapper = new AppFocusWrapper(shellApp, this._pid, this._nameOwner);
-                this._fallbackGicon = this._focusWrapper.getGicon();
-                this._coverIcon.setFallbackGicon(this._fallbackGicon);
-                this._pushSignal(this._focusWrapper, "notify::focused", () => {
-                    this.emit("update-player-status");
-                });               
-            }
-            this._fallbackIconName = this._getPlayerIconName();
-            this._coverIcon.setFallbackName(this._fallbackIconName);
-            this._coverIcon.setCover();
-        } else {
-            this.emit("self-destruct");
-        }
-    }
-
     get userTime() {
         if (this._focusWrapper) {
             return this._focusWrapper.user_time;
@@ -498,11 +457,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     get statusTime() {
-        return this._statusTime;
+        if (this._mpris) {
+            return this._mpris.status_time;
+        }
+        return 0;
     }
 
     get statusValue() {
-        return this._status;
+        if (this._mpris) {
+            return this._mpris.playback_status;
+        }
+        return 0;
     }
 
     get fallbackIconName() {
@@ -567,15 +532,10 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._mpris.destroy();
         }
         this._focusWrapper = null;
-        this._status = null;
         this._signals = null;
-        this._statusTime = null;
-        this._desktopEntry = null;
         this._fallbackIconName = null;
         this._fallbackGicon = null;
         this._busName = null;
-        this._pid = null;
-        this._nameOwner = null;
         super.destroy();
     }
 
@@ -585,6 +545,41 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             obj: obj,
             signalId: signalId
         });
+    }
+
+    _getPlayerIconName() {
+        // Prefer symbolic icons.
+        // The default Spotify icon name is spotify-client,
+        // but the desktop entry is spotify.
+        // Icon names *should* match the desktop entry...
+        // Who knows if a 3rd party icon theme wil use spotify
+        // or spotify-client as their spotify icon's name and
+        // what they'll name their Spotify symbolic icon if
+        // they have one at all?
+        let desktopEntry = this._mpris.desktop_entry;
+        if (desktopEntry) {
+            let iconNames = [];
+            if (desktopEntry.toLowerCase() === "spotify") {
+                iconNames = [
+                    desktopEntry + "-symbolic",
+                    desktopEntry + "-client-symbolic",
+                    desktopEntry,
+                    desktopEntry + "-client"
+                ];
+            } else {
+                iconNames = [
+                    desktopEntry + "-symbolic",
+                    desktopEntry
+                ];
+            }
+            let currentIconTheme = Gtk.IconTheme.get_default();
+            for (let iconName of iconNames) {
+                if (currentIconTheme.has_icon(iconName)) {
+                    return iconName;
+                }
+            }
+        }
+        return null;
     }
 
     _onKeyPressEvent(actor, event) {

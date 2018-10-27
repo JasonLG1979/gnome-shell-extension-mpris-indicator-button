@@ -294,6 +294,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._artist = "";
         this._title = "";
         this._playback_status = 0;
+        this._status_time = 0;
         this._cancellable = new MprisProxy(
             busName,
             "/org/mpris/MediaPlayer2",
@@ -344,6 +345,10 @@ var MprisProxyHandler = GObject.registerClass({
 
     get playback_status() {
         return this._playback_status;
+    }
+
+    get status_time() {
+        return this._status_time;
     }
 
     raise() {
@@ -553,6 +558,7 @@ var MprisProxyHandler = GObject.registerClass({
         }
         if (this._playback_status !== status) {
             this._playback_status = status;
+            this._status_time = global.get_current_time();
             this.notify("playback_status");
         }
     }
