@@ -74,7 +74,7 @@ function disable() {
 // So we have to jump though a bunch of hoops to keep track
 // of and differentiate the instance windows by pid or
 // gtk_unique_bus_name/nameOwner.
-var AppFocusWrapper = GObject.registerClass({
+const AppFocusWrapper = GObject.registerClass({
     GTypeName: "AppFocusWrapper",
     Properties: {
         "focused": GObject.ParamSpec.boolean(

@@ -161,8 +161,6 @@ var DBusProxyHandler = GObject.registerClass({
     }
 
     _onProxyReady(proxy, error) {
-        this._cancellable.run_dispose();
-        this._cancellable = null;
         if (proxy) {
             this._proxy = proxy;
             this._proxy.ListNamesRemote(([busNames]) => {
@@ -289,6 +287,7 @@ var MprisProxyHandler = GObject.registerClass({
     _init(busName) {
         super._init();
         this._busName = busName;
+        this._signals = [];
         this._playerProxy = null;
         this._mprisProxy = null;
         this._player_name = "";
@@ -572,12 +571,10 @@ var MprisProxyHandler = GObject.registerClass({
     }
 
     _onMprisProxyReady(mprisProxy, error) {
-        this._cancellable.run_dispose();
-        this._cancellable = null;
         if (mprisProxy) {
             this._mprisProxy = mprisProxy;
             this._updateMprisProps();
-            this._mprisProxy.connect("g-properties-changed", () => {
+            this._pushSignal(this._mprisProxy, "g-properties-changed", () => {
                 this._updateMprisProps();
             });
             this._cancellable = new MprisPlayerProxy(
@@ -604,13 +601,11 @@ var MprisProxyHandler = GObject.registerClass({
     }
 
     _onPlayerProxyReady(playerProxy, error) {
-        this._cancellable.run_dispose();
-        this._cancellable = null;
         if (playerProxy) {
             this._playerProxy = playerProxy;
             this._updatePlayerProps();
             this._updateMetadata();
-            this._playerProxy.connect("g-properties-changed", (proxy, props, invalidated_props) => {
+            this._pushSignal(this._playerProxy, "g-properties-changed", (proxy, props, invalidated_props) => {
                 props = Object.keys(props.deep_unpack()).concat(invalidated_props);
                 if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
                     this._updatePlayerProps();
@@ -625,12 +620,23 @@ var MprisProxyHandler = GObject.registerClass({
         }
     }
 
+    _pushSignal(obj, signalName, callback) {
+        let signalId = obj.connect(signalName, callback);
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
+        });
+    }
+
     destroy() {
         if (this._cancellable) {
             if (!this._cancellable.is_cancelled()) {
                 this._cancellable.cancel();
             }
             this._cancellable.run_dispose();
+        }
+        if (this._signals) {
+            this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         }
         if (this._playerProxy) {
             this._playerProxy.run_dispose();
@@ -639,6 +645,7 @@ var MprisProxyHandler = GObject.registerClass({
             this._mprisProxy.run_dispose();
         }
         this._busName = null;
+        this._signals = null;
         this._playerProxy = null;
         this._mprisProxy = null;
         this._player_name = null;
