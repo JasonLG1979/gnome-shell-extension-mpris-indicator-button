@@ -52,7 +52,7 @@ function _makeProxyWrapper(interfaceXml) {
                 error = e;
             } finally {
                 if (proxy) {
-                    if (proxy.get_name_owner()) {
+                    if (proxy.g_name_owner) {
                         asyncCallback(proxy, null);
                     } else {
                         error = Gio.DBusError.new_for_dbus_error(
@@ -211,6 +211,14 @@ var DBusProxyHandler = GObject.registerClass({
 
 var MprisProxyHandler = GObject.registerClass({
     GTypeName: "MprisProxyHandler",
+    Signals: {
+        "self-destruct": {
+            flags: GObject.SignalFlags.RUN_FIRST,
+            // Would rather use GObject.TYPE_NONE
+            // But that fails?
+            param_types: [GObject.TYPE_BOOLEAN]
+        }
+    },
     Properties: {
         "show-stop": GObject.ParamSpec.boolean(
             "show-stop",
@@ -275,6 +283,13 @@ var MprisProxyHandler = GObject.registerClass({
             GObject.ParamFlags.READABLE,
             ""
         ),
+        "mimetype-icon-name": GObject.ParamSpec.string(
+            "mimetype-icon-name",
+            "mimetype-icon-name-prop",
+            "The mimetype icon name for the current track",
+            GObject.ParamFlags.READABLE,
+            "audio-x-generic-symbolic"
+        ),
         "playback-status": GObject.ParamSpec.int(
             "playback-status",
             "playback-status-prop",
@@ -302,6 +317,8 @@ var MprisProxyHandler = GObject.registerClass({
         this._title = "";
         this._playback_status = 0;
         this._status_time = 0;
+        this._track_url = "";
+        this._mimetype_icon_name = "audio-x-generic-symbolic";
         this._cancellable = new MprisProxy(
             busName,
             "/org/mpris/MediaPlayer2",
@@ -311,51 +328,55 @@ var MprisProxyHandler = GObject.registerClass({
     }
 
     get player_name() {
-        return this._player_name;
+        return this._player_name || "";
     }
 
     get desktop_entry() {
-        return this._desktop_entry;
+        return this._desktop_entry || "";
     }
 
     get show_stop() {
-        return this._show_stop;
+        return this._show_stop || false;
     }
 
     get prev_reactive() {
-        return this._prev_reactive;
+        return this._prev_reactive || false;
     }
 
     get playpause_reactive() {
-        return this._playpause_reactive;
+        return this._playpause_reactive || false;
     }
 
     get playpause_icon_name() {
-        return this._playpause_icon_name;
+        return this._playpause_icon_name || "media-playback-start-symbolic";
+    }
+
+    get mimetype_icon_name() {
+        return this._mimetype_icon_name || "audio-x-generic-symbolic";
     }
 
     get next_reactive() {
-        return this._next_reactive;
+        return this._next_reactive || false;
     }
 
     get cover_url() {
-        return this._cover_url;
+        return this._cover_url || "";
     }
 
     get artist() {
-        return this._artist;
+        return this._artist || "";
     }
 
     get title() {
-        return this._title;
+        return this._title || "";
     }
 
     get playback_status() {
-        return this._playback_status;
+        return this._playback_status || 0;
     }
 
     get status_time() {
-        return this._status_time;
+        return this._status_time || 0;
     }
 
     raise() {
@@ -461,6 +482,7 @@ var MprisProxyHandler = GObject.registerClass({
         let artist = "";
         let title = "";
         let coverUrl = "";
+        let mimetypeIconName = "audio-x-generic-symbolic";
         let metadata = this._playerProxy.Metadata || {};
         let metadataKeys = Object.keys(metadata);
         let artistKeys = [
@@ -506,6 +528,27 @@ var MprisProxyHandler = GObject.registerClass({
         if (metadataKeys.includes("mpris:artUrl")) {
             coverUrl = metadata["mpris:artUrl"].unpack();
         }
+
+        if (metadataKeys.includes("xesam:url")) {
+            let url = metadata["xesam:url"].unpack();
+            if (this._track_url !== url) {
+                this._track_url = url;
+                let [type, uncertain] = Gio.content_type_guess(url, null);
+                type = (type || "").toLowerCase();
+                if (type.includes("stream")) {
+                    // Not the greatest but it's the best we can do
+                    // as far as a one size fits all stream icon...
+                    mimetypeIconName = "applications-multimedia-symbolic";
+                } else if (type.includes("video")) {
+                    mimetypeIconName = "video-x-generic-symbolic";
+                }
+            }
+        }
+
+        if (this._mimetype_icon_name !== mimetypeIconName) {
+            this._mimetype_icon_name = mimetypeIconName;
+            this.notify("mimetype-icon-name");
+        }      
 
         if (this._cover_url !== coverUrl) {
             this._cover_url = coverUrl;
@@ -585,6 +628,7 @@ var MprisProxyHandler = GObject.registerClass({
             );
         } else {
             logError(error);
+            this.emit("self-destruct", true);
         }
     }
 
@@ -617,6 +661,7 @@ var MprisProxyHandler = GObject.registerClass({
             });
         } else {
             logError(error);
+            this.emit("self-destruct", true);
         }
     }
 
@@ -659,6 +704,9 @@ var MprisProxyHandler = GObject.registerClass({
         this._artist = null;
         this._title = null;
         this._playback_status = null;
+        this._status_time = null;
+        this._track_url = null;
+        this._mimetype_icon_name = null;
         this._cancellable = null;
         super.run_dispose();
     }

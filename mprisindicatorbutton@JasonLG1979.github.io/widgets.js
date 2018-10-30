@@ -26,6 +26,16 @@ const GObject = imports.gi.GObject;
 const St = imports.gi.St;
 const Clutter = imports.gi.Clutter;
 
+
+// The Cover Icon has crazy fallback redundancy.
+// The order is as follows:
+// 1. The actual cover art
+// 2. The player's symbolic icon
+// 3. The player's full color icon
+// 4. A symbolic icon loosely representing
+//    the current track's media type.
+//    (audio, video or stream)
+// 5. If all else fails the audio mimetype symbolic icon.
 var CoverIcon = GObject.registerClass({
     GTypeName: "CoverIcon"
 }, class CoverIcon extends St.Icon {
@@ -42,6 +52,7 @@ var CoverIcon = GObject.registerClass({
         this._cancellable = null;
         this._fallbackName = null;
         this._fallbackGicon = null;
+        this._mimetypeIconName = null;
     }
 
     onParentHover(hover) {
@@ -52,6 +63,10 @@ var CoverIcon = GObject.registerClass({
 
     setFallbackName(iconName) {
         this._fallbackName = iconName
+    }
+
+    setMimetypeIconName(iconName) {
+        this._mimetypeIconName = iconName
     }
 
     setFallbackGicon(gicon) {
@@ -102,7 +117,7 @@ var CoverIcon = GObject.registerClass({
         }
     }
 
-    vfunc_destroy() {
+    vfunc_dispose() {
         if (this._cancellable) {
             if (!this._cancellable.is_cancelled()) {
                 this._cancellable.cancel();
@@ -112,7 +127,8 @@ var CoverIcon = GObject.registerClass({
         this._parentHoverState = null;
         this._cancellable = null;
         this._fallbackName = null;
-        super.destroy();
+        this._fallbackGicon = null;
+        this._mimetypeIconName = null;
     }
 
     _fallback() {
@@ -120,6 +136,8 @@ var CoverIcon = GObject.registerClass({
             this.icon_name = this._fallbackName;
         } else if (this._fallbackGicon) {
             this.gicon = this._fallbackGicon;
+        } else if (this._mimetypeIconName) {
+            this.icon_name = this._mimetypeIconName;
         } else {
             this.icon_name = "audio-x-generic-symbolic";
         }
@@ -146,10 +164,9 @@ var TrackLabel = GObject.registerClass({
         this.opacity = hover ? this._hoverOpacity : this._baseOpacity;
     }
 
-    vfunc_destroy() {
+    vfunc_dispose() {
         this._baseOpacity = null;
         this._hoverOpacity = null;
-        super.destroy();
     }
 });
 
@@ -178,11 +195,10 @@ var MediaControlButton = GObject.registerClass({
         ];
     }
 
-    vfunc_destroy() {
+    vfunc_dispose() {
         if (this._signalIds) {
             this._signalIds.forEach(signalId => this.disconnect(signalId));
         }
-        this._buttonSignals = null;
-        super.destroy();
+        this._signalIds = null;
     }
 });

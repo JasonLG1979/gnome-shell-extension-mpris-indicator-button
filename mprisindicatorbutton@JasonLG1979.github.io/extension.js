@@ -36,9 +36,9 @@ const Me = imports.misc.extensionUtils.getCurrentExtension();
 const DBus = Me.imports.dbus;
 const Widgets = Me.imports.widgets;
 
-let indicator = null;
-let stockMpris = null;
-let stockMprisOldShouldShow = null;
+var indicator = null;
+var stockMpris = null;
+var stockMprisOldShouldShow = null;
 
 function enable() {
     stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
@@ -74,8 +74,8 @@ function disable() {
 // So we have to jump though a bunch of hoops to keep track
 // of and differentiate the instance windows by pid or
 // gtk_unique_bus_name/nameOwner.
-const AppFocusWrapper = GObject.registerClass({
-    GTypeName: "AppFocusWrapper",
+const AppWrapper = GObject.registerClass({
+    GTypeName: "AppWrapper",
     Properties: {
         "focused": GObject.ParamSpec.boolean(
             "focused",
@@ -85,7 +85,7 @@ const AppFocusWrapper = GObject.registerClass({
             false
         )
     }
-}, class AppFocusWrapper extends GObject.Object {
+}, class AppWrapper extends GObject.Object {
     _init(shellApp, busName, pid, nameOwner) {
         super._init();
         this._app = shellApp;
@@ -174,17 +174,26 @@ const AppFocusWrapper = GObject.registerClass({
         // Try to get a hold of an actual window...
         let windows = this._getNormalAppWindows();
         if (windows.length) {
-            // Check for multiple instances and flatpak'd apps. (may also work for snaps?)
+            // Check for multiple instances.
             for (let w of windows) {
                 if (this._instanceNum && w.gtk_window_object_path) {
+                    // Match multiple instance(multiple window really) GApplications to their windows.
+                    // Works rather well if a GApplication's MPRIS instance number matches
+                    // it's corresponding window object path like the latest git master of GNOME-MPV.
+                    // For example org.mpris.MediaPlayer2.GnomeMpv.instance-1 = /io/github/GnomeMpv/window/1. 
                     let windowNum = this._getNumbersFromTheEndOf(w.gtk_window_object_path);
                     if (this._instanceNum === windowNum) {
                         return w;
                     }
                 } else if (w.gtk_unique_bus_name) {
+                    // This will match single instance GApplications to their window.
+                    // Generally the window and MPRIS interface will have the
+                    // same name owner.
                     if (w.gtk_unique_bus_name === this._nameOwner) {
                         return w;
                     }
+                // Match true multiple instances players by their pids.
+                // works rather well for apps like VLC for example.
                 } else if (w.get_pid() === this._pid) {
                     return w;
                 }
@@ -258,7 +267,7 @@ const AppFocusWrapper = GObject.registerClass({
 class Player extends PopupMenu.PopupBaseMenuItem {
     constructor(busName, pid, nameOwner, statusCallback, destructCallback) {
         super();
-        this._focusWrapper = null;
+        this._appWrapper = null;
         this._signals = [];
         this._fallbackIconName = null;
         this._fallbackGicon = null;
@@ -295,19 +304,19 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         hbox.add(info);
 
-        this._trackArtist = new Widgets.TrackLabel(204, 255);
+        let trackArtist = new Widgets.TrackLabel(204, 255);
 
-        info.add(this._trackArtist);
+        info.add(trackArtist);
 
-        this._trackTitle = new Widgets.TrackLabel(152, 204);
+        let trackTitle = new Widgets.TrackLabel(152, 204);
 
-        info.add(this._trackTitle);
+        info.add(trackTitle);
 
         this._pushSignal(this.actor, "notify::hover", (actor) => {
             let hover = actor.hover;
             this._coverIcon.onParentHover(hover);
-            this._trackArtist.onParentHover(hover);
-            this._trackTitle.onParentHover(hover);
+            trackArtist.onParentHover(hover);
+            trackTitle.onParentHover(hover);
         });
 
         let playerButtonBox = new St.BoxLayout({
@@ -318,82 +327,83 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         vbox.add(playerButtonBox);
 
-        this._prevButton = new Widgets.MediaControlButton(
+        let prevButton = new Widgets.MediaControlButton(
             "media-skip-backward-symbolic"
         );
 
-        playerButtonBox.add(this._prevButton);
+        playerButtonBox.add(prevButton);
 
-        this._playPauseButton = new Widgets.MediaControlButton(
+        let playPauseButton = new Widgets.MediaControlButton(
             "media-playback-start-symbolic"
         );
 
-        playerButtonBox.add(this._playPauseButton);
+        playerButtonBox.add(playPauseButton);
 
-        this._stopButton = new Widgets.MediaControlButton(
+        let stopButton = new Widgets.MediaControlButton(
             "media-playback-stop-symbolic"
         );
 
-        playerButtonBox.add(this._stopButton);
+        playerButtonBox.add(stopButton);
 
-        this._nextButton = new Widgets.MediaControlButton(
+        let nextButton = new Widgets.MediaControlButton(
             "media-skip-forward-symbolic"
         );
 
-        playerButtonBox.add(this._nextButton);
-
-        this._pushSignal(this, "update-player-status", statusCallback);
-        this._pushSignal(this, "self-destruct", destructCallback);
+        playerButtonBox.add(nextButton);
 
         this._mpris = new DBus.MprisProxyHandler(this._busName);
+
+        this._pushSignal(this._mpris, "self-destruct", () => {
+            destructCallback(this);
+        });
 
         let bindingFlags = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
         this._mpris.bind_property(
             "show-stop",
-            this._stopButton,
+            stopButton,
             "visible",
             bindingFlags 
         );
 
         this._mpris.bind_property(
             "prev-reactive",
-            this._prevButton,
+            prevButton,
             "reactive",
             bindingFlags 
         );
 
         this._mpris.bind_property(
             "playpause-reactive",
-            this._playPauseButton,
+            playPauseButton,
             "reactive",
             bindingFlags 
         );
 
         this._mpris.bind_property(
             "playpause-icon-name",
-            this._playPauseButton.child,
+            playPauseButton.child,
             "icon-name",
             bindingFlags 
         );
 
         this._mpris.bind_property(
             "next-reactive",
-            this._nextButton,
+            nextButton,
             "reactive",
             bindingFlags 
         );
 
         this._mpris.bind_property(
             "artist",
-            this._trackArtist,
+            trackArtist,
             "text",
             bindingFlags 
         );
 
         this._mpris.bind_property(
             "title",
-            this._trackTitle,
+            trackTitle,
             "text",
             bindingFlags 
         );
@@ -417,19 +427,19 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                     }
                 }
                 if (shellApp) {
-                    this._focusWrapper = new AppFocusWrapper(
+                    this._appWrapper = new AppWrapper(
                         shellApp,
                         busName,
                         parseInt(pid, 10),
                         nameOwner
                     );
-                    this._fallbackGicon = this._focusWrapper.getGicon();
+                    this._fallbackGicon = this._appWrapper.getGicon();
                     this._coverIcon.setFallbackGicon(this._fallbackGicon);
-                    this._pushSignal(this._focusWrapper, "notify::focused", () => {
-                        this.emit("update-player-status");
-                    });               
+                    this._pushSignal(this._appWrapper, "notify::focused", statusCallback);               
                 }
-                this._fallbackIconName = this._getPlayerIconName();
+                this._mimetypeIconName = this._mpris.mimetype_icon_name;
+                this._coverIcon.setMimetypeIconName(this._mimetypeIconName);
+                this._fallbackIconName = this._getPlayerIconName(this._mpris.desktop_entry);
                 this._coverIcon.setFallbackName(this._fallbackIconName);
                 this._coverIcon.setCover();
             } 
@@ -439,34 +449,33 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._coverIcon.setCover(this._mpris.cover_url);
         });
 
-        this._pushSignal(this._mpris, "notify::playback-status", () => {
-            this.emit("update-player-status");
+        this._pushSignal(this._mpris, "notify::mimetype-icon-name", () => {
+            this._mimetypeIconName = this._mpris.mimetype_icon_name;
+            this._coverIcon.setMimetypeIconName(this._mimetypeIconName);
+            if (!this._mpris.cover_url) {
+                this._coverIcon.setCover();
+            }
+            statusCallback();
         });
+
+        this._pushSignal(this._mpris, "notify::playback-status", statusCallback);
 
         this._pushSignal(this, "activate", () => {
             this.toggleWindow();
         });
 
-        this._pushSignal(this._prevButton, "clicked", () => {
-            this._mpris.previous();
-        });
+        this._pushSignal(prevButton, "clicked", this._mpris.previous.bind(this._mpris));
 
-        this._pushSignal(this._playPauseButton, "clicked", () => {
-            this._mpris.playPause();
-        });
+        this._pushSignal(playPauseButton, "clicked", this._mpris.playPause.bind(this._mpris));
 
-        this._pushSignal(this._stopButton, "clicked", () => {
-            this._mpris.stop();
-        });
+        this._pushSignal(stopButton, "clicked", this._mpris.stop.bind(this._mpris));
 
-        this._pushSignal(this._nextButton, "clicked", () => {
-            this._mpris.next();
-        });
+        this._pushSignal(nextButton, "clicked", this._mpris.next.bind(this._mpris));
     }
 
     get userTime() {
-        if (this._focusWrapper) {
-            return this._focusWrapper.user_time;
+        if (this._appWrapper) {
+            return this._appWrapper.user_time;
         } else {
             return 0;
         }
@@ -490,50 +499,66 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return this._fallbackIconName;
     }
 
+    get mimetypeIconName() {
+        return this._mimetypeIconName;
+    }
+
     get fallbackGicon() {
         return this._fallbackGicon;
     }
 
     get focused() {
-        if (this._focusWrapper) {
-            return this._focusWrapper.focused;
+        if (this._appWrapper) {
+            return this._appWrapper.focused;
         }
         return false;
     }
 
     get busName() {
-        return this._busName;
+        return this._busName || "";
     }
 
     playPauseStop() {
-        return this._mpris.playPauseStop();        
+        if (this._mpris) {
+            return this._mpris.playPauseStop();
+        }
+        return false;        
     }
 
     previous() {
-        return this._mpris.previous();
+        if (this._mpris) {
+            return this._mpris.previous();
+        }
+        return false;
     }
 
     next() {
-        return this._mpris.next();
+        if (this._mpris) {
+            return this._mpris.next();
+        }
+        return false;
     }
 
     toggleWindow(minimize) {
-        if (this._focusWrapper) {
-            return this._focusWrapper.toggleWindow(minimize);
-        } else {
+        if (this._appWrapper) {
+            return this._appWrapper.toggleWindow(minimize);
+        } else if (this._mpris) {
             return this._mpris.raise();
         }
+        return false;
     }
 
     onThemeChanged() {
-        if (this._focusWrapper) {
-            this._fallbackGicon = this._focusWrapper.getGicon();
+        if (this._appWrapper && this._coverIcon) {
+            this._fallbackGicon = this._appWrapper.getGicon();
             this._coverIcon.setFallbackGicon(this._fallbackGicon);
         }
-        this._fallbackIconName = this._getPlayerIconName();
-        this._coverIcon.setFallbackName(this._fallbackIconName);
-        if (!this._mpris.cover_url) {
-            this._coverIcon.setCover();
+        if (this._mpris && this._coverIcon) {
+            this._fallbackIconName = this._getPlayerIconName(this._mpris.desktop_entry);
+            this._coverIcon.setFallbackName(this._fallbackIconName);
+            if (!this._mpris.cover_url) {
+                this._coverIcon.setCover();
+            }
         }
     }
 
@@ -541,14 +566,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         if (this._signals) {
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         }
-        if (this._focusWrapper) {
-            this._focusWrapper.destroy();
+        if (this._appWrapper) {
+            this._appWrapper.destroy();
         }
-        if (this._mpris) {
-            this._mpris.destroy();
-        }
-        this._focusWrapper = null;
+        this._mpris.destroy();
+        this._coverIcon.destroy();
         this._signals = null;
+        this._appWrapper = null;
+        this._coverIcon = null;
+        this._mpris = null;
         this._fallbackIconName = null;
         this._fallbackGicon = null;
         this._busName = null;
@@ -563,7 +589,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
     }
 
-    _getPlayerIconName() {
+    _getPlayerIconName(desktopEntry) {
         // Prefer symbolic icons.
         // The default Spotify icon name is spotify-client,
         // but the desktop entry is spotify.
@@ -572,7 +598,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         // or spotify-client as their spotify icon's name and
         // what they'll name their Spotify symbolic icon if
         // they have one at all?
-        let desktopEntry = this._mpris.desktop_entry;
         if (desktopEntry) {
             let iconNames = [];
             if (desktopEntry.toLowerCase() === "spotify") {
@@ -656,9 +681,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this.actor.add_child(this._indicatorIcon);
 
-        let themeContext = St.ThemeContext.get_for_stage(global.stage);
-
-        this._pushSignal(themeContext, "changed", () => {
+        this._pushSignal(St.ThemeContext.get_for_stage(global.stage), "changed", () => {
             if (!this.menu.isEmpty()) {
                 this.menu._getMenuItems().forEach(player => player.onThemeChanged());
                 this._setIndicatorIcon();
@@ -677,11 +700,13 @@ class MprisIndicatorButton extends PanelMenu.Button {
         if (this._signals) {
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         }
-
         this._proxyHandler.destroy();
+        this._indicatorIcon.icon_name = null;
+        this._indicatorIcon.gicon = null;
+        this._indicatorIcon.destroy();
+        this._indicatorIcon = null;        
         this._proxyHandler = null;
         this._signals = null;
-
         super.destroy();
     }
 
@@ -770,19 +795,28 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _setIndicatorIcon() {
+    // The Indicator Icon has crazy fallback redundancy.
+    // The order is as follows:
+    // 1. The current player's symbolic icon
+    // 2. The current player's full color icon
+    // 3. A symbolic icon loosely representing
+    //    the current player's current track's media type.
+    //    (audio, video or stream)
+    // 4. If all else fails the audio mimetype symbolic icon.
         let player = this._getLastActivePlayer();
         if (player) {
-            let playerIconName = player.fallbackIconName;
-            if (playerIconName) {
-                this._indicatorIcon.icon_name = playerIconName;
+            if (player.fallbackIconName) {
+                this._indicatorIcon.icon_name = player.fallbackIconName;
+            } else if (player.fallbackGicon) {
+                this._indicatorIcon.gicon = player.fallbackGicon;
+            } else if (player.mimetypeIconName) {
+                this._indicatorIcon.icon_name = player.mimetypeIconName;
             } else {
-                let gicon = player.fallbackGicon;
-                if (gicon) {
-                    this._indicatorIcon.gicon = gicon;
-                } else {
-                    this._indicatorIcon.icon_name = "audio-x-generic-symbolic";
-                }
+                this._indicatorIcon.icon_name = "audio-x-generic-symbolic";
             }
+        } else {
+            this._indicatorIcon.icon_name = null;
+            this._indicatorIcon.gicon = null;
         }
     }
 
