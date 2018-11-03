@@ -76,10 +76,15 @@ function _makeProxyWrapper(interfaceXml) {
     };
 }
 
-function logError(error) {
+function logError(error, busName) {
     // Cancelling counts as an error don't spam the logs.
     if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-        global.log("[" + Me.metadata.uuid + "]: " + error.message);
+        if (busName) {
+            error = "BusName: " + busName + ", Error: " + error.message;
+        } else {
+            error = "Error: " + error.message;
+        }
+        global.log("[" + Me.metadata.uuid + "]: " + error);
     }
 }
 
@@ -89,10 +94,6 @@ const DBusProxy = _makeProxyWrapper(
   <method name="GetConnectionUnixProcessID">
     <arg type="s" direction="in" name="busName"/>
     <arg type="u" direction="out" name="pid"/>
-  </method>
-  <method name="GetNameOwner">
-    <arg type="s" direction="in" name="busName"/>
-    <arg type="s" direction="out" name="nameOwner"/>
   </method>
   <method name="ListNames">
     <arg type="as" direction="out" name="names" />
@@ -137,7 +138,10 @@ var DBusProxyHandler = GObject.registerClass({
     Signals: {
         "add-player": {
             flags: GObject.SignalFlags.RUN_FIRST,
-            param_types: [GObject.TYPE_STRING]
+            param_types: [
+                GObject.TYPE_STRING,
+                GObject.TYPE_UINT
+            ]
         },
         "remove-player": {
             flags: GObject.SignalFlags.RUN_FIRST,
@@ -145,13 +149,17 @@ var DBusProxyHandler = GObject.registerClass({
         },
         "change-player-owner": {
             flags: GObject.SignalFlags.RUN_FIRST,
-            param_types: [GObject.TYPE_STRING]
+            param_types: [
+                GObject.TYPE_STRING,
+                GObject.TYPE_UINT
+            ]
         }
     }
 }, class DBusProxyHandler extends GObject.Object {
     _init() {
         super._init();
         this._proxy = null;
+        this._nameOwnerId = null;
         this._cancellable = new DBusProxy(
             "org.freedesktop.DBus",
             "/org/freedesktop/DBus",
@@ -165,25 +173,23 @@ var DBusProxyHandler = GObject.registerClass({
             this._proxy = proxy;
             this._proxy.ListNamesRemote(([busNames]) => {
                 busNames.filter(n => n.startsWith("org.mpris.MediaPlayer2.")).sort().forEach(busName => {
-                    this._proxy.GetConnectionUnixProcessIDRemote(busName, (pid) => {
-                        this._proxy.GetNameOwnerRemote(busName, (nameOwner) => {
-                            this.emit("add-player", [busName, nameOwner, pid].join(" "));
-                        });
+                    this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
+                        this.emit("add-player", busName, pid);
                     });
                 });
             });
 
-            this._proxy.connectSignal("NameOwnerChanged", (proxy, sender, [busName, oldOwner, newOwner]) => {
+            this._nameOwnerId = this._proxy.connectSignal("NameOwnerChanged", (proxy, sender, [busName, oldOwner, newOwner]) => {
                 if (busName.startsWith("org.mpris.MediaPlayer2.")) {
                     if (newOwner && !oldOwner) {
-                        this._proxy.GetConnectionUnixProcessIDRemote(busName, (pid) => {
-                            this.emit("add-player", [busName, newOwner, pid].join(" "));
+                        this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
+                            this.emit("add-player", busName, pid);
                         });
                     } else if (oldOwner && !newOwner) {
                         this.emit("remove-player", busName);
                     } else if (oldOwner && newOwner) {
-                        this._proxy.GetConnectionUnixProcessIDRemote(busName, (pid) => {
-                            this.emit("change-player-owner", [busName, newOwner, pid].join(" "));
+                        this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
+                            this.emit("change-player-owner", busName, pid);
                         });
                     }
                 }
@@ -200,10 +206,12 @@ var DBusProxyHandler = GObject.registerClass({
             }
             this._cancellable.run_dispose();
         }
-        if (this._proxy) {
+        if (this._proxy && this._nameOwnerId) {
+            this._proxy.disconnectSignal(this._nameOwnerId);
             this._proxy.run_dispose();
         }
         this._proxy = null;
+        this._nameOwnerId = null
         this._cancellable = null;
         super.run_dispose();
     }
@@ -307,6 +315,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._mprisProxy = null;
         this._player_name = "";
         this._desktop_entry = "";
+        this._name_owner = "";
         this._show_stop = false;
         this._prev_reactive = false;
         this._playpause_reactive = false;
@@ -333,6 +342,10 @@ var MprisProxyHandler = GObject.registerClass({
 
     get desktop_entry() {
         return this._desktop_entry || "";
+    }
+
+    get name_owner() {
+        return this._name_owner || "";
     }
 
     get show_stop() {
@@ -381,60 +394,42 @@ var MprisProxyHandler = GObject.registerClass({
 
     raise() {
         if (this._mprisProxy && this._mprisProxy.CanRaise) {
-            try {
-                this._playerProxy.PlayPauseRemote();
-                return true;
-            } catch(error) {
-                logError(error);
-                return false;
-            }
+            this._asyncCall(this._mprisProxy, "Raise");
+            return true;
         }
         return false;
     }
 
     playPause() {
         if (this._playerProxy) {
-            try {
-                if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
-                    this._playerProxy.PlayPauseRemote();
-                } else if (this._playerProxy.CanPlay) {
-                    this._playerProxy.PlayRemote();
-                }
-            } catch(error) {
-                logError(error);
+            if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
+                this._asyncCall(this._playerProxy, "PlayPause");
+            } else if (this._playerProxy.CanPlay) {
+                this._asyncCall(this._playerProxy, "Play");
             }
         }
     }
 
     stop() {
         if (this._playerProxy) {
-            try {
-                this._playerProxy.StopRemote();
-            } catch(error) {
-                logError(error);
-            }
+            this._asyncCall(this._playerProxy, "Stop");
         }
     }
 
     playPauseStop() {
         if (this._playerProxy) {
-            try {
-                let isPlaying = this._playback_status === 2;
-                let canPlay = this._playerProxy.CanPlay;
-                let canPause = this._playerProxy.CanPause;
-                if (canPlay && canPause) {
-                    this._playerProxy.PlayPauseRemote();
-                    return true;
-                } else if (canPlay && !isPlaying) {
-                    this._playerProxy.PlayRemote();
-                    return true;
-                } else if (isPlaying) {
-                    this._playerProxy.StopRemote();
-                    return true;
-                }
-            } catch(error) {
-                logError(error);
-                return false;
+            let isPlaying = this._playback_status === 2;
+            let canPlay = this._playerProxy.CanPlay;
+            let canPause = this._playerProxy.CanPause;
+            if (canPlay && canPause) {
+                this._asyncCall(this._playerProxy, "PlayPause");
+                return true;
+            } else if (canPlay && !isPlaying) {
+                this._asyncCall(this._playerProxy, "Play");
+                return true;
+            } else if (isPlaying) {
+                this._asyncCall(this._playerProxy, "Stop");
+                return true;
             }
         }
         return false;
@@ -442,28 +437,39 @@ var MprisProxyHandler = GObject.registerClass({
 
     previous() {
         if (this._playerProxy && this._playerProxy.CanGoPrevious) {
-            try {
-                this._playerProxy.PreviousRemote();
-                return true;
-            } catch(error) {
-                logError(error);
-                return false;
-            }
+            this._asyncCall(this._playerProxy, "Previous");
+            return true;
         }
         return false;
     }
 
     next() {
         if (this._playerProxy && this._playerProxy.CanGoNext) {
-            try {
-                this._playerProxy.NextRemote();
-                return true;
-            } catch(error) {
-                logError(error);
-                return false;
-            }
+            this._asyncCall(this._playerProxy, "Next");
+            return true;
         }
         return false;
+    }
+
+    _asyncCall(proxy, methodName) {
+        // We want to catch our own errors.
+        // Debugging sucks bad enough without
+        // the proxy helpers swallowing up
+        // our errors in the overrides...
+        proxy.call(
+            methodName,
+            null,
+            Gio.DBusCallFlags.NONE,
+            -1,
+            null,
+            (proxy, result) => {
+                try {
+                    proxy.call_finish(result);
+                } catch (error) {
+                    logError(error, this._busName);
+                }
+            }
+        );
     }
 
     _get_playback_status() {
@@ -533,14 +539,21 @@ var MprisProxyHandler = GObject.registerClass({
             let url = metadata["xesam:url"].unpack();
             if (this._track_url !== url) {
                 this._track_url = url;
-                let [type, uncertain] = Gio.content_type_guess(url, null);
-                type = (type || "").toLowerCase();
-                if (type.includes("stream")) {
-                    // Not the greatest but it's the best we can do
-                    // as far as a one size fits all stream icon...
-                    mimetypeIconName = "applications-multimedia-symbolic";
-                } else if (type.includes("video")) {
-                    mimetypeIconName = "video-x-generic-symbolic";
+                for (let line of url.split("/")) {
+                    if (line.includes(".")) {
+                        let matches = line.match(/([.\w]+)([.][\w]+)([?][w.=]+)?/);
+                        if (matches) {
+                            let [type, uncertain] = Gio.content_type_guess(matches[0], null);
+                            if (!uncertain) {
+                                if (type.includes("audio")) {
+                                    break;
+                                } else if (type.includes("video")) {
+                                    mimetypeIconName = "video-x-generic-symbolic";
+                                    break;
+                                }
+                            }
+                        } 
+                    }
                 }
             }
         }
@@ -616,6 +629,7 @@ var MprisProxyHandler = GObject.registerClass({
     _onMprisProxyReady(mprisProxy, error) {
         if (mprisProxy) {
             this._mprisProxy = mprisProxy;
+            this._name_owner = this._mprisProxy.g_name_owner;
             this._updateMprisProps();
             this._pushSignal(this._mprisProxy, "g-properties-changed", () => {
                 this._updateMprisProps();
@@ -695,6 +709,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._mprisProxy = null;
         this._player_name = null;
         this._desktop_entry = null;
+        this._name_owner = null;
         this._show_stop = null;
         this._prev_reactive = null;
         this._playpause_reactive = null;

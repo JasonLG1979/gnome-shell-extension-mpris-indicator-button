@@ -38,15 +38,15 @@ const Widgets = Me.imports.widgets;
 
 var indicator = null;
 var stockMpris = null;
-var stockMprisOldShouldShow = null;
+var shouldShow = null;
 
 function enable() {
     stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
-    stockMprisOldShouldShow = stockMpris._shouldShow;
-    stockMpris.actor.hide();
-    stockMpris._shouldShow = function () {
-        return false;
-    };
+    shouldShow = stockMpris._shouldShow;
+    if (stockMpris && shouldShow) {
+        stockMpris.actor.hide();
+        stockMpris._shouldShow = () => false;
+    }
     indicator = Main.panel.addToStatusArea("mprisindicatorbutton",
         new MprisIndicatorButton(), 0, "right");
 }
@@ -56,8 +56,8 @@ function disable() {
         indicator.destroy();
     }
 
-    if (stockMpris && stockMprisOldShouldShow) {
-        stockMpris._shouldShow = stockMprisOldShouldShow;
+    if (stockMpris && shouldShow) {
+        stockMpris._shouldShow = shouldShow;
         if (stockMpris._shouldShow()) {
             stockMpris.actor.show();
         }
@@ -65,14 +65,14 @@ function disable() {
 
     indicator = null;
     stockMpris = null;
-    stockMprisOldShouldShow = null;
+    shouldShow = null;
 }
 
 // Things get a little weird when there are more
 // than one instance of a player running at the same time.
 // As far as ShellApp is concerned they are the same app.
 // So we have to jump though a bunch of hoops to keep track
-// of and differentiate the instance windows by pid or
+// of and differentiate the instance metaWindows by pid or
 // gtk_unique_bus_name/nameOwner.
 const AppWrapper = GObject.registerClass({
     GTypeName: "AppWrapper",
@@ -94,10 +94,10 @@ const AppWrapper = GObject.registerClass({
         this._nameOwner = nameOwner;
         this._focused = false;
         this._user_time = 0;
-        this._window = null;
+        this._metaWindow = null;
         this._appearsFocusedId = null;
         this._unmanagedId = null;
-        this._windowsChangedId = this._app.connect(
+        this._metaWindowsChangedId = this._app.connect(
             "windows-changed", 
             this._onWindowsChanged.bind(this)
         );
@@ -125,17 +125,17 @@ const AppWrapper = GObject.registerClass({
 
     toggleWindow(minimize) {
         if (!this._focused) {
-            if (this._window) {
+            if (this._metaWindow) {
                 // Go ahead and skip the whole "Player is Ready"
                 // dialog, after all the user wants the player focused,
                 // that's why they clicked on it...  
-                Main.activateWindow(this._window);
+                Main.activateWindow(this._metaWindow);
             } else {
                 this._app.activate();
             }
             return true;
-        } else if (minimize && this._window && this._window.can_minimize()) {
-            this._window.minimize();
+        } else if (minimize && this._metaWindow && this._metaWindow.can_minimize()) {
+            this._metaWindow.minimize();
             return true;
         }
         return false;
@@ -143,11 +143,11 @@ const AppWrapper = GObject.registerClass({
 
     destroy() {
         // Nothing to see here, move along...
-        if (this._windowsChangedId) {
-            this._app.disconnect(this._windowsChangedId);
+        if (this._metaWindowsChangedId) {
+            this._app.disconnect(this._metaWindowsChangedId);
         }
         this._onUnmanaged()
-        this._windowsChangedId = null;
+        this._metaWindowsChangedId = null;
         this._app = null;
         this._pid = null;
         this._focused = null;
@@ -163,19 +163,19 @@ const AppWrapper = GObject.registerClass({
         return null;
     }
 
-    _getNormalAppWindows() {
+    _getNormalAppMetaWindows() {
         // We don't want dialogs or what not...
         return Array.from(this._app.get_windows()).filter(w =>
             !w.skip_taskbar && w.window_type === Meta.WindowType.NORMAL
         );
     }
 
-    _getNewAppWindow() {
-        // Try to get a hold of an actual window...
-        let windows = this._getNormalAppWindows();
-        if (windows.length) {
+    _getNewAppMetaWindow() {
+        // Try to get a hold of an actual metaWindow...
+        let metaWindows = this._getNormalAppMetaWindows();
+        if (metaWindows.length) {
             // Check for multiple instances.
-            for (let w of windows) {
+            for (let w of metaWindows) {
                 if (this._instanceNum && w.gtk_window_object_path) {
                     // Match multiple instance(multiple window really) GApplications to their windows.
                     // Works rather well if a GApplication's MPRIS instance number matches
@@ -203,22 +203,22 @@ const AppWrapper = GObject.registerClass({
             // for single instance
             // apps it will be the
             // app's main window.
-            return windows[0];
+            return metaWindows[0];
         }
         return null;
     }
 
-    _grabAppWindow(appWindow) {
-        // Connect our window signals
+    _grabAppMetaWindow(appMetaWindow) {
+        // Connect our metaWindow signals
         // and check the new window's focus.
-        if (appWindow) {
+        if (appMetaWindow) {
             this._onUnmanaged();
-            this._window = appWindow;
-            this._appearsFocusedId = this._window.connect(
+            this._metaWindow = appMetaWindow;
+            this._appearsFocusedId = this._metaWindow.connect(
                "notify::appears-focused",
                 this._onAppearsFocused.bind(this)
             );
-            this._unmanagedId = this._window.connect(
+            this._unmanagedId = this._metaWindow.connect(
                 "unmanaged",
             this._onUnmanaged.bind(this)
             );
@@ -227,45 +227,45 @@ const AppWrapper = GObject.registerClass({
     }
 
     _onWindowsChanged() {
-        // We get this signal when window show up
+        // We get this signal when metaWindows show up
         // Really only useful when a player "unhides"
         // or at _init
-        let appWindow = this._getNewAppWindow();
-        if (this._window !== appWindow) {
-            this._grabAppWindow(appWindow);
+        let appMetaWindow = this._getNewAppMetaWindow();
+        if (this._metaWindow !== appMetaWindow) {
+            this._grabAppMetaWindow(appMetaWindow);
         }
     }
 
     _onAppearsFocused() {
         // Pretty self explanatory...
-        let focused = this._window && this._window.has_focus();
+        let focused = this._metaWindow && this._metaWindow.has_focus();
         if (this._focused != focused) {
-            this._user_time = this._window.user_time;
+            this._user_time = this._metaWindow.user_time;
             this._focused = focused;
             this.notify("focused");
         }
     }
 
     _onUnmanaged() {
-        // "unmanaged" windows are either hidden and/or
+        // "unmanaged" metaWindows are either hidden and/or
         // will soon be destroyed. Disconnect from them
-        // and null the window.
-        if (this._window) {
+        // and null the metaWindow.
+        if (this._metaWindow) {
             if (this._appearsFocusedId) {
-                this._window.disconnect(this._appearsFocusedId);
+                this._metaWindow.disconnect(this._appearsFocusedId);
             }
             if (this._unmanagedId) {
-                this._window.disconnect(this._unmanagedId);
+                this._metaWindow.disconnect(this._unmanagedId);
             }
         }
-        this._window = null;
+        this._metaWindow = null;
         this._appearsFocusedId = null;
         this._unmanagedId = null;
     }
 });
 
 class Player extends PopupMenu.PopupBaseMenuItem {
-    constructor(busName, pid, nameOwner, statusCallback, destructCallback) {
+    constructor(busName, pid, statusCallback, destructCallback) {
         super();
         this._appWrapper = null;
         this._signals = [];
@@ -410,6 +410,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._pushSignal(this._mpris, "notify::desktop-entry", () => {
             if (this._mpris.player_name && this._mpris.desktop_entry) {
+                // Go to absurd lengths to try to find the shellApp.
+                // For normal apps appSystem.lookup_app(desktopId)
+                // should work just fine, but for flatpaks or snaps
+                // it may very well not be enough, especially if the
+                // DesktopEntry MPRIS prop doesn't match the actual
+                // .desktop file *AS IT SHOULD*.
                 this.actor.accessible_name = this._mpris.player_name;
                 let desktopId = this._mpris.desktop_entry + ".desktop";
                 let identity = this._mpris.player_name;
@@ -417,7 +423,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                 let shellApp = appSystem.lookup_app(desktopId) ||
                     appSystem.lookup_startup_wmclass(identity);
                 if (!shellApp) {
-                    // Last resort... Needed for at least the Spotify snap.
                     let lcIdentity = identity.toLowerCase();
                     for (let app of appSystem.get_running()) {
                         if (lcIdentity === app.get_name().toLowerCase()) {
@@ -425,13 +430,22 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                             break;
                         }
                     }
+                    if (!shellApp) {
+                        for (let desktopId of Shell.AppSystem.search(this._mpris.desktop_entry)) {
+                            let app = appSystem.lookup_app(desktopId[0]);
+                            if (app && lcIdentity === app.get_name().toLowerCase()) {
+                                shellApp = app;
+                                break;
+                            }
+                        }
+                    }
                 }
                 if (shellApp) {
                     this._appWrapper = new AppWrapper(
                         shellApp,
                         busName,
-                        parseInt(pid, 10),
-                        nameOwner
+                        pid,
+                        this._mpris.name_owner
                     );
                     this._fallbackGicon = this._appWrapper.getGicon();
                     this._coverIcon.setFallbackGicon(this._fallbackGicon);
@@ -459,6 +473,23 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
 
         this._pushSignal(this._mpris, "notify::playback-status", statusCallback);
+
+        let accessible_nameCallback = () => {
+            // The ";" is to try to make the screen reader read the info a little more naturally.
+            // Otherwise they run into eachother.
+            let acc = "";
+            // artist could very well have fallen back to the player name, if so don't
+            // have the screen reader repeat itself.
+            if (this._mpris.artist === this._mpris.player_name) {
+                acc = [this._mpris.player_name, this._mpris.title].join("; ");
+            } else {
+                acc = this._mpris.player_name + "; " + [this._mpris.artist, this._mpris.title].join(" ");
+            }
+            this.actor.accessible_name = acc;
+        }
+
+        this._pushSignal(this._mpris, "notify::artist", accessible_nameCallback);
+        this._pushSignal(this._mpris, "notify::title", accessible_nameCallback);
 
         this._pushSignal(this, "activate", () => {
             this.toggleWindow();
@@ -727,13 +758,11 @@ class MprisIndicatorButton extends PanelMenu.Button {
         this._removePlayer(this._proxyHandler, player.busName);
     }
 
-    _addPlayer(proxyHandler, busNamePid) {
-        let [busName, nameOwner, pid] = busNamePid.split(" ");
+    _addPlayer(proxyHandler, busName, pid) {
         this.menu.addMenuItem(
             new Player(
                 busName,
                 pid,
-                nameOwner,
                 this._onUpdatePlayerStatus.bind(this),
                 this._onPlayerSelfDestruct.bind(this)
             )
@@ -752,10 +781,9 @@ class MprisIndicatorButton extends PanelMenu.Button {
         }
     }
 
-    _changePlayerOwner(proxyHandler, busNamePid) {
-        let [busName, nameOwner, pid] = busNamePid.split(" ");
+    _changePlayerOwner(proxyHandler, busName, pid) {
         this._destroyPlayer(busName);
-        this._addPlayer(proxyHandler, busNamePid);
+        this._addPlayer(proxyHandler, busName, pid);
     }
 
     _destroyPlayer(busName) {

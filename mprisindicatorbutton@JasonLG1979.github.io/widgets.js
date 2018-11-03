@@ -117,20 +117,6 @@ var CoverIcon = GObject.registerClass({
         }
     }
 
-    vfunc_dispose() {
-        if (this._cancellable) {
-            if (!this._cancellable.is_cancelled()) {
-                this._cancellable.cancel();
-            }
-            this._cancellable.run_dispose();
-        }
-        this._parentHoverState = null;
-        this._cancellable = null;
-        this._fallbackName = null;
-        this._fallbackGicon = null;
-        this._mimetypeIconName = null;
-    }
-
     _fallback() {
         if (this._fallbackName) {
             this.icon_name = this._fallbackName;
@@ -144,6 +130,20 @@ var CoverIcon = GObject.registerClass({
         let symbolicCover = this.icon_name && this.icon_name.endsWith("-symbolic");
         this.opacity = !symbolicCover ? 255 : this._parentHoverState ? 204 : 153;
         this.accessible_role = Atk.Role.ICON;
+    }
+
+    on_destroy() {
+        if (this._cancellable) {
+            if (!this._cancellable.is_cancelled()) {
+                this._cancellable.cancel();
+            }
+            this._cancellable.run_dispose();
+        }
+        this._parentHoverState = null;
+        this._cancellable = null;
+        this._fallbackName = null;
+        this._fallbackGicon = null;
+        this._mimetypeIconName = null;
     }
 });
 
@@ -164,7 +164,7 @@ var TrackLabel = GObject.registerClass({
         this.opacity = hover ? this._hoverOpacity : this._baseOpacity;
     }
 
-    vfunc_dispose() {
+    on_destroy() {
         this._baseOpacity = null;
         this._hoverOpacity = null;
     }
@@ -195,7 +195,7 @@ var MediaControlButton = GObject.registerClass({
         ];
     }
 
-    vfunc_dispose() {
+    on_destroy() {
         if (this._signalIds) {
             this._signalIds.forEach(signalId => this.disconnect(signalId));
         }
