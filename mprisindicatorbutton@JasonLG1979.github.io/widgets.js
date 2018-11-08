@@ -53,6 +53,21 @@ var CoverIcon = GObject.registerClass({
         this._fallbackName = null;
         this._fallbackGicon = null;
         this._mimetypeIconName = null;
+
+        let destroyId = this.connect("destroy", () => {
+            this.disconnect(destroyId);
+            if (this._cancellable) {
+                if (!this._cancellable.is_cancelled()) {
+                    this._cancellable.cancel();
+                }
+                this._cancellable.run_dispose();
+            }
+            this._parentHoverState = null;
+            this._cancellable = null;
+            this._fallbackName = null;
+            this._fallbackGicon = null;
+            this._mimetypeIconName = null;
+        });
     }
 
     onParentHover(hover) {
@@ -131,20 +146,6 @@ var CoverIcon = GObject.registerClass({
         this.opacity = !symbolicCover ? 255 : this._parentHoverState ? 204 : 153;
         this.accessible_role = Atk.Role.ICON;
     }
-
-    on_destroy() {
-        if (this._cancellable) {
-            if (!this._cancellable.is_cancelled()) {
-                this._cancellable.cancel();
-            }
-            this._cancellable.run_dispose();
-        }
-        this._parentHoverState = null;
-        this._cancellable = null;
-        this._fallbackName = null;
-        this._fallbackGicon = null;
-        this._mimetypeIconName = null;
-    }
 });
 
 var TrackLabel = GObject.registerClass({
@@ -158,15 +159,16 @@ var TrackLabel = GObject.registerClass({
 
         this._baseOpacity = baseOpacity;
         this._hoverOpacity = hoverOpacity;
+
+        let destroyId = this.connect("destroy", () => {
+            this.disconnect(destroyId);
+            this._baseOpacity = null;
+            this._hoverOpacity = null;
+        });
     }
 
     onParentHover(hover) {
         this.opacity = hover ? this._hoverOpacity : this._baseOpacity;
-    }
-
-    on_destroy() {
-        this._baseOpacity = null;
-        this._hoverOpacity = null;
     }
 });
 
@@ -189,16 +191,12 @@ var MediaControlButton = GObject.registerClass({
             this.opacity = !this.reactive ? 102 : this.hover ? 255 : 204;
         };
 
-        this._signalIds = [
+        let signalIds = [
             this.connect("notify::hover", callback),
-            this.connect("notify::reactive", callback)
+            this.connect("notify::reactive", callback),
+            this.connect("destroy", () => {
+                signalIds.forEach(signalId => this.disconnect(signalId));
+            })
         ];
-    }
-
-    on_destroy() {
-        if (this._signalIds) {
-            this._signalIds.forEach(signalId => this.disconnect(signalId));
-        }
-        this._signalIds = null;
     }
 });

@@ -120,10 +120,7 @@ const AppWrapper = GObject.registerClass({
         // you'd get from Shell.App.create_icon_texture().
         // This also doesn't fail silently and return the wrong icon...
         let app_info = this._app.get_app_info();
-        if (app_info) {
-            return app_info.get_icon() || null;
-        }
-        return null;
+        return app_info ? app_info.get_icon() : null;
     }
 
     toggleWindow(minimize) {
@@ -160,10 +157,7 @@ const AppWrapper = GObject.registerClass({
 
     _getNumbersFromTheEndOf(someString) {
         let matches = someString.match(/[0-9]+$/);
-        if (matches) {
-            return parseInt(matches[0], 10);
-        }
-        return null;
+        return matches ? parseInt(matches[0], 10) : null;
     }
 
     _getNormalAppMetaWindows() {
@@ -176,39 +170,32 @@ const AppWrapper = GObject.registerClass({
     _getNewAppMetaWindow() {
         // Try to get a hold of an actual metaWindow...
         let metaWindows = this._getNormalAppMetaWindows();
-        if (metaWindows.length) {
+        let metaWindow = metaWindows.find(w => {
             // Check for multiple instances.
-            for (let w of metaWindows) {
-                if (this._instanceNum && w.gtk_window_object_path) {
-                    // Match multiple instance(multiple window really) GApplications to their windows.
-                    // Works rather well if a GApplication's MPRIS instance number matches
-                    // it's corresponding window object path like the latest git master of GNOME-MPV.
-                    // For example org.mpris.MediaPlayer2.GnomeMpv.instance-1 = /io/github/GnomeMpv/window/1. 
-                    let windowNum = this._getNumbersFromTheEndOf(w.gtk_window_object_path);
-                    if (this._instanceNum === windowNum) {
-                        return w;
-                    }
-                } else if (w.gtk_unique_bus_name) {
-                    // This will match single instance GApplications to their window.
-                    // Generally the window and MPRIS interface will have the
-                    // same name owner.
-                    if (w.gtk_unique_bus_name === this._nameOwner) {
-                        return w;
-                    }
-                // Match true multiple instances players by their pids.
-                // works rather well for apps like VLC for example.
-                } else if (w.get_pid() === this._pid) {
-                    return w;
+            if (this._instanceNum && w.gtk_window_object_path) {
+                // Match multiple instance(multiple window really) GApplications to their windows.
+                // Works rather well if a GApplication's MPRIS instance number matches
+                // it's corresponding window object path like the latest git master of GNOME-MPV.
+                // For example org.mpris.MediaPlayer2.GnomeMpv.instance-1 = /io/github/GnomeMpv/window/1. 
+                let windowNum = this._getNumbersFromTheEndOf(w.gtk_window_object_path);
+                if (this._instanceNum === windowNum) {
+                    return true;
                 }
+            } else if (w.gtk_unique_bus_name) {
+                // This will match single instance GApplications to their window.
+                // Generally the window and MPRIS interface will have the
+                // same name owner.
+                if (w.gtk_unique_bus_name === this._nameOwner) {
+                    return true;
+                }
+            // Match true multiple instances players by their pids.
+            // works rather well for apps like VLC for example.
+            } else if (w.get_pid() === this._pid) {
+                return true;
             }
-            // If all else fails
-            // return the 1st window
-            // for single instance
-            // apps it will be the
-            // app's main window.
-            return metaWindows[0];
-        }
-        return null;
+            return false;
+        });
+        return metaWindow ? metaWindow : metaWindows.length ? metaWindows[0] : null;
     }
 
     _grabAppMetaWindow(appMetaWindow) {
@@ -412,7 +399,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         );
 
         this._pushSignal(this._mpris, "notify::desktop-entry", () => {
-            if (this._mpris.player_name && this._mpris.desktop_entry) {
+            if (this._mpris.player_name && this._mpris.desktop_entry && !this._appWrapper) {
                 // Go to absurd lengths to try to find the shellApp.
                 // For normal apps appSystem.lookup_app(desktopId)
                 // should work just fine, but for flatpaks or snaps
@@ -422,24 +409,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                 this.actor.accessible_name = this._mpris.player_name;
                 let desktopId = this._mpris.desktop_entry + ".desktop";
                 let identity = this._mpris.player_name;
+                let lcIdentity = identity.toLowerCase();
                 let appSystem = Shell.AppSystem.get_default();
                 let shellApp = appSystem.lookup_app(desktopId) ||
-                    appSystem.lookup_startup_wmclass(identity);
+                    appSystem.lookup_startup_wmclass(identity) ||
+                    appSystem.get_running().find(app => app.get_name().toLowerCase() === lcIdentity);
                 if (!shellApp) {
-                    let lcIdentity = identity.toLowerCase();
-                    for (let app of appSystem.get_running()) {
-                        if (lcIdentity === app.get_name().toLowerCase()) {
+                    for (let desktopId of Shell.AppSystem.search(this._mpris.desktop_entry)) {
+                        let app = appSystem.lookup_app(desktopId[0]);
+                        if (app && lcIdentity === app.get_name().toLowerCase()) {
                             shellApp = app;
                             break;
-                        }
-                    }
-                    if (!shellApp) {
-                        for (let desktopId of Shell.AppSystem.search(this._mpris.desktop_entry)) {
-                            let app = appSystem.lookup_app(desktopId[0]);
-                            if (app && lcIdentity === app.get_name().toLowerCase()) {
-                                shellApp = app;
-                                break;
-                            }
                         }
                     }
                 }
@@ -527,25 +507,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     get userTime() {
-        if (this._appWrapper) {
-            return this._appWrapper.user_time;
-        } else {
-            return 0;
-        }
+        return this._appWrapper ? this._appWrapper.user_time : 0;
     }
 
     get statusTime() {
-        if (this._mpris) {
-            return this._mpris.status_time;
-        }
-        return 0;
+        return this._mpris ? this._mpris.status_time : 0;
     }
 
     get statusValue() {
-        if (this._mpris) {
-            return this._mpris.playback_status;
-        }
-        return 0;
+        return this._mpris ? this._mpris.playback_status : 0;
     }
 
     get fallbackIconName() {
@@ -561,10 +531,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     get focused() {
-        if (this._appWrapper) {
-            return this._appWrapper.focused;
-        }
-        return false;
+        return this._appWrapper ? this._appWrapper.focused : false;
     }
 
     get busName() {
@@ -572,33 +539,21 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     playPauseStop() {
-        if (this._mpris) {
-            return this._mpris.playPauseStop();
-        }
-        return false;        
+        return this._mpris ? this._mpris.playPauseStop() : false;        
     }
 
     previous() {
-        if (this._mpris) {
-            return this._mpris.previous();
-        }
-        return false;
+        return this._mpris ? this._mpris.previous() : false;
     }
 
     next() {
-        if (this._mpris) {
-            return this._mpris.next();
-        }
-        return false;
+        return this._mpris ? this._mpris.next() : false;
     }
 
     toggleWindow(minimize) {
-        if (this._appWrapper) {
-            return this._appWrapper.toggleWindow(minimize);
-        } else if (this._mpris) {
-            return this._mpris.raise();
-        }
-        return false;
+        return this._appWrapper ? this._appWrapper.toggleWindow(minimize)
+        : this._mpris ? this._mpris.raise()
+        : false;
     }
 
     onThemeChanged() {
@@ -667,11 +622,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                 ];
             }
             let currentIconTheme = Gtk.IconTheme.get_default();
-            for (let iconName of iconNames) {
-                if (currentIconTheme.has_icon(iconName)) {
-                    return iconName;
-                }
-            }
+            let iconName = iconNames.find(name => currentIconTheme.has_icon(name));
+            return iconName || null;
         }
         return null;
     }
@@ -809,11 +761,9 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _destroyPlayer(busName) {
-        for (let player of this.menu._getMenuItems()) {
-            if (player.busName === busName) {
-                player.destroy();
-                break;
-            }
+        let player = this.menu._getMenuItems().find(p => p.busName === busName);
+        if (player) {
+            player.destroy();
         }
     }
 
@@ -851,7 +801,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
     // 2. The current player's full color icon
     // 3. A symbolic icon loosely representing
     //    the current player's current track's media type.
-    //    (audio, video or stream)
+    //    (audio or video)
     // 4. If all else fails the audio mimetype symbolic icon.
         let player = this._getLastActivePlayer();
         if (player) {

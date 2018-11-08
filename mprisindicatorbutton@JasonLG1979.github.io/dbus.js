@@ -76,15 +76,10 @@ function _makeProxyWrapper(interfaceXml) {
     };
 }
 
-function logError(error, busName) {
+function logError(error) {
     // Cancelling counts as an error don't spam the logs.
     if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-        if (busName) {
-            error = "BusName: " + busName + ", Error: " + error.message;
-        } else {
-            error = "Error: " + error.message;
-        }
-        global.log("[" + Me.metadata.uuid + "]: " + error);
+        global.log("[" + Me.metadata.uuid + "]: " + error.message);
     }
 }
 
@@ -394,7 +389,7 @@ var MprisProxyHandler = GObject.registerClass({
 
     raise() {
         if (this._mprisProxy && this._mprisProxy.CanRaise) {
-            this._asyncCall(this._mprisProxy, "Raise");
+            this._mprisProxy.RaiseRemote();
             return true;
         }
         return false;
@@ -403,16 +398,16 @@ var MprisProxyHandler = GObject.registerClass({
     playPause() {
         if (this._playerProxy) {
             if (this._playerProxy.CanPause && this._playerProxy.CanPlay) {
-                this._asyncCall(this._playerProxy, "PlayPause");
+                this._playerProxy.PlayPauseRemote();
             } else if (this._playerProxy.CanPlay) {
-                this._asyncCall(this._playerProxy, "Play");
+                this._playerProxy.PlayRemote();
             }
         }
     }
 
     stop() {
         if (this._playerProxy) {
-            this._asyncCall(this._playerProxy, "Stop");
+            this._playerProxy.StopRemote();
         }
     }
 
@@ -422,13 +417,13 @@ var MprisProxyHandler = GObject.registerClass({
             let canPlay = this._playerProxy.CanPlay;
             let canPause = this._playerProxy.CanPause;
             if (canPlay && canPause) {
-                this._asyncCall(this._playerProxy, "PlayPause");
+                this._playerProxy.PlayPauseRemote();
                 return true;
             } else if (canPlay && !isPlaying) {
-                this._asyncCall(this._playerProxy, "Play");
+                this._playerProxy.PlayRemote();
                 return true;
             } else if (isPlaying) {
-                this._asyncCall(this._playerProxy, "Stop");
+                this._playerProxy.StopRemote();
                 return true;
             }
         }
@@ -437,7 +432,7 @@ var MprisProxyHandler = GObject.registerClass({
 
     previous() {
         if (this._playerProxy && this._playerProxy.CanGoPrevious) {
-            this._asyncCall(this._playerProxy, "Previous");
+            this._playerProxy.PreviousRemote();
             return true;
         }
         return false;
@@ -445,31 +440,10 @@ var MprisProxyHandler = GObject.registerClass({
 
     next() {
         if (this._playerProxy && this._playerProxy.CanGoNext) {
-            this._asyncCall(this._playerProxy, "Next");
+            this._playerProxy.NextRemote();
             return true;
         }
         return false;
-    }
-
-    _asyncCall(proxy, methodName) {
-        // We want to catch our own errors.
-        // Debugging sucks bad enough without
-        // the proxy helpers swallowing up
-        // our errors in the overrides...
-        proxy.call(
-            methodName,
-            null,
-            Gio.DBusCallFlags.NONE,
-            -1,
-            null,
-            (proxy, result) => {
-                try {
-                    proxy.call_finish(result);
-                } catch (error) {
-                    logError(error, this._busName);
-                }
-            }
-        );
     }
 
     _get_playback_status() {
