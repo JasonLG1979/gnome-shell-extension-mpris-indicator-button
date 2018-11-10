@@ -27,7 +27,6 @@ const St = imports.gi.St;
 const Meta = imports.gi.Meta;
 const Clutter = imports.gi.Clutter;
 const Shell = imports.gi.Shell;
-const Config = imports.misc.config;
 
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
@@ -36,8 +35,6 @@ const Panel = imports.ui.panel;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const DBus = Me.imports.dbus;
 const Widgets = Me.imports.widgets;
-
-const MINOR_VERSION = parseInt(Config.PACKAGE_VERSION.split(".")[1]);
 
 var indicator = null;
 var stockMpris = null;
@@ -341,7 +338,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         playerButtonBox.add(nextButton);
 
-        this._mpris = new DBus.MprisProxyHandler(this._busName);
+        this._mpris = new DBus.MprisProxyHandler(busName);
 
         this._pushSignal(this._mpris, "self-destruct", () => {
             destructCallback(this);
@@ -457,41 +454,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         this._pushSignal(this._mpris, "notify::playback-status", statusCallback);
 
-        let accessible_nameCallback;
-
-        if (MINOR_VERSION >= 30) {
-            // The screen reader in GNOME Shell 3.28 reads this.actor.accessible_name, trackArtist
-            // and trackTitle aloud. 3.30 only reads this.actor.accessible_name. Not sure which is
-            // the intended behaviour but hopefully this will make things consistent between the 2? 
-            accessible_nameCallback = () => {
-                // The ";" is to try to make the screen reader read the info a little more naturally.
-                // Otherwise they run into eachother.
-                let acc = "";
-                // artist could very well have fallen back to the player name, if so don't
-                // have the screen reader repeat itself.
-                if (this._mpris.artist === this._mpris.player_name) {
-                    acc = [this._mpris.player_name, this._mpris.title].join("; ");
-                } else {
-                    acc = this._mpris.player_name + "; " + [this._mpris.artist, this._mpris.title].join(" ");
-                }
-                this.actor.accessible_name = acc;
+        this._pushSignal(this._mpris, "notify::artist", () => {
+            // artist could very well have fallen back to the player name, if so don't
+            // have the screen reader repeat itself.
+            if (this._mpris.artist === this._mpris.player_name) {
+                this.actor.accessible_name = "";
+            } else if (this.actor.accessible_name !== this._mpris.player_name) {
+                this.actor.accessible_name = this._mpris.player_name;
             }
-        } else {
-            accessible_nameCallback = () => {
-                // artist could very well have fallen back to the player name, if so don't
-                // have the screen reader repeat itself.
-                if (this._mpris.artist === this._mpris.player_name) {
-                    this.actor.accessible_name = "";
-                } else if (this.actor.accessible_name !== this._mpris.player_name) {
-                    this.actor.accessible_name = this._mpris.player_name;
-                }
-            }
-        }
-
-        if (MINOR_VERSION >= 30) {
-            this._pushSignal(this._mpris, "notify::title", accessible_nameCallback);
-        }
-        this._pushSignal(this._mpris, "notify::artist", accessible_nameCallback);
+        });
 
         this._pushSignal(this, "activate", () => {
             this.toggleWindow();

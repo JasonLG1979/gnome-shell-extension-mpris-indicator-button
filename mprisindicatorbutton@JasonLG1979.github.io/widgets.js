@@ -77,11 +77,11 @@ var CoverIcon = GObject.registerClass({
     }
 
     setFallbackName(iconName) {
-        this._fallbackName = iconName
+        this._fallbackName = iconName;
     }
 
     setMimetypeIconName(iconName) {
-        this._mimetypeIconName = iconName
+        this._mimetypeIconName = iconName;
     }
 
     setFallbackGicon(gicon) {
