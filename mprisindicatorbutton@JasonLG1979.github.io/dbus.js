@@ -21,7 +21,6 @@
 
 const Gio = imports.gi.Gio;
 const GObject = imports.gi.GObject;
-const GLib = imports.gi.GLib;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
@@ -30,48 +29,50 @@ const Me = imports.misc.extensionUtils.getCurrentExtension();
 // for our particular needs.
 function _makeProxyWrapper(interfaceXml) {
     let nodeInfo = Gio.DBusNodeInfo.new_for_xml(interfaceXml);
-    let info = nodeInfo.interfaces[0];
-    let iname = info.name;
-    return function(name, object, flags, asyncCallback) {
+    let interfaceInfo = nodeInfo.interfaces[0];
+    let interfaceName = interfaceInfo.name;
+    return function(busName, objectPath, flags, asyncCallback) {
+        let cancellable = new Gio.Cancellable();
         let error = null;
         let proxy = null;
-        let obj = new Gio.DBusProxy({
-            g_connection: Gio.DBus.session,
-            g_interface_name: iname,
-            g_interface_info: info,
-            g_name: name,
-            g_object_path: object,
-            g_flags: Gio.DBusProxyFlags.DO_NOT_AUTO_START | flags
-        });
-        let cancellable = new Gio.Cancellable();
-        obj.init_async(GLib.PRIORITY_DEFAULT, cancellable, (initable, result) => {
-            try {
-                initable.init_finish(result);
-                proxy = initable;
-            } catch(e) {
-                error = e;
-            } finally {
-                if (proxy) {
-                    if (proxy.g_name_owner) {
-                        asyncCallback(proxy, null);
+        Gio.DBusProxy.new(
+            Gio.DBus.session,
+            Gio.DBusProxyFlags.DO_NOT_AUTO_START | flags,
+            interfaceInfo,
+            busName,
+            objectPath,
+            interfaceName,
+            cancellable,
+            (source, result) => {
+                try {
+                    proxy = Gio.DBusProxy.new_finish(result);
+                } catch(e) {
+                    proxy = null;
+                    error = e;
+                } finally {
+                    if (proxy) {
+                        if (proxy.g_name_owner) {
+                            asyncCallback(proxy, null);
+                        } else {
+                            error = Gio.DBusError.new_for_dbus_error(
+                               " No Name Owner",
+                                `${busName} has no owner.`
+                            );
+                            asyncCallback(null, error);
+                        }
                     } else {
-                        error = Gio.DBusError.new_for_dbus_error(
-                           " No Name Owner",
-                            `${name} has no owner.`
-                        );
+                        if (!error) {
+                            // Should never really happen.
+                            error = Gio.DBusError.new_for_dbus_error(
+                                " Unknow Error",
+                                busName
+                            );
+                        }
                         asyncCallback(null, error);
                     }
-                } else {
-                    if (!error) {
-                        error = Gio.DBusError.new_for_dbus_error(
-                            " Unknow Error",
-                            name
-                        );
-                    }
-                    asyncCallback(null, error);
                 }
             }
-        });
+        );
         return cancellable;
     };
 }
@@ -329,7 +330,7 @@ var MprisProxyHandler = GObject.registerClass({
             new MprisProxy(
                 busName,
                 "/org/mpris/MediaPlayer2",
-                Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS,
+                Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS | Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
                 (mprisProxy, error) => {
                     if (mprisProxy) {
                         this._mprisProxy = mprisProxy;
@@ -343,7 +344,7 @@ var MprisProxyHandler = GObject.registerClass({
             new MprisPlayerProxy(
                 busName,
                 "/org/mpris/MediaPlayer2",
-                Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS,
+                Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS | Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
                 (playerProxy, error) => {
                     if (playerProxy) {
                         this._playerProxy = playerProxy;
@@ -476,20 +477,11 @@ var MprisProxyHandler = GObject.registerClass({
         if (this._mprisProxy && this._playerProxy) {
             this._proxyCancellables.forEach(cancellable => cancellable.run_dispose());
             this._name_owner = this._mprisProxy.g_name_owner;
-            this._updateMprisProps();
-            this._updatePlayerProps();
-            this._updateMetadata();
-            if (!this._player_name || !this._desktop_entry) {
-                // The Identity and DesktopEntry props *SHOULD* be available
-                // on interface creation and should remain static thoughout
-                // the life of the interface but just in case, if they aren't
-                // available right away... 
-                this._mprisPropChangeId = this._mprisProxy.connect("g-properties-changed", () => {
-                    this._updateMprisProps();
-                });
-            }
-            this._playerPropChangeId = this._playerProxy.connect("g-properties-changed", (proxy, props, invalidated_props) => {
-                props = Object.keys(props.deep_unpack()).concat(invalidated_props);
+            this._mprisPropChangeId = this._mprisProxy.connect("g-properties-changed", () => {
+                this._updateMprisProps();
+            });
+            this._playerPropChangeId = this._playerProxy.connect("g-properties-changed", (proxy, props) => {
+                props = Object.keys(props.deep_unpack());
                 if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
                     this._updatePlayerProps();
                 }
@@ -498,25 +490,41 @@ var MprisProxyHandler = GObject.registerClass({
                     this._updateMetadata();
                 }
             });
+            this._updateMprisProps();
+            this._updatePlayerProps();
+            this._updateMetadata();
             this._proxyCancellables = null;
         }
     }
 
+    _primitiveTypeCheck(variable, primitiveDefault) {
+        // MPRIS implementations can be, and more often then not are broken
+        // in mind numbingly stupid ways. The number of players that get it 100%
+        // right can be counted on 1 hand. This is unfortunately necessary to make
+        // our code more robust and error resistant/tolerant. 
+        // 
+        // *ONLY WORKS WITH PRIMITIVES*
+        // undefined, null, boolean, string and number.
+        // everything else will be a typeof object.
+        //
+        // Cached props can return null if the player does not implement the prop.
+        // Player can also send the wrong types in the metadata.
+        // That's OK if we're just trying to find the truthiness of a prop
+        // that is suppose to be a bool but not so good when we expect a certain type.
+        // This checks the variable type against the primitive default type.
+        // If they are the same type it returns the variable, otherwise the primitive default.
+        return (typeof variable == typeof primitiveDefault) ? variable : primitiveDefault;
+    }
+
     _updateMprisProps() {
-        let player_name = this._mprisProxy.Identity || "";
-        if (player_name && this._player_name !== player_name) {
-            this._player_name = player_name;
-        }
-        let desktop_entry = (this._mprisProxy.DesktopEntry || "").split("/").pop().replace(".desktop", "");
-        if (desktop_entry && this._desktop_entry !== desktop_entry) {
-            this._desktop_entry = desktop_entry;
-            this.notify("desktop-entry");
-        }
-        // Once we have our player name and desktop entry we don't need to be connected
-        // to the mpris proxy prop changed signal anymore if we ever were.
+        this._player_name = this._primitiveTypeCheck(this._mprisProxy.Identity, "");
+        this._desktop_entry = this._primitiveTypeCheck(this._mprisProxy.DesktopEntry, "").split("/").pop().replace(".desktop", "");
         if (this._player_name && this._desktop_entry && this._mprisPropChangeId) {
+            // Once we have our player name and desktop entry we don't need to be connected
+            // to the mpris proxy prop changed signal anymore.
             this._mprisProxy.disconnect(this._mprisPropChangeId);
             this._mprisPropChangeId = null;
+            this.notify("desktop-entry");
         }
     }
 
@@ -526,10 +534,10 @@ var MprisProxyHandler = GObject.registerClass({
         let showStop = false;
         let status = this._get_playback_status();
         let isPlaying = status === 2;
-        let canPlay = this._playerProxy.CanPlay || false;
-        let canPause = this._playerProxy.CanPause || false;
-        let canGoPrevious = this._playerProxy.CanGoPrevious || false;
-        let canGoNext = this._playerProxy.CanGoNext || false; 
+        let canPlay = this._primitiveTypeCheck(this._playerProxy.CanPlay, false);
+        let canPause = this._primitiveTypeCheck(this._playerProxy.CanPause, false);
+        let canGoPrevious = this._primitiveTypeCheck(this._playerProxy.CanGoPrevious, false);
+        let canGoNext = this._primitiveTypeCheck(this._playerProxy.CanGoNext, false); 
 
         if (canPause && canPlay) {
             playPauseIconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
@@ -571,7 +579,7 @@ var MprisProxyHandler = GObject.registerClass({
 
     _get_playback_status() {
         if (this._playerProxy) {
-            let status = (this._playerProxy.PlaybackStatus || "").toLowerCase();
+            let status = this._primitiveTypeCheck(this._playerProxy.PlaybackStatus, "").toLowerCase();
             if (status === "playing") {
                 return 2;
             } else if (status === "paused") {
@@ -595,65 +603,72 @@ var MprisProxyHandler = GObject.registerClass({
             "xesam:lyricist"
         ];
 
-        // Be rather exhaustive and liberal
-        // as far as what constitutes an "artist".
-        if (metadataKeys.includes("rhythmbox:streamTitle")) {
-            artist = metadata["rhythmbox:streamTitle"].unpack();
-        }
-        if (!artist) {
-            for (let key of artistKeys) {
-                if (metadataKeys.includes(key)) {
-                    artist = metadata[key].deep_unpack().join(", ");
-                    if (artist) {
-                        break;
+        if (metadataKeys.length) {
+            // Be rather exhaustive and liberal
+            // as far as what constitutes an "artist".
+            if (metadataKeys.includes("rhythmbox:streamTitle")) {
+                artist = this._primitiveTypeCheck(metadata["rhythmbox:streamTitle"].unpack(), "");
+            }
+            if (!artist) {
+                for (let key of artistKeys) {
+                    if (metadataKeys.includes(key)) {
+                        let artists = [];
+                        try {
+                            artists = metadata[key].deep_unpack();
+                            artist = (Array.isArray(artists) && artists.length) ? artists.join(", ") : "";
+                        } catch {
+                            artist = "";
+                        } finally {
+                            if (artist) {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Prefer the track title, but in it's absence if the
+            // track number and album title are available use them.
+            // For Example, "5 - My favorite Album". 
+            if (metadataKeys.includes("xesam:title")) {
+                title = this._primitiveTypeCheck(metadata["xesam:title"].unpack(), "");
+            }
+            if (!title && metadataKeys.includes("xesam:trackNumber")
+                && metadataKeys.includes("xesam:album")) {
+                let trackNumber = this._primitiveTypeCheck(metadata["xesam:trackNumber"].unpack(), 0);
+                let album = this._primitiveTypeCheck(metadata["xesam:album"].unpack(), "");
+                title = (trackNumber && album) ? `${trackNumber} - ${album}` : "";
+            }
+
+            if (metadataKeys.includes("mpris:artUrl")) {
+                coverUrl = this._primitiveTypeCheck(metadata["mpris:artUrl"].unpack(), "");
+            }
+
+            if (metadataKeys.includes("xesam:url")) {
+                let url = this._primitiveTypeCheck(metadata["xesam:url"].unpack(), "");
+                if (this._track_url !== url) {
+                    this._track_url = url;
+                    for (let line of url.split("/")) {
+                        if (line.includes(".")) {
+                            let matches = line.match(/([.\w]+)([.][\w]+)([?][w.=]+)?/);
+                            if (matches) {
+                                let [type, uncertain] = Gio.content_type_guess(matches[0], null);
+                                if (!uncertain) {
+                                    if (type.includes("audio")) {
+                                        break;
+                                    } else if (type.includes("video")) {
+                                        mimetypeIconName = "video-x-generic-symbolic";
+                                        break;
+                                    }
+                                }
+                            } 
+                        }
                     }
                 }
             }
         }
 
         artist = artist || this._player_name;
-
-        // Prefer the track title, but in it's absence if the
-        // track number and album title are available use them.
-        // For Example, "5 - My favorite Album". 
-        if (metadataKeys.includes("xesam:title")) {
-            title = metadata["xesam:title"].unpack();
-        }
-        if (!title && metadataKeys.includes("xesam:trackNumber")
-            && metadataKeys.includes("xesam:album")) {
-            let trackNumber = metadata["xesam:trackNumber"].unpack();
-            let album = metadata["xesam:album"].unpack();
-            if (trackNumber && album) {
-                title = `${trackNumber} - ${album}`;
-            }
-        }
-
-        if (metadataKeys.includes("mpris:artUrl")) {
-            coverUrl = metadata["mpris:artUrl"].unpack();
-        }
-
-        if (metadataKeys.includes("xesam:url")) {
-            let url = metadata["xesam:url"].unpack();
-            if (this._track_url !== url) {
-                this._track_url = url;
-                for (let line of url.split("/")) {
-                    if (line.includes(".")) {
-                        let matches = line.match(/([.\w]+)([.][\w]+)([?][w.=]+)?/);
-                        if (matches) {
-                            let [type, uncertain] = Gio.content_type_guess(matches[0], null);
-                            if (!uncertain) {
-                                if (type.includes("audio")) {
-                                    break;
-                                } else if (type.includes("video")) {
-                                    mimetypeIconName = "video-x-generic-symbolic";
-                                    break;
-                                }
-                            }
-                        } 
-                    }
-                }
-            }
-        }
 
         if (this._mimetype_icon_name !== mimetypeIconName) {
             this._mimetype_icon_name = mimetypeIconName;

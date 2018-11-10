@@ -396,47 +396,45 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         );
 
         this._pushSignal(this._mpris, "notify::desktop-entry", () => {
-            if (this._mpris.player_name && this._mpris.desktop_entry && !this._appWrapper) {
-                // Go to absurd lengths to try to find the shellApp.
-                // For normal apps appSystem.lookup_app(desktopId)
-                // should work just fine, but for flatpaks or snaps
-                // it may very well not be enough, especially if the
-                // DesktopEntry MPRIS prop doesn't match the actual
-                // .desktop file *AS IT SHOULD*.
-                this.actor.accessible_name = this._mpris.player_name;
-                let desktopId = this._mpris.desktop_entry + ".desktop";
-                let identity = this._mpris.player_name;
-                let lcIdentity = identity.toLowerCase();
-                let appSystem = Shell.AppSystem.get_default();
-                let shellApp = appSystem.lookup_app(desktopId) ||
-                    appSystem.lookup_startup_wmclass(identity) ||
-                    appSystem.get_running().find(app => app.get_name().toLowerCase() === lcIdentity);
-                if (!shellApp) {
-                    for (let desktopId of Shell.AppSystem.search(this._mpris.desktop_entry)) {
-                        let app = appSystem.lookup_app(desktopId[0]);
-                        if (app && lcIdentity === app.get_name().toLowerCase()) {
-                            shellApp = app;
-                            break;
-                        }
+            // Go to absurd lengths to try to find the shellApp.
+            // For normal apps appSystem.lookup_app(desktopId)
+            // should work just fine, but for flatpaks or snaps
+            // it may very well not be enough, especially if the
+            // DesktopEntry MPRIS prop doesn't match the actual
+            // .desktop file *AS IT SHOULD*.
+            this.actor.accessible_name = this._mpris.player_name;
+            let desktopId = this._mpris.desktop_entry + ".desktop";
+            let identity = this._mpris.player_name;
+            let lcIdentity = identity.toLowerCase();
+            let appSystem = Shell.AppSystem.get_default();
+            let shellApp = appSystem.lookup_app(desktopId) ||
+                appSystem.lookup_startup_wmclass(identity) ||
+                appSystem.get_running().find(app => app.get_name().toLowerCase() === lcIdentity);
+            if (!shellApp) {
+                for (let desktopId of Shell.AppSystem.search(this._mpris.desktop_entry)) {
+                    let app = appSystem.lookup_app(desktopId[0]);
+                    if (app && lcIdentity === app.get_name().toLowerCase()) {
+                        shellApp = app;
+                        break;
                     }
                 }
-                if (shellApp) {
-                    this._appWrapper = new AppWrapper(
-                        shellApp,
-                        busName,
-                        pid,
-                        this._mpris.name_owner
-                    );
-                    this._fallbackGicon = this._appWrapper.getGicon();
-                    this._coverIcon.setFallbackGicon(this._fallbackGicon);
-                    this._pushSignal(this._appWrapper, "notify::focused", statusCallback);               
-                }
-                this._mimetypeIconName = this._mpris.mimetype_icon_name;
-                this._coverIcon.setMimetypeIconName(this._mimetypeIconName);
-                this._fallbackIconName = this._getPlayerIconName(this._mpris.desktop_entry);
-                this._coverIcon.setFallbackName(this._fallbackIconName);
-                this._coverIcon.setCover();
-            } 
+            }
+            if (shellApp) {
+                this._appWrapper = new AppWrapper(
+                    shellApp,
+                    busName,
+                    pid,
+                    this._mpris.name_owner
+                );
+                this._fallbackGicon = this._appWrapper.getGicon();
+                this._coverIcon.setFallbackGicon(this._fallbackGicon);
+                this._pushSignal(this._appWrapper, "notify::focused", statusCallback);               
+            }
+            this._mimetypeIconName = this._mpris.mimetype_icon_name;
+            this._coverIcon.setMimetypeIconName(this._mimetypeIconName);
+            this._fallbackIconName = this._getPlayerIconName(this._mpris.desktop_entry);
+            this._coverIcon.setFallbackName(this._fallbackIconName);
+            this._coverIcon.setCover();
         });
 
         this._pushSignal(this._mpris, "notify::cover-url", () => {
