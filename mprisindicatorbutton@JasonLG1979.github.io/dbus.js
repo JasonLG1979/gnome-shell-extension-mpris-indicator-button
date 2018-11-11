@@ -25,54 +25,57 @@ const GObject = imports.gi.GObject;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
 // Basically a re-implementation of the widely used
-// Gio.DBusProxy.makeProxyWrapper tailored 
-// for our particular needs.
+// Gio.DBusProxy.makeProxyWrapper tailored for our particular needs.
+// Mainly it returns a Gio.Cancellable and allows for more then
+// one interface per node.
 function _makeProxyWrapper(interfaceXml) {
     let nodeInfo = Gio.DBusNodeInfo.new_for_xml(interfaceXml);
-    let interfaceInfo = nodeInfo.interfaces[0];
-    let interfaceName = interfaceInfo.name;
     return function(busName, objectPath, flags, asyncCallback) {
+        flags = Gio.DBusProxyFlags.DO_NOT_AUTO_START | flags;
         let cancellable = new Gio.Cancellable();
-        let error = null;
-        let proxy = null;
-        Gio.DBusProxy.new(
-            Gio.DBus.session,
-            Gio.DBusProxyFlags.DO_NOT_AUTO_START | flags,
-            interfaceInfo,
-            busName,
-            objectPath,
-            interfaceName,
-            cancellable,
-            (source, result) => {
-                try {
-                    proxy = Gio.DBusProxy.new_finish(result);
-                } catch(e) {
-                    proxy = null;
-                    error = e;
-                } finally {
-                    if (proxy) {
-                        if (proxy.g_name_owner) {
-                            asyncCallback(proxy, null);
+        nodeInfo.interfaces.forEach(interfaceInfo => {
+            let interfaceName = interfaceInfo.name; 
+            let error = null;
+            let proxy = null;
+            Gio.DBusProxy.new(
+                Gio.DBus.session,
+                flags,
+                interfaceInfo,
+                busName,
+                objectPath,
+                interfaceName,
+                cancellable,
+                (source, result) => {
+                    try {
+                        proxy = Gio.DBusProxy.new_finish(result);
+                    } catch(e) {
+                        proxy = null;
+                        error = e;
+                    } finally {
+                        if (proxy) {
+                            if (proxy.g_name_owner) {
+                                asyncCallback(proxy, null);
+                            } else {
+                                error = Gio.DBusError.new_for_dbus_error(
+                                    " No Name Owner",
+                                    `${busName} has no owner.`
+                                );
+                                asyncCallback(null, error);
+                            }
                         } else {
-                            error = Gio.DBusError.new_for_dbus_error(
-                               " No Name Owner",
-                                `${busName} has no owner.`
-                            );
+                            if (!error) {
+                                // Should never really happen.
+                                error = Gio.DBusError.new_for_dbus_error(
+                                    " Unknow Error",
+                                    busName
+                                );
+                            }
                             asyncCallback(null, error);
                         }
-                    } else {
-                        if (!error) {
-                            // Should never really happen.
-                            error = Gio.DBusError.new_for_dbus_error(
-                                " Unknow Error",
-                                busName
-                            );
-                        }
-                        asyncCallback(null, error);
                     }
                 }
-            }
-        );
+            );
+        });
         return cancellable;
     };
 }
@@ -102,7 +105,7 @@ const DBusProxy = _makeProxyWrapper(
 </interface>
 </node>`);
 
-const MprisProxy = _makeProxyWrapper(
+const MprisProxies = _makeProxyWrapper(
 `<node>
 <interface name="org.mpris.MediaPlayer2">
   <method name="Raise" />
@@ -110,10 +113,6 @@ const MprisProxy = _makeProxyWrapper(
   <property name="Identity" type="s" access="read" />
   <property name="DesktopEntry" type="s" access="read" />
 </interface>
-</node>`);
-
-const MprisPlayerProxy = _makeProxyWrapper(
-`<node>
 <interface name="org.mpris.MediaPlayer2.Player">
   <method name="PlayPause" />
   <method name="Next" />
@@ -204,8 +203,10 @@ var DBusProxyHandler = GObject.registerClass({
             }
             this._cancellable.run_dispose();
         }
-        if (this._proxy && this._nameOwnerId) {
-            this._proxy.disconnectSignal(this._nameOwnerId);
+        if (this._proxy) {
+            if (this._nameOwnerId) {
+                this._proxy.disconnectSignal(this._nameOwnerId);
+            }
             this._proxy.run_dispose();
         }
         this._proxy = null;
@@ -326,36 +327,26 @@ var MprisProxyHandler = GObject.registerClass({
         this._status_time = 0;
         this._track_url = "";
         this._mimetype_icon_name = "audio-x-generic-symbolic";
-        this._proxyCancellables = [
-            new MprisProxy(
-                busName,
-                "/org/mpris/MediaPlayer2",
-                Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS | Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
-                (mprisProxy, error) => {
-                    if (mprisProxy) {
-                        this._mprisProxy = mprisProxy;
-                        this._onProxiesReady();
-                    } else {
-                        logError(error);
-                        this.emit("self-destruct", true);
+        this._cancellable = new MprisProxies(
+            busName,
+            "/org/mpris/MediaPlayer2",
+            Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS | Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
+            (proxy, error) => {
+                if (proxy) {
+                    if (proxy.g_interface_name === "org.mpris.MediaPlayer2") {
+                        this._mprisProxy = proxy;
+                    } else if (proxy.g_interface_name === "org.mpris.MediaPlayer2.Player") {
+                        this._playerProxy = proxy;
                     }
-                }
-            ),
-            new MprisPlayerProxy(
-                busName,
-                "/org/mpris/MediaPlayer2",
-                Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS | Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
-                (playerProxy, error) => {
-                    if (playerProxy) {
-                        this._playerProxy = playerProxy;
+                    if (this._mprisProxy && this._playerProxy) {
                         this._onProxiesReady();
-                    } else {
-                        logError(error);
-                        this.emit("self-destruct", true);
                     }
+                } else {
+                    logError(error);
+                    this.emit("self-destruct", true);
                 }
-            )
-        ];
+            }
+        );
     }
 
     get player_name() {
@@ -474,27 +465,24 @@ var MprisProxyHandler = GObject.registerClass({
     }
 
     _onProxiesReady() {
-        if (this._mprisProxy && this._playerProxy) {
-            this._proxyCancellables.forEach(cancellable => cancellable.run_dispose());
-            this._name_owner = this._mprisProxy.g_name_owner;
-            this._mprisPropChangeId = this._mprisProxy.connect("g-properties-changed", () => {
-                this._updateMprisProps();
-            });
-            this._playerPropChangeId = this._playerProxy.connect("g-properties-changed", (proxy, props) => {
-                props = Object.keys(props.deep_unpack());
-                if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
-                    this._updatePlayerProps();
-                }
-
-                if (props.includes("Metadata")) {
-                    this._updateMetadata();
-                }
-            });
+        this._cancellable.run_dispose();
+        this._name_owner = this._mprisProxy.g_name_owner;
+        this._mprisPropChangeId = this._mprisProxy.connect("g-properties-changed", () => {
             this._updateMprisProps();
-            this._updatePlayerProps();
-            this._updateMetadata();
-            this._proxyCancellables = null;
-        }
+        });
+        this._playerPropChangeId = this._playerProxy.connect("g-properties-changed", (proxy, props) => {
+            props = Object.keys(props.deep_unpack());
+            if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
+                this._updatePlayerProps();
+            }
+            if (props.includes("Metadata")) {
+                this._updateMetadata();
+            }
+        });
+        this._updateMprisProps();
+        this._updatePlayerProps();
+        this._updateMetadata();
+        this._cancellable = null;
     }
 
     _primitiveTypeCheck(variable, primitiveDefault) {
@@ -532,7 +520,8 @@ var MprisProxyHandler = GObject.registerClass({
         let playPauseIconName = "media-playback-start-symbolic";
         let playPauseReactive = false;
         let showStop = false;
-        let status = this._get_playback_status();
+        let status = this._primitiveTypeCheck(this._playerProxy.PlaybackStatus, "").toLowerCase();
+        status = (status === "playing") ? 2 : (status === "paused") ? 1 : 0;
         let isPlaying = status === 2;
         let canPlay = this._primitiveTypeCheck(this._playerProxy.CanPlay, false);
         let canPause = this._primitiveTypeCheck(this._playerProxy.CanPause, false);
@@ -577,18 +566,6 @@ var MprisProxyHandler = GObject.registerClass({
         }
     }
 
-    _get_playback_status() {
-        if (this._playerProxy) {
-            let status = this._primitiveTypeCheck(this._playerProxy.PlaybackStatus, "").toLowerCase();
-            if (status === "playing") {
-                return 2;
-            } else if (status === "paused") {
-                return 1;
-            }
-        }
-        return 0;
-    }
-
     _updateMetadata() {
         let artist = "";
         let title = "";
@@ -606,9 +583,8 @@ var MprisProxyHandler = GObject.registerClass({
         if (metadataKeys.length) {
             // Be rather exhaustive and liberal
             // as far as what constitutes an "artist".
-            if (metadataKeys.includes("rhythmbox:streamTitle")) {
-                artist = this._primitiveTypeCheck(metadata["rhythmbox:streamTitle"].unpack(), "");
-            }
+            artist = metadataKeys.includes("rhythmbox:streamTitle") ? this._primitiveTypeCheck(metadata["rhythmbox:streamTitle"].unpack(), "") : "";
+
             if (!artist) {
                 for (let key of artistKeys) {
                     if (metadataKeys.includes(key)) {
@@ -630,9 +606,8 @@ var MprisProxyHandler = GObject.registerClass({
             // Prefer the track title, but in it's absence if the
             // track number and album title are available use them.
             // For Example, "5 - My favorite Album". 
-            if (metadataKeys.includes("xesam:title")) {
-                title = this._primitiveTypeCheck(metadata["xesam:title"].unpack(), "");
-            }
+            title = metadataKeys.includes("xesam:title") ? this._primitiveTypeCheck(metadata["xesam:title"].unpack(), "") : "";
+
             if (!title && metadataKeys.includes("xesam:trackNumber")
                 && metadataKeys.includes("xesam:album")) {
                 let trackNumber = this._primitiveTypeCheck(metadata["xesam:trackNumber"].unpack(), 0);
@@ -640,9 +615,7 @@ var MprisProxyHandler = GObject.registerClass({
                 title = (trackNumber && album) ? `${trackNumber} - ${album}` : "";
             }
 
-            if (metadataKeys.includes("mpris:artUrl")) {
-                coverUrl = this._primitiveTypeCheck(metadata["mpris:artUrl"].unpack(), "");
-            }
+            coverUrl = metadataKeys.includes("mpris:artUrl") ? this._primitiveTypeCheck(metadata["mpris:artUrl"].unpack(), "") : "";
 
             if (metadataKeys.includes("xesam:url")) {
                 let url = this._primitiveTypeCheck(metadata["xesam:url"].unpack(), "");
@@ -690,13 +663,11 @@ var MprisProxyHandler = GObject.registerClass({
     }
 
     destroy() {
-        if (this._proxyCancellables) {
-            this._proxyCancellables.forEach(cancellable => {
-                if (!cancellable.is_cancelled()) {
-                    cancellable.cancel();
-                }
-                cancellable.run_dispose();
-            });
+        if (this._cancellable) {
+            if (!this._cancellable.is_cancelled()) {
+                this._cancellable.cancel();
+            }
+            this._cancellable.run_dispose();
         }
         if (this._mprisProxy) {
             if (this._mprisPropChangeId) {
