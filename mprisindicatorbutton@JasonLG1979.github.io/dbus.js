@@ -504,7 +504,7 @@ var MprisProxyHandler = GObject.registerClass({
         // our code more robust and error resistant/tolerant. 
         // 
         // *ONLY WORKS WITH PRIMITIVES*
-        // undefined, null, boolean, string and number.
+        // undefined, boolean, string and number.
         // everything else will be a typeof object.
         //
         // Cached props can return null if the player does not implement the prop.
@@ -513,7 +513,7 @@ var MprisProxyHandler = GObject.registerClass({
         // that is suppose to be a bool but not so good when we expect a certain type.
         // This checks the variable type against the primitive default type.
         // If they are the same type it returns the variable, otherwise the primitive default.
-        return (typeof variable == typeof primitiveDefault) ? variable : primitiveDefault;
+        return (variable !== null && typeof variable == typeof primitiveDefault) ? variable : primitiveDefault;
     }
 
     _updateMprisProps() {
