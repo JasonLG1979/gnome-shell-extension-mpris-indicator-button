@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.26+
+ * Mpris Indicator Button extension for Gnome Shell 3.28+
  * Copyright 2018 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * If this extension breaks your desktop you get to keep both pieces...
+ * If this extension breaks your desktop you get to keep all of the pieces...
  */
 "use strict";
 
@@ -432,7 +432,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             }
             this._mimetypeIconName = this._mpris.mimetype_icon_name;
             this._coverIcon.setMimetypeIconName(this._mimetypeIconName);
-            this._fallbackIconName = this._getPlayerIconName(this._mpris.desktop_entry);
+            this._fallbackIconName = this._getSymbolicIconName(this._mpris.desktop_entry);
             this._coverIcon.setFallbackName(this._fallbackIconName);
             this._coverIcon.setCover();
         });
@@ -531,7 +531,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._coverIcon.setFallbackGicon(this._fallbackGicon);
         }
         if (this._mpris && this._coverIcon) {
-            this._fallbackIconName = this._getPlayerIconName(this._mpris.desktop_entry);
+            this._fallbackIconName = this._getSymbolicIconName(this._mpris.desktop_entry);
             this._coverIcon.setFallbackName(this._fallbackIconName);
             if (!this._mpris.cover_url) {
                 this._coverIcon.setCover();
@@ -566,8 +566,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
     }
 
-    _getPlayerIconName(desktopEntry) {
-        // Prefer symbolic icons.
+    _getSymbolicIconName(desktopEntry) {
         // The default Spotify icon name is spotify-client,
         // but the desktop entry is spotify.
         // Icon names *should* match the desktop entry...
@@ -579,15 +578,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             let iconNames = [];
             if (desktopEntry.toLowerCase() === "spotify") {
                 iconNames = [
-                    desktopEntry + "-symbolic",
-                    desktopEntry + "-client-symbolic",
-                    desktopEntry,
-                    desktopEntry + "-client"
+                    `${desktopEntry}-symbolic`,
+                    `${desktopEntry}-client-symbolic`
                 ];
             } else {
                 iconNames = [
-                    desktopEntry + "-symbolic",
-                    desktopEntry
+                    `${desktopEntry}-symbolic`
                 ];
             }
             let currentIconTheme = Gtk.IconTheme.get_default();
@@ -769,8 +765,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
     // 1. The current player's symbolic icon
     // 2. The current player's full color icon
     // 3. A symbolic icon loosely representing
-    //    the current player's current track's media type.
-    //    (audio or video)
+    //    the current player's current track's media type. (audio or video)
     // 4. If all else fails the audio mimetype symbolic icon.
         let player = this._getLastActivePlayer();
         if (player) {

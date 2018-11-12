@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.26+
+ * Mpris Indicator Button extension for Gnome Shell 3.28+
  * Copyright 2018 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * If this extension breaks your desktop you get to keep both pieces...
+ * If this extension breaks your desktop you get to keep all of the pieces...
  */
 "use strict";
 
@@ -33,8 +33,7 @@ const Clutter = imports.gi.Clutter;
 // 2. The player's symbolic icon
 // 3. The player's full color icon
 // 4. A symbolic icon loosely representing
-//    the current track's media type.
-//    (audio, video or stream)
+//    the current track's media type. (audio or video)
 // 5. If all else fails the audio mimetype symbolic icon.
 var CoverIcon = GObject.registerClass({
     GTypeName: "CoverIcon"
