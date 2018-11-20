@@ -5,6 +5,8 @@
 
 ![Screenshot](https://github.com/JasonLG1979/gnome-shell-extensions-mpris-indicator-button/blob/master/data/Screenshot.png)
 
+[<img src="https://github.com/JasonLG1979/gnome-shell-extensions-mpris-indicator-button/blob/master/data/get-it-on-ego.svg?sanitize=true" height="100">](https://extensions.gnome.org/extension/1379/mpris-indicator-button/)
+
 <b>Please take the time to at least glance at the [code of conduct](https://github.com/JasonLG1979/gnome-shell-extensions-mpris-indicator-button/blob/master/CODE_OF_CONDUCT.md) and [wiki](https://github.com/JasonLG1979/gnome-shell-extensions-mpris-indicator-button/wiki).</b>
  
 ## Authors
