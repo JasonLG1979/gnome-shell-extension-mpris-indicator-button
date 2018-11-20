@@ -22,6 +22,7 @@
 const Main = imports.ui.main;
 const Gtk = imports.gi.Gtk;
 const GObject = imports.gi.GObject;
+const Gio = imports.gi.Gio;
 const Atk = imports.gi.Atk;
 const St = imports.gi.St;
 const Meta = imports.gi.Meta;
@@ -98,10 +99,10 @@ const AppWrapper = GObject.registerClass({
         this._appearsFocusedId = null;
         this._unmanagedId = null;
         this._metaWindowsChangedId = this._app.connect(
-            "windows-changed", 
+            "windows-changed",
             this._onWindowsChanged.bind(this)
         );
-        this._onWindowsChanged(); 
+        this._onWindowsChanged();
     }
 
     get focused() {
@@ -117,7 +118,11 @@ const AppWrapper = GObject.registerClass({
         // you'd get from Shell.App.create_icon_texture().
         // This also doesn't fail silently and return the wrong icon...
         let app_info = this._app.get_app_info();
-        return app_info ? app_info.get_icon() : null;
+        let gicon = app_info ? app_info.get_icon() : null;
+        if (gicon) {
+            gicon.isSymbolic = false;
+        }
+        return gicon;
     }
 
     toggleWindow(minimize) {
@@ -125,7 +130,7 @@ const AppWrapper = GObject.registerClass({
             if (this._metaWindow) {
                 // Go ahead and skip the whole "Player is Ready"
                 // dialog, after all the user wants the player focused,
-                // that's why they clicked on it...  
+                // that's why they clicked on it...
                 Main.activateWindow(this._metaWindow);
             } else {
                 this._app.activate();
@@ -173,7 +178,7 @@ const AppWrapper = GObject.registerClass({
                 // Match multiple instance(multiple window really) GApplications to their windows.
                 // Works rather well if a GApplication's MPRIS instance number matches
                 // it's corresponding window object path like the latest git master of GNOME-MPV.
-                // For example org.mpris.MediaPlayer2.GnomeMpv.instance-1 = /io/github/GnomeMpv/window/1. 
+                // For example org.mpris.MediaPlayer2.GnomeMpv.instance-1 = /io/github/GnomeMpv/window/1.
                 let windowNum = this._getNumbersFromTheEndOf(w.gtk_window_object_path);
                 if (this._instanceNum === windowNum) {
                     return true;
@@ -256,8 +261,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         super();
         this._appWrapper = null;
         this._signals = [];
-        this._fallbackIconName = null;
-        this._fallbackGicon = null;
+        this._gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
+        this._gicon.isSymbolic = true;
         this._busName = busName;
 
         let vbox = new St.BoxLayout({
@@ -282,7 +287,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         hbox.add(this._coverIcon);
 
         let info = new St.BoxLayout({
-            style: "padding-left: 12px",
+            style: "padding-left: 10px",
             y_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.INTERNAL_FRAME,
             vertical: true,
@@ -347,52 +352,59 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         let bindingFlags = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
         this._mpris.bind_property(
+            "cover-url",
+            this._coverIcon,
+            "cover-url",
+            bindingFlags
+        );
+
+        this._mpris.bind_property(
             "show-stop",
             stopButton,
             "visible",
-            bindingFlags 
+            bindingFlags
         );
 
         this._mpris.bind_property(
             "prev-reactive",
             prevButton,
             "reactive",
-            bindingFlags 
+            bindingFlags
         );
 
         this._mpris.bind_property(
             "playpause-reactive",
             playPauseButton,
             "reactive",
-            bindingFlags 
+            bindingFlags
         );
 
         this._mpris.bind_property(
             "playpause-icon-name",
             playPauseButton.child,
             "icon-name",
-            bindingFlags 
+            bindingFlags
         );
 
         this._mpris.bind_property(
             "next-reactive",
             nextButton,
             "reactive",
-            bindingFlags 
+            bindingFlags
         );
 
         this._mpris.bind_property(
             "artist",
             trackArtist,
             "text",
-            bindingFlags 
+            bindingFlags
         );
 
         this._mpris.bind_property(
             "title",
             trackTitle,
             "text",
-            bindingFlags 
+            bindingFlags
         );
 
         this._pushSignal(this._mpris, "notify::desktop-entry", () => {
@@ -426,28 +438,16 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                     pid,
                     this._mpris.name_owner
                 );
-                this._fallbackGicon = this._appWrapper.getGicon();
-                this._coverIcon.setFallbackGicon(this._fallbackGicon);
-                this._pushSignal(this._appWrapper, "notify::focused", statusCallback);               
+                this._pushSignal(this._appWrapper, "notify::focused", statusCallback);
             }
-            this._mimetypeIconName = this._mpris.mimetype_icon_name;
-            this._coverIcon.setMimetypeIconName(this._mimetypeIconName);
-            this._fallbackIconName = this._getSymbolicIconName(this._mpris.desktop_entry);
-            this._coverIcon.setFallbackName(this._fallbackIconName);
-            this._coverIcon.setCover();
-        });
-
-        this._pushSignal(this._mpris, "notify::cover-url", () => {
-            this._coverIcon.setCover(this._mpris.cover_url);
+            this.refreshIcon();
         });
 
         this._pushSignal(this._mpris, "notify::mimetype-icon-name", () => {
-            this._mimetypeIconName = this._mpris.mimetype_icon_name;
-            this._coverIcon.setMimetypeIconName(this._mimetypeIconName);
-            if (!this._mpris.cover_url) {
-                this._coverIcon.setCover();
+            let iconChanged = this.refreshIcon();
+            if (iconChanged) {
+                statusCallback();
             }
-            statusCallback();
         });
 
         this._pushSignal(this._mpris, "notify::playback-status", statusCallback);
@@ -475,6 +475,14 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._pushSignal(nextButton, "clicked", this._mpris.next.bind(this._mpris));
     }
 
+    get busName() {
+        return this._busName || "";
+    }
+
+    get gicon() {
+        return this._gicon;
+    }
+
     get userTime() {
         return this._appWrapper ? this._appWrapper.user_time : 0;
     }
@@ -487,28 +495,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return this._mpris ? this._mpris.playback_status : 0;
     }
 
-    get fallbackIconName() {
-        return this._fallbackIconName;
-    }
-
-    get mimetypeIconName() {
-        return this._mimetypeIconName;
-    }
-
-    get fallbackGicon() {
-        return this._fallbackGicon;
-    }
-
     get focused() {
         return this._appWrapper ? this._appWrapper.focused : false;
     }
 
-    get busName() {
-        return this._busName || "";
-    }
-
     playPauseStop() {
-        return this._mpris ? this._mpris.playPauseStop() : false;        
+        return this._mpris ? this._mpris.playPauseStop() : false;
     }
 
     previous() {
@@ -525,18 +517,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         : false;
     }
 
-    onThemeChanged() {
-        if (this._appWrapper && this._coverIcon) {
-            this._fallbackGicon = this._appWrapper.getGicon();
-            this._coverIcon.setFallbackGicon(this._fallbackGicon);
+    refreshIcon() {
+        // Returns true if the icon actually changed, otherwise false.
+        let gicon = this._getSymbolicIcon()
+        || (this._appWrapper ? this._appWrapper.getGicon() : null)
+        || this._getMimeTypeIcon();
+        let iconChanged = !this._gicon.equal(gicon);
+        if (iconChanged) {
+            this._gicon = gicon;
+            this._coverIcon.setFallbackGicon(this._gicon);
         }
-        if (this._mpris && this._coverIcon) {
-            this._fallbackIconName = this._getSymbolicIconName(this._mpris.desktop_entry);
-            this._coverIcon.setFallbackName(this._fallbackIconName);
-            if (!this._mpris.cover_url) {
-                this._coverIcon.setCover();
-            }
-        }
+        return iconChanged;
     }
 
     destroy() {
@@ -552,8 +543,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         this._appWrapper = null;
         this._coverIcon = null;
         this._mpris = null;
-        this._fallbackIconName = null;
-        this._fallbackGicon = null;
+        this._gicon = null;
         this._busName = null;
         super.destroy();
     }
@@ -566,7 +556,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         });
     }
 
-    _getSymbolicIconName(desktopEntry) {
+    _getSymbolicIcon() {
         // The default Spotify icon name is spotify-client,
         // but the desktop entry is spotify.
         // Icon names *should* match the desktop entry...
@@ -574,7 +564,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         // or spotify-client as their spotify icon's name and
         // what they'll name their Spotify symbolic icon if
         // they have one at all?
-        if (desktopEntry) {
+        if (this._mpris.desktop_entry) {
+            let desktopEntry = this._mpris.desktop_entry;
             let iconNames = [];
             if (desktopEntry.toLowerCase() === "spotify") {
                 iconNames = [
@@ -588,16 +579,28 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             }
             let currentIconTheme = Gtk.IconTheme.get_default();
             let iconName = iconNames.find(name => currentIconTheme.has_icon(name));
-            return iconName || null;
+            let gicon = iconName ? Gio.ThemedIcon.new(iconName) : null;
+            if (gicon) {
+                gicon.isSymbolic = true;
+            }
+            return gicon;
         }
         return null;
+    }
+
+    _getMimeTypeIcon() {
+        let gicon = this._mpris.mimetype_icon_name
+        ? Gio.ThemedIcon.new(this._mpris.mimetype_icon_name)
+        : Gio.ThemedIcon.new("audio-x-generic-symbolic");
+        gicon.isSymbolic = true;
+        return gicon;
     }
 
     _onKeyPressEvent(actor, event) {
         let state = event.get_state();
 
         if (state === Clutter.ModifierType.CONTROL_MASK) {
-            let symbol = event.get_key_symbol();           
+            let symbol = event.get_key_symbol();
             if (symbol === Clutter.KEY_space && this.playPauseStop()) {
                 return Clutter.EVENT_STOP;
             } else if (symbol === Clutter.Left && this.previous()) {
@@ -653,8 +656,15 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         this._pushSignal(St.ThemeContext.get_for_stage(global.stage), "changed", () => {
             if (!this.menu.isEmpty()) {
-                this.menu._getMenuItems().forEach(player => player.onThemeChanged());
-                this._setIndicatorIcon();
+                let updateIndicatorIcon = false;
+                this.menu._getMenuItems().forEach(player => {
+                    if (player.refreshIcon()) {
+                        updateIndicatorIcon = true;
+                    }
+                });
+                if (updateIndicatorIcon) {
+                    this._updateIndicatorIcon();
+                }
             }
         });
 
@@ -671,10 +681,9 @@ class MprisIndicatorButton extends PanelMenu.Button {
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         }
         this._proxyHandler.destroy();
-        this._indicatorIcon.icon_name = null;
         this._indicatorIcon.gicon = null;
         this._indicatorIcon.destroy();
-        this._indicatorIcon = null;        
+        this._indicatorIcon = null;
         this._proxyHandler = null;
         this._signals = null;
         super.destroy();
@@ -689,7 +698,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
     }
 
     _onUpdatePlayerStatus() {
-        this._setIndicatorIcon();
+        this._updateIndicatorIcon();
         this.actor.show();
     }
 
@@ -713,10 +722,9 @@ class MprisIndicatorButton extends PanelMenu.Button {
 
         if (this.menu.isEmpty()) {
             this.actor.hide();
-            this._indicatorIcon.icon_name = null;
             this._indicatorIcon.gicon = null;
         } else {
-            this._setIndicatorIcon();
+            this._updateIndicatorIcon();
         }
     }
 
@@ -759,7 +767,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         return null;
     }
 
-    _setIndicatorIcon() {
+    _updateIndicatorIcon() {
     // The Indicator Icon has crazy fallback redundancy.
     // The order is as follows:
     // 1. The current player's symbolic icon
@@ -769,18 +777,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
     // 4. If all else fails the audio mimetype symbolic icon.
         let player = this._getLastActivePlayer();
         if (player) {
-            if (player.fallbackIconName) {
-                this._indicatorIcon.icon_name = player.fallbackIconName;
-            } else if (player.fallbackGicon) {
-                this._indicatorIcon.gicon = player.fallbackGicon;
-            } else if (player.mimetypeIconName) {
-                this._indicatorIcon.icon_name = player.mimetypeIconName;
-            } else {
-                this._indicatorIcon.icon_name = "audio-x-generic-symbolic";
-            }
-        } else {
-            this._indicatorIcon.icon_name = null;
-            this._indicatorIcon.gicon = null;
+            this._indicatorIcon.gicon = player.gicon;
         }
     }
 
@@ -837,7 +834,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         if (state === Clutter.ModifierType.CONTROL_MASK) {
             let player = this._getLastActivePlayer();
             if (player) {
-                let symbol = event.get_key_symbol();           
+                let symbol = event.get_key_symbol();
                 if (symbol === Clutter.KEY_space && player.playPauseStop()) {
                     return Clutter.EVENT_STOP;
                 } else if (symbol === Clutter.Left && player.previous()) {

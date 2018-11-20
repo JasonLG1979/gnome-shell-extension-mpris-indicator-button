@@ -22,7 +22,7 @@
 const Gio = imports.gi.Gio;
 const GObject = imports.gi.GObject;
 
-const Me = imports.misc.extensionUtils.getCurrentExtension();
+const UUID = imports.misc.extensionUtils.getCurrentExtension().metadata.uuid;
 
 // Basically a re-implementation of the widely used
 // Gio.DBusProxy.makeProxyWrapper tailored for our particular needs.
@@ -34,7 +34,7 @@ function _makeProxyWrapper(interfaceXml) {
         flags = Gio.DBusProxyFlags.DO_NOT_AUTO_START | flags;
         let cancellable = new Gio.Cancellable();
         nodeInfo.interfaces.forEach(interfaceInfo => {
-            let interfaceName = interfaceInfo.name; 
+            let interfaceName = interfaceInfo.name;
             let error = null;
             let proxy = null;
             Gio.DBusProxy.new(
@@ -83,7 +83,7 @@ function _makeProxyWrapper(interfaceXml) {
 function logError(error) {
     // Cancelling counts as an error don't spam the logs.
     if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-        global.log(`[${Me.metadata.uuid}]: ${error.message}`);
+        global.log(`[${UUID}]: ${error.message}`);
     }
 }
 
@@ -489,8 +489,8 @@ var MprisProxyHandler = GObject.registerClass({
         // MPRIS implementations can be, and more often then not are broken
         // in mind numbingly stupid ways. The number of players that get it 100%
         // right can be counted on 1 hand. This is unfortunately necessary to make
-        // our code more robust and error resistant/tolerant. 
-        // 
+        // our code more robust and error resistant/tolerant.
+        //
         // *ONLY WORKS WITH PRIMITIVES*
         // undefined, boolean, string and number.
         // everything else will be a typeof object.
@@ -526,7 +526,7 @@ var MprisProxyHandler = GObject.registerClass({
         let canPlay = this._primitiveTypeCheck(this._playerProxy.CanPlay, false);
         let canPause = this._primitiveTypeCheck(this._playerProxy.CanPause, false);
         let canGoPrevious = this._primitiveTypeCheck(this._playerProxy.CanGoPrevious, false);
-        let canGoNext = this._primitiveTypeCheck(this._playerProxy.CanGoNext, false); 
+        let canGoNext = this._primitiveTypeCheck(this._playerProxy.CanGoNext, false);
 
         if (canPause && canPlay) {
             playPauseIconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
@@ -605,7 +605,7 @@ var MprisProxyHandler = GObject.registerClass({
 
             // Prefer the track title, but in it's absence if the
             // track number and album title are available use them.
-            // For Example, "5 - My favorite Album". 
+            // For Example, "5 - My favorite Album".
             title = metadataKeys.includes("xesam:title") ? this._primitiveTypeCheck(metadata["xesam:title"].unpack(), "") : "";
 
             if (!title && metadataKeys.includes("xesam:trackNumber")
@@ -634,7 +634,7 @@ var MprisProxyHandler = GObject.registerClass({
                                         break;
                                     }
                                 }
-                            } 
+                            }
                         }
                     }
                 }
@@ -646,7 +646,7 @@ var MprisProxyHandler = GObject.registerClass({
         if (this._mimetype_icon_name !== mimetypeIconName) {
             this._mimetype_icon_name = mimetypeIconName;
             this.notify("mimetype-icon-name");
-        }      
+        }
 
         if (this._cover_url !== coverUrl) {
             this._cover_url = coverUrl;

@@ -36,12 +36,20 @@ const Clutter = imports.gi.Clutter;
 //    the current track's media type. (audio or video)
 // 5. If all else fails the audio mimetype symbolic icon.
 var CoverIcon = GObject.registerClass({
-    GTypeName: "CoverIcon"
+    GTypeName: "CoverIcon",
+    Properties: {
+        "cover-url": GObject.ParamSpec.string(
+            "cover-url",
+            "cover-url-prop",
+            "the url of the current track's cover art",
+            GObject.ParamFlags.WRITABLE,
+            ""
+        )
+    }
 }, class CoverIcon extends St.Icon {
     _init() {
         super._init({
-            icon_name: "audio-x-generic-symbolic",
-            icon_size: 32,
+            icon_size: 38,
             opacity: 153,
             y_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.ICON
@@ -49,9 +57,10 @@ var CoverIcon = GObject.registerClass({
 
         this._parentHoverState = false;
         this._cancellable = null;
-        this._fallbackName = null;
-        this._fallbackGicon = null;
-        this._mimetypeIconName = null;
+        this.__fallback = true;
+        this._fallbackGicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
+        this._fallbackGicon.isSymbolic = true;
+        this.gicon = this._fallbackGicon;
 
         let destroyId = this.connect("destroy", () => {
             this.disconnect(destroyId);
@@ -63,31 +72,24 @@ var CoverIcon = GObject.registerClass({
             }
             this._parentHoverState = null;
             this._cancellable = null;
-            this._fallbackName = null;
+            this.__fallback = null;
             this._fallbackGicon = null;
-            this._mimetypeIconName = null;
         });
     }
 
     onParentHover(hover) {
         this._parentHoverState = hover;
-        let symbolicCover = this.icon_name && this.icon_name.endsWith("-symbolic");
-        this.opacity = !symbolicCover ? 255 : hover ? 204 : 153;
-    }
-
-    setFallbackName(iconName) {
-        this._fallbackName = iconName;
-    }
-
-    setMimetypeIconName(iconName) {
-        this._mimetypeIconName = iconName;
+        this.opacity = !this.gicon.isSymbolic ? 255 : hover ? 204 : 153;
     }
 
     setFallbackGicon(gicon) {
         this._fallbackGicon = gicon;
+        if (this.__fallback) {
+            this._fallback();
+        }
     }
 
-    setCover(coverUrl) {
+    set cover_url(cover_url) {
         // Asynchronously set the cover icon.
         // Much more fault tolerant than:
         //
@@ -108,20 +110,20 @@ var CoverIcon = GObject.registerClass({
             this._cancellable = null;
         }
 
-        if (coverUrl) {
-            let file = Gio.File.new_for_uri(coverUrl);
+        if (cover_url) {
+            this.__fallback = false;
+            let file = Gio.File.new_for_uri(cover_url);
             this._cancellable = new Gio.Cancellable();
             file.load_contents_async(this._cancellable, (source, result) => {
                 try {
                     let bytes = source.load_contents_finish(result)[1];
                     let newIcon = Gio.BytesIcon.new(bytes);
-                    if (!newIcon.equal(this.gicon)) {
-                        this.gicon = newIcon;
-                        this.opacity = 255;
-                        this.accessible_role = Atk.Role.IMAGE;
-                    }
-                } catch (err) {
-                    if (!err.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
+                    newIcon.isSymbolic = false;
+                    this.gicon = newIcon;
+                    this.opacity = 255;
+                    this.accessible_role = Atk.Role.IMAGE;
+                } catch (error) {
+                    if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
                         this._fallback();
                     }
                 }
@@ -132,18 +134,10 @@ var CoverIcon = GObject.registerClass({
     }
 
     _fallback() {
-        if (this._fallbackName) {
-            this.icon_name = this._fallbackName;
-        } else if (this._fallbackGicon) {
-            this.gicon = this._fallbackGicon;
-        } else if (this._mimetypeIconName) {
-            this.icon_name = this._mimetypeIconName;
-        } else {
-            this.icon_name = "audio-x-generic-symbolic";
-        }
-        let symbolicCover = this.icon_name && this.icon_name.endsWith("-symbolic");
-        this.opacity = !symbolicCover ? 255 : this._parentHoverState ? 204 : 153;
+        this.__fallback = true;
+        this.gicon = this._fallbackGicon;
         this.accessible_role = Atk.Role.ICON;
+        this.onParentHover(this._parentHoverState);
     }
 });
 
@@ -176,7 +170,7 @@ var MediaControlButton = GObject.registerClass({
 }, class MediaControlButton extends St.Button {
     _init(iconName) {
         super._init({
-            style: "padding: 12px",
+            style: "padding: 10px, 12px, 10px, 12px;",
             opacity: 204,
             accessible_role: Atk.Role.PUSH_BUTTON,
             child: new St.Icon({
