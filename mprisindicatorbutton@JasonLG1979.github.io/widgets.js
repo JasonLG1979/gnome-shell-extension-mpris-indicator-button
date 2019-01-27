@@ -44,47 +44,53 @@ var CoverIcon = GObject.registerClass({
             "the url of the current track's cover art",
             GObject.ParamFlags.WRITABLE,
             ""
+        ),
+        "fallback-gicon": GObject.ParamSpec.object(
+            "fallback-gicon",
+            "fallback-gicon-prop",
+            "the gicon to use if there is no cover url",
+            GObject.ParamFlags.WRITABLE,
+            Gio.ThemedIcon.new("audio-x-generic-symbolic")
         )
     }
 }, class CoverIcon extends St.Icon {
-    _init() {
+    _init(name) {
         super._init({
-            icon_size: 38,
+            name: name,
+            icon_size: 32,
             opacity: 153,
             y_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.ICON
         });
 
-        this._parentHoverState = false;
         this._cancellable = null;
-        this.__fallback = true;
-        this._fallbackGicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
-        this._fallbackGicon.isSymbolic = true;
-        this.gicon = this._fallbackGicon;
+        this._useFallback = true;
+        this._fallback_gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
+        this._fallback_gicon.isSymbolic = true;
+        this.gicon = this._fallback_gicon;
 
-        let destroyId = this.connect("destroy", () => {
-            this.disconnect(destroyId);
-            if (this._cancellable) {
-                if (!this._cancellable.is_cancelled()) {
-                    this._cancellable.cancel();
+        let signalIds = [
+            this.connect("notify::hover", () => {
+                this.opacity = !this.gicon.isSymbolic ? 255 : this.hover ? 204 : 153;
+            }),
+            this.connect("destroy", () => {
+                if (this._cancellable) {
+                    if (!this._cancellable.is_cancelled()) {
+                        this._cancellable.cancel();
+                    }
+                    this._cancellable.run_dispose();
                 }
-                this._cancellable.run_dispose();
-            }
-            this._parentHoverState = null;
-            this._cancellable = null;
-            this.__fallback = null;
-            this._fallbackGicon = null;
-        });
+                signalIds.forEach(signalId => this.disconnect(signalId));
+                this._cancellable = null;
+                this._useFallback = null;
+                this._fallback_gicon = null;
+            })
+        ];
     }
 
-    onParentHover(hover) {
-        this._parentHoverState = hover;
-        this.opacity = !this.gicon.isSymbolic ? 255 : hover ? 204 : 153;
-    }
-
-    setFallbackGicon(gicon) {
-        this._fallbackGicon = gicon;
-        if (this.__fallback) {
+    set fallback_gicon(gicon) {
+        this._fallback_gicon = gicon;
+        if (this._useFallback) {
             this._fallback();
         }
     }
@@ -111,15 +117,14 @@ var CoverIcon = GObject.registerClass({
         }
 
         if (cover_url) {
-            this.__fallback = false;
+            this._useFallback = false;
             let file = Gio.File.new_for_uri(cover_url);
             this._cancellable = new Gio.Cancellable();
             file.load_contents_async(this._cancellable, (source, result) => {
                 try {
                     let bytes = source.load_contents_finish(result)[1];
-                    let newIcon = Gio.BytesIcon.new(bytes);
-                    newIcon.isSymbolic = false;
-                    this.gicon = newIcon;
+                    this.gicon = Gio.BytesIcon.new(bytes);
+                    this.gicon.isSymbolic = false;
                     this.opacity = 255;
                     this.accessible_role = Atk.Role.IMAGE;
                 } catch (error) {
@@ -134,18 +139,19 @@ var CoverIcon = GObject.registerClass({
     }
 
     _fallback() {
-        this.__fallback = true;
-        this.gicon = this._fallbackGicon;
+        this._useFallback = true;
+        this.gicon = this._fallback_gicon;
         this.accessible_role = Atk.Role.ICON;
-        this.onParentHover(this._parentHoverState);
+        this.opacity = !this.gicon.isSymbolic ? 255 : this.hover ? 204 : 153;
     }
 });
 
 var TrackLabel = GObject.registerClass({
     GTypeName: "TrackLabel"
 }, class TrackLabel extends St.Label {
-    _init(baseOpacity, hoverOpacity) {
+    _init(name, baseOpacity, hoverOpacity) {
         super._init({
+            name: name,
             accessible_role: Atk.Role.LABEL,
             opacity: baseOpacity
         });
@@ -153,24 +159,26 @@ var TrackLabel = GObject.registerClass({
         this._baseOpacity = baseOpacity;
         this._hoverOpacity = hoverOpacity;
 
-        let destroyId = this.connect("destroy", () => {
-            this.disconnect(destroyId);
-            this._baseOpacity = null;
-            this._hoverOpacity = null;
-        });
-    }
-
-    onParentHover(hover) {
-        this.opacity = hover ? this._hoverOpacity : this._baseOpacity;
+        let signalIds = [
+            this.connect("notify::hover", () => {
+                this.opacity = this.hover ? this._hoverOpacity : this._baseOpacity;
+            }),
+            this.connect("destroy", () => {
+                signalIds.forEach(signalId => this.disconnect(signalId));
+                this._hoverOpacity = null;
+                this._baseOpacity = null;
+            })
+        ];
     }
 });
 
 var MediaControlButton = GObject.registerClass({
     GTypeName: "MediaControlButton"
 }, class MediaControlButton extends St.Button {
-    _init(iconName) {
+    _init(name, iconName) {
         super._init({
-            style: "padding: 10px, 12px, 10px, 12px;",
+            name: name,
+            style: "padding: 8px, 12px, 8px, 12px;",
             opacity: 204,
             accessible_role: Atk.Role.PUSH_BUTTON,
             child: new St.Icon({
