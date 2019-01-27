@@ -1,6 +1,6 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.28+
- * Copyright 2018 Jason Gray (JasonLG1979)
+ * Mpris Indicator Button extension for Gnome Shell 3.30+
+ * Copyright 2019 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -156,17 +156,12 @@ var TrackLabel = GObject.registerClass({
             opacity: baseOpacity
         });
 
-        this._baseOpacity = baseOpacity;
-        this._hoverOpacity = hoverOpacity;
-
         let signalIds = [
             this.connect("notify::hover", () => {
-                this.opacity = this.hover ? this._hoverOpacity : this._baseOpacity;
+                this.opacity = this.hover ? hoverOpacity : baseOpacity;
             }),
             this.connect("destroy", () => {
                 signalIds.forEach(signalId => this.disconnect(signalId));
-                this._hoverOpacity = null;
-                this._baseOpacity = null;
             })
         ];
     }
