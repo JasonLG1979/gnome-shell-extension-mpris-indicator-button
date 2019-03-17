@@ -392,9 +392,10 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 }
 
+var MprisIndicatorButton = GObject.registerClass(
 class MprisIndicatorButton extends PanelMenu.Button {
-    constructor() {
-        super(0.0, "Mpris Indicator Button", false);
+    _init() {
+        super._init(0.0, "Mpris Indicator Button", false);
         this.actor.accessible_name = "Mpris";
         this.menu.actor.add_style_class_name("aggregate-menu");
         this.menu.box.set_layout_manager(new Panel.AggregateLayout());
@@ -541,4 +542,4 @@ class MprisIndicatorButton extends PanelMenu.Button {
         }
         super._onEvent(actor, event);
     }
-}
+});
