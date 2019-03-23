@@ -19,13 +19,7 @@
  */
 "use strict";
 
-const Gio = imports.gi.Gio;
-const Gtk = imports.gi.Gtk;
-const Atk = imports.gi.Atk;
-const GObject = imports.gi.GObject;
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
-
+const { Atk, Clutter, Gio, GObject, Gtk, St } = imports.gi;
 
 // The Cover Icon has crazy fallback redundancy.
 // The order is as follows:

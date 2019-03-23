@@ -19,25 +19,21 @@
  */
 "use strict";
 
-const Main = imports.ui.main;
-const GLib = imports.gi.GLib;
-const Gtk = imports.gi.Gtk;
-const GObject = imports.gi.GObject;
-const Atk = imports.gi.Atk;
-const St = imports.gi.St;
-const Clutter = imports.gi.Clutter;
+const { Atk, Clutter, GLib, GObject, Gtk, St } = imports.gi;
 
+const Main = imports.ui.main;
+const Panel = imports.ui.panel;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
-const Panel = imports.ui.panel;
+
+const stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
+const shouldShow = stockMpris._shouldShow;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const DBus = Me.imports.dbus;
 const Widgets = Me.imports.widgets;
 
-const PropBindingFlags = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
-const stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
-const shouldShow = stockMpris._shouldShow;
+const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
 var indicator = null;
 
@@ -157,21 +153,21 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             "hover",
             coverIcon,
             "hover",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this.actor.bind_property(
             "hover",
             trackArtist,
             "hover",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this.actor.bind_property(
             "hover",
             trackTitle,
             "hover",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         let signals = [];
@@ -308,70 +304,70 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             "accessible-name",
             this.actor,
             "accessible-name",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "cover-url",
             coverIcon,
             "cover-url",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "gicon",
             coverIcon,
             "fallback-gicon",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "show-stop",
             stopButton,
             "visible",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "prev-reactive",
             prevButton,
             "reactive",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "playpause-reactive",
             playPauseButton,
             "reactive",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "playpause-icon-name",
             playPauseButton.child,
             "icon-name",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "next-reactive",
             nextButton,
             "reactive",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "artist",
             trackArtist,
             "text",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
             "title",
             trackTitle,
             "text",
-            PropBindingFlags
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
     }
 
@@ -392,22 +388,23 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 }
 
-var MprisIndicatorButton = GObject.registerClass(
-class MprisIndicatorButton extends PanelMenu.Button {
+var MprisIndicatorButton = GObject.registerClass({
+    GTypeName: "MprisIndicatorButton"
+}, class MprisIndicatorButton extends PanelMenu.Button {
     _init() {
         super._init(0.0, "Mpris Indicator Button", false);
-        this.actor.accessible_name = "Mpris";
+        this.accessible_name = "Mpris";
         this.menu.actor.add_style_class_name("aggregate-menu");
         this.menu.box.set_layout_manager(new Panel.AggregateLayout());
 
-        this.actor.hide();
+        this.hide();
 
         let indicator = new St.Icon({
             accessible_role: Atk.Role.ICON,
             style_class: "system-status-icon"
         })
 
-        this.actor.add_child(indicator);
+        this.add_child(indicator);
 
         let signals = [];
 
@@ -423,7 +420,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
             this.menu._getMenuItems().forEach(player => player.refreshIcon());
         });
 
-        pushSignal(this.actor, "key-press-event", (actor, event) => {
+        pushSignal(this, "key-press-event", (actor, event) => {
             let state = event.get_state();
             if (state === Clutter.ModifierType.CONTROL_MASK) {
                 let player = this._getLastActivePlayer();
@@ -446,7 +443,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
         let updateIndicator = () => {
             let player = this._getLastActivePlayer();
             indicator.gicon = player ? player.gicon : null;
-            this.actor.visible = indicator.gicon ? true : false;
+            this.visible = indicator.gicon ? true : false;
         };
 
         let proxyHandler = new DBus.DBusProxyHandler();
@@ -467,12 +464,12 @@ class MprisIndicatorButton extends PanelMenu.Button {
             let player = getPlayer(busName);
             if (player) {
                 player.setMpris(mpris, updateIndicator);
-            }            
+            }
         });
 
-        pushSignal(this.actor, "destroy", () => {
+        pushSignal(this, "destroy", () => {
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
-            proxyHandler.destroy();         
+            proxyHandler.destroy();
         });
     }
 
@@ -482,25 +479,23 @@ class MprisIndicatorButton extends PanelMenu.Button {
             ? players[0]
             : players.length > 1
             ? players.sort((a, b) => {
-                if (a.focused) {
-                    return -1;
-                } else if (b.focused) {
-                    return 1;
-                } else if (a.playbackStatus > b.playbackStatus) {
-                    return -1;
-                } else if (a.playbackStatus < b.playbackStatus) {
-                    return 1;
-                } else if (a.userTime > b.userTime) {
-                    return -1;
-                } else if (a.userTime < b.userTime) {
-                    return 1;
-                } else if (a.statusTime > b.statusTime) {
-                    return -1;
-                } else if (a.statusTime < b.statusTime) {
-                    return 1;
-                } else {
-                    return a.playerName.toLowerCase().localeCompare(b.playerName.toLowerCase());
-                }
+                return a.focused
+                    ? -1
+                    : b.focused
+                    ? 1
+                    : a.playbackStatus > b.playbackStatus
+                    ? -1
+                    : a.playbackStatus < b.playbackStatus
+                    ? 1
+                    : a.userTime > b.userTime
+                    ? -1
+                    : a.userTime < b.userTime
+                    ? 1
+                    : a.statusTime > b.statusTime
+                    ? -1
+                    : a.statusTime < b.statusTime
+                    ? 1
+                    : a.playerName.toLowerCase().localeCompare(b.playerName.toLowerCase());
             })[0]
             : null;
     }
@@ -518,7 +513,7 @@ class MprisIndicatorButton extends PanelMenu.Button {
                     else if (button === 3) {
                         let playerWasFocused = player.focused;
                         if (player.toggleWindow(true)) {
-                            if (!playerWasFocused) {
+                            if (!playerWasFocused || player.focused) {
                                 this.menu.close(true);
                             }
                             return Clutter.EVENT_STOP;

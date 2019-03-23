@@ -19,15 +19,65 @@
  */
 "use strict";
 
-const Gio = imports.gi.Gio;
-const GObject = imports.gi.GObject;
-const Gtk = imports.gi.Gtk;
-const GLib = imports.gi.GLib;
-const Meta = imports.gi.Meta;
-const Shell = imports.gi.Shell;
+const { Gio, GLib, GObject, Gtk, Meta, Shell } = imports.gi;
+
 const Main = imports.ui.main;
 
 const UUID = imports.misc.extensionUtils.getCurrentExtension().metadata.uuid;
+const METADATA_KEYS = [
+    "xesam:artist",
+    "xesam:albumArtist",
+    "xesam:composer",
+    "xesam:lyricist",
+    "rhythmbox:streamTitle",
+    "xesam:title",
+    "xesam:trackNumber",
+    "xesam:album",
+    "xesam:discNumber",
+    "mpris:artUrl",
+    "xesam:url"
+];
+
+const DBusProxy = _makeProxyWrapper(
+`<node>
+<interface name="org.freedesktop.DBus">
+  <method name="GetConnectionUnixProcessID">
+    <arg type="s" direction="in" name="busName"/>
+    <arg type="u" direction="out" name="pid"/>
+  </method>
+  <method name="ListNames">
+    <arg type="as" direction="out" name="names" />
+  </method>
+  <signal name="NameOwnerChanged">
+    <arg type="s" direction="out" name="name" />
+    <arg type="s" direction="out" name="oldOwner" />
+    <arg type="s" direction="out" name="newOwner" />
+  </signal>
+</interface>
+</node>`);
+
+const MprisProxies = _makeProxyWrapper(
+`<node>
+<interface name="org.mpris.MediaPlayer2">
+  <method name="Raise" />
+  <property name="CanRaise" type="b" access="read" />
+  <property name="Identity" type="s" access="read" />
+  <property name="DesktopEntry" type="s" access="read" />
+</interface>
+<interface name="org.mpris.MediaPlayer2.Player">
+  <method name="PlayPause" />
+  <method name="Next" />
+  <method name="Previous" />
+  <method name="Stop" />
+  <method name="Play" />
+  <property name="CanGoNext" type="b" access="read" />
+  <property name="CanGoPrevious" type="b" access="read" />
+  <property name="CanPlay" type="b" access="read" />
+  <property name="CanPause" type="b" access="read" />
+  <property name="Metadata" type="a{sv}" access="read" />
+  <property name="PlaybackStatus" type="s" access="read" />
+</interface>
+</node>`);
 
 // Basically a re-implementation of the widely used
 // Gio.DBusProxy.makeProxyWrapper tailored for our particular needs.
@@ -91,61 +141,6 @@ function logError(error) {
         global.log(`[${UUID}]: ${error.message}`);
     }
 }
-
-const DBusProxy = _makeProxyWrapper(
-`<node>
-<interface name="org.freedesktop.DBus">
-  <method name="GetConnectionUnixProcessID">
-    <arg type="s" direction="in" name="busName"/>
-    <arg type="u" direction="out" name="pid"/>
-  </method>
-  <method name="ListNames">
-    <arg type="as" direction="out" name="names" />
-  </method>
-  <signal name="NameOwnerChanged">
-    <arg type="s" direction="out" name="name" />
-    <arg type="s" direction="out" name="oldOwner" />
-    <arg type="s" direction="out" name="newOwner" />
-  </signal>
-</interface>
-</node>`);
-
-const MprisProxies = _makeProxyWrapper(
-`<node>
-<interface name="org.mpris.MediaPlayer2">
-  <method name="Raise" />
-  <property name="CanRaise" type="b" access="read" />
-  <property name="Identity" type="s" access="read" />
-  <property name="DesktopEntry" type="s" access="read" />
-</interface>
-<interface name="org.mpris.MediaPlayer2.Player">
-  <method name="PlayPause" />
-  <method name="Next" />
-  <method name="Previous" />
-  <method name="Stop" />
-  <method name="Play" />
-  <property name="CanGoNext" type="b" access="read" />
-  <property name="CanGoPrevious" type="b" access="read" />
-  <property name="CanPlay" type="b" access="read" />
-  <property name="CanPause" type="b" access="read" />
-  <property name="Metadata" type="a{sv}" access="read" />
-  <property name="PlaybackStatus" type="s" access="read" />
-</interface>
-</node>`);
-
-const MetadataKeys = [
-    "xesam:artist",
-    "xesam:albumArtist",
-    "xesam:composer",
-    "xesam:lyricist",
-    "rhythmbox:streamTitle",
-    "xesam:title",
-    "xesam:trackNumber",
-    "xesam:album",
-    "xesam:discNumber",
-    "mpris:artUrl",
-    "xesam:url"
-];
 
 var DBusProxyHandler = GObject.registerClass({
     GTypeName: "DBusProxyHandler",
@@ -847,7 +842,7 @@ var MprisProxyHandler = GObject.registerClass({
             // Unpack all Metadata keys that we care about in place.
             // If the key doesn't exsist set it to an empty string and join all arrays.
             // Most of our "artist" keys are (or at least should be) arrays of strings.
-            MetadataKeys.forEach(key => {
+            METADATA_KEYS.forEach(key => {
                 let value = metadata[key] ? metadata[key].deep_unpack() : "";
                 metadata[key] = Array.isArray(value) ? value.join(", ") : value;
             });
@@ -903,7 +898,7 @@ var MprisProxyHandler = GObject.registerClass({
                 // For example, "5 - My favorite Album".
                 // If the disc number is more than 1 also add the disc number.
                 // for example, "5 - My favorite Album (2)".
-                // If all selse fails fallback to an empty string. 
+                // If all selse fails fallback to an empty string.
                 title = metadata["xesam:title"] ? metadata["xesam:title"]
                     : (Number.isInteger(metadata["xesam:trackNumber"])
                         && Number.isInteger(metadata["xesam:discNumber"])
@@ -917,7 +912,7 @@ var MprisProxyHandler = GObject.registerClass({
             }
         }
 
-        let accessible_name = (artist == this._player_name) ? "" : this._player_name; 
+        let accessible_name = (artist == this._player_name) ? "" : this._player_name;
         if (this._accessible_name !== accessible_name) {
             this._accessible_name = accessible_name;
             this.notify("accessible-name");
