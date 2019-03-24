@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.30+
+ * Mpris Indicator Button extension for Gnome Shell 3.32+
  * Copyright 2019 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -76,6 +76,7 @@ const MprisProxies = _makeProxyWrapper(
   <property name="CanPause" type="b" access="read" />
   <property name="Metadata" type="a{sv}" access="read" />
   <property name="PlaybackStatus" type="s" access="read" />
+  <property name="Volume" type="d" access="readwrite" />
 </interface>
 </node>`);
 
@@ -529,6 +530,15 @@ var MprisProxyHandler = GObject.registerClass({
             GObject.ParamFlags.READABLE,
             ""
         ),
+        "volume": GObject.ParamSpec.double(
+            "volume",
+            "volume-prop",
+            "The current volume",
+            GObject.ParamFlags.READWRITE,
+            0.0,
+            1.0,
+            0.0
+        ),
         "gicon": GObject.ParamSpec.object(
             "gicon",
             "gicon-prop",
@@ -562,6 +572,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._accessible_name = "";
         this._playback_status = 0;
         this._status_time = 0;
+        this._volume = 0.0;
         this._mimetype_icon_name = "audio-x-generic-symbolic";
         this._gicon = Gio.ThemedIcon.new(this._mimetype_icon_name);
         this._gicon.isSymbolic = true;
@@ -652,6 +663,17 @@ var MprisProxyHandler = GObject.registerClass({
         return this._appWrapper ? this._appWrapper.user_time : 0;
     }
 
+    get volume() {
+        return this._volume || 0.0;
+    }
+
+    set volume(newVolume) {
+        newVolume = newVolume ? Math.max(0.0, Math.min(newVolume, 1.0)) : 0.0;
+        if (this._playerProxy && this._playerProxy.Volume !== newVolume) {
+            this._playerProxy.Volume = newVolume;
+        }
+    }
+
     toggleWindow(minimize) {
         return this._appWrapper ? this._appWrapper.toggleWindow(minimize) : this._raise();
     }
@@ -737,10 +759,14 @@ var MprisProxyHandler = GObject.registerClass({
             if (props.includes("Metadata")) {
                 this._updateMetadata();
             }
+            if (props.includes("Volume")) {
+                this._updateVolume();
+            }
         });
         this._updateMprisProps();
         this._updatePlayerProps();
         this._updateMetadata();
+        this._updateVolume();
         this._cancellable = null;
     }
 
@@ -935,6 +961,31 @@ var MprisProxyHandler = GObject.registerClass({
         }
     }
 
+    testVolume() {
+        // This should cause a Volume props change signal
+        // if the player's Volume prop works correctly,
+        // which in turn should cause the volume slider to show itself.
+        // Spotify's Volume prop is broken for example so the volume slider
+        // remains hidden since it's pointless to show a widget that doesn't do anything...
+        let initialVolume = this._playerProxy.Volume;
+        this._playerProxy.Volume = initialVolume <= 0.0
+            ? 0.1
+            : initialVolume >= 1.0
+            ? 0.9
+            : Math.min(initialVolume - 0.1, 0.0);
+        this._playerProxy.Volume = initialVolume;
+    }
+
+    _updateVolume() {
+        let newVolume = this._playerProxy.Volume
+            ? Math.max(0.0, Math.min(this._playerProxy.Volume, 1.0))
+            : 0.0;
+        if (this._volume !== newVolume) {
+            this._volume = newVolume;
+            this.notify("volume");
+        }
+    }
+
     _getSymbolicIcon() {
         return this._getIcon(true);
     }
@@ -1033,6 +1084,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._accessible_name = null;
         this._playback_status = null;
         this._status_time = null;
+        this._volume = null;
         this._gicon = null;
         this._mimetype_icon_name = null;
         this._cancellable = null;

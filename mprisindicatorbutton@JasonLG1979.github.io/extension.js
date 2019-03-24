@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.30+
+ * Mpris Indicator Button extension for Gnome Shell 3.32+
  * Copyright 2019 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -34,6 +34,7 @@ const DBus = Me.imports.dbus;
 const Widgets = Me.imports.widgets;
 
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
+const BIDIRECTIONAL_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE;
 
 var indicator = null;
 
@@ -148,6 +149,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         );
 
         playerButtonBox.add(nextButton);
+
+        let volumeSlider = new Widgets.VolumeSlider(
+            "volumeSlider"
+        );
+
+        vbox.add(volumeSlider);
 
         this.actor.bind_property(
             "hover",
@@ -295,6 +302,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         let nextButton = getActorByName("nextButton");
         let trackArtist = getActorByName("trackArtist");
         let trackTitle = getActorByName("trackTitle");
+        let volumeSlider = getActorByName("volumeSlider");
 
         this._mpris = mpris;
 
@@ -369,6 +377,17 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             "text",
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
+
+
+        this._mpris.bind_property(
+            "volume",
+            volumeSlider,
+            "value",
+            BIDIRECTIONAL_SYNC_CREATE_PROP_FLAGS
+        );
+
+        volumeSlider.hide();
+        this._mpris.testVolume();
     }
 
     _onKeyPressEvent(actor, event) {

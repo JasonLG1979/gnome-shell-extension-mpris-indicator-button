@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.30+
+ * Mpris Indicator Button extension for Gnome Shell 3.32+
  * Copyright 2019 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -20,6 +20,15 @@
 "use strict";
 
 const { Atk, Clutter, Gio, GObject, Gtk, St } = imports.gi;
+
+const Slider = imports.ui.slider;
+
+const VOULME_ICONS = [
+    "audio-volume-muted-symbolic",
+    "audio-volume-low-symbolic",
+    "audio-volume-medium-symbolic",
+    "audio-volume-high-symbolic"
+];
 
 // The Cover Icon has crazy fallback redundancy.
 // The order is as follows:
@@ -167,7 +176,7 @@ var MediaControlButton = GObject.registerClass({
     _init(name, iconName) {
         super._init({
             name: name,
-            style: "padding: 8px, 12px, 8px, 12px;",
+            style: "padding: 8px, 14px, 8px, 12px;",
             opacity: 204,
             accessible_role: Atk.Role.PUSH_BUTTON,
             child: new St.Icon({
@@ -188,5 +197,111 @@ var MediaControlButton = GObject.registerClass({
                 signalIds.forEach(signalId => this.disconnect(signalId));
             })
         ];
+    }
+});
+
+var VolumeSlider = GObject.registerClass({
+    GTypeName: "VolumeSlider",
+    Properties: {
+        "value": GObject.ParamSpec.double(
+            "value",
+            "value-prop",
+            "The current slider value",
+            GObject.ParamFlags.READWRITE,
+            0.0,
+            1.0,
+            0.0
+        )
+    }
+}, class VolumeSlider extends St.BoxLayout {
+    _init(name) {
+        super._init({
+            name: name,
+            y_align: Clutter.ActorAlign.CENTER,
+            accessible_role: Atk.Role.INTERNAL_FRAME,
+            x_expand: true
+        });
+
+        this._value = 0.0;
+        this._preMuteValue = 0.0;
+        this._muted = false;
+
+        this._button = new St.Button({
+            style: "padding: 2px, 10px, 2px, 4px;",
+            opacity: 204,
+            accessible_role: Atk.Role.PUSH_BUTTON,
+            child: new St.Icon({
+                accessible_role: Atk.Role.ICON,
+                icon_size: 16
+            })
+        });
+
+        this.add(this._button);
+
+        this._slider = new Slider.Slider(0);
+
+        this.add(this._slider.actor, {expand: true});
+
+        let signals = [];
+
+        let pushSignal = (obj, signalName, callback) => {
+            let signalId = obj.connect(signalName, callback);
+            signals.push({
+                obj: obj,
+                signalId: signalId
+            });
+        };
+
+        pushSignal(this._button, "notify::hover", () => {
+            this._button.opacity = this._button.hover ? 255 : 204;
+        });
+
+        pushSignal(this._button, "clicked", () => {
+            if (this._muted) {
+                this.value = this._preMuteValue;
+            } else {
+                this._muted = true;
+                this._preMuteValue = this._value;
+                this.value = 0.0;
+            }
+        });
+
+        pushSignal(this._slider, "value-changed", () => {
+            this.value = this._slider._value;
+        });
+
+        pushSignal(this, "destroy", () => {
+            signals.forEach(signal => signal.obj.disconnect(signal.signalId));
+            this._value = null;
+            this._preMuteValue = null;
+            this._muted = null;
+        });
+    }
+
+    get value() {
+        return this._value || 0.0;
+    }
+
+    set value(newValue) {
+        newValue = newValue
+        ? Math.max(0.0, Math.min(newValue, 1.0))
+        : 0.0;
+        if (this._value !== newValue) {
+            if (newValue) {
+                this._muted = false;
+            }
+            let iconIndex = !newValue
+                ? 0
+                : newValue == 1.0
+                ? 3
+                : newValue < 0.5
+                ? 1
+                : 2;
+            this._button.child.icon_name = VOULME_ICONS[iconIndex];
+            this._slider.setValue(newValue);
+            this._value = newValue;
+            this.notify("value");
+            this.show();
+        }
     }
 });
