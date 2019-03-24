@@ -513,7 +513,7 @@ var MprisIndicatorButton = GObject.registerClass({
                     else if (button === 3) {
                         let playerWasFocused = player.focused;
                         if (player.toggleWindow(true)) {
-                            if (!playerWasFocused || player.focused) {
+                            if (!playerWasFocused) {
                                 this.menu.close(true);
                             }
                             return Clutter.EVENT_STOP;

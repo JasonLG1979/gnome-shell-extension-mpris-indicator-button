@@ -898,7 +898,7 @@ var MprisProxyHandler = GObject.registerClass({
                 // For example, "5 - My favorite Album".
                 // If the disc number is more than 1 also add the disc number.
                 // for example, "5 - My favorite Album (2)".
-                // If all selse fails fallback to an empty string.
+                // If all else fails fallback to an empty string.
                 title = metadata["xesam:title"] ? metadata["xesam:title"]
                     : (Number.isInteger(metadata["xesam:trackNumber"])
                         && Number.isInteger(metadata["xesam:discNumber"])
