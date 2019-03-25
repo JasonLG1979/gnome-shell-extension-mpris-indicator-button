@@ -60,6 +60,7 @@ var CoverIcon = GObject.registerClass({
     _init(name) {
         super._init({
             name: name,
+            style: "padding-right: 10px;",
             icon_size: 32,
             opacity: 153,
             y_align: Clutter.ActorAlign.CENTER,
@@ -176,7 +177,7 @@ var MediaControlButton = GObject.registerClass({
     _init(name, iconName) {
         super._init({
             name: name,
-            style: "padding: 8px, 14px, 8px, 12px;",
+            style: "padding: 10px, 10px, 10px, 10px;",
             opacity: 204,
             accessible_role: Atk.Role.PUSH_BUTTON,
             child: new St.Icon({
@@ -227,7 +228,7 @@ var VolumeSlider = GObject.registerClass({
         this._muted = false;
 
         this._button = new St.Button({
-            style: "padding: 2px, 10px, 2px, 4px;",
+            style: "padding-right: 10px;",
             opacity: 204,
             accessible_role: Atk.Role.PUSH_BUTTON,
             child: new St.Icon({

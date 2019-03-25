@@ -89,7 +89,6 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         hbox.add(coverIcon);
 
         let info = new St.BoxLayout({
-            style: "padding-left: 10px",
             y_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.INTERNAL_FRAME,
             vertical: true,
