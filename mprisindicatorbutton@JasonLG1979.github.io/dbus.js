@@ -573,6 +573,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._playback_status = 0;
         this._status_time = 0;
         this._volume = 0.0;
+        this._workingVolume = false;
         this._mimetype_icon_name = "audio-x-generic-symbolic";
         this._gicon = Gio.ThemedIcon.new(this._mimetype_icon_name);
         this._gicon.isSymbolic = true;
@@ -674,6 +675,18 @@ var MprisProxyHandler = GObject.registerClass({
         }
     }
 
+    volumeUp() {
+        if (this._playerProxy && this._workingVolume && this._volume < 1.0) {
+            this._playerProxy.Volume = Math.min(this._volume + 0.05, 1.0);
+        }
+    }
+
+    volumeDown() {
+        if (this._playerProxy && this._workingVolume && this._volume > 0.0) {
+            this._playerProxy.Volume = Math.max(this._volume - 0.05, 0.0);
+        }
+    }
+
     toggleWindow(minimize) {
         return this._appWrapper ? this._appWrapper.toggleWindow(minimize) : this._raise();
     }
@@ -760,6 +773,7 @@ var MprisProxyHandler = GObject.registerClass({
                 this._updateMetadata();
             }
             if (props.includes("Volume")) {
+                this._workingVolume = true;
                 this._updateVolume();
             }
         });
@@ -1085,6 +1099,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._playback_status = null;
         this._status_time = null;
         this._volume = null;
+        this._workingVolume = null;
         this._gicon = null;
         this._mimetype_icon_name = null;
         this._cancellable = null;

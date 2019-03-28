@@ -253,6 +253,14 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         return this._mpris ? this._mpris.focused : false;
     }
 
+    volumeUp() {
+        return this._mpris ? this._mpris.volumeUp() : false;
+    }
+
+    volumeDown() {
+        return this._mpris ? this._mpris.volumeDown() : false;
+    }
+
     playPauseStop() {
         return this._mpris ? this._mpris.playPauseStop() : false;
     }
@@ -390,15 +398,23 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     _onKeyPressEvent(actor, event) {
-        let state = event.get_state();
-
-        if (state === Clutter.ModifierType.CONTROL_MASK) {
+        let ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) != 0;
+        if (ctrl) {
             let symbol = event.get_key_symbol();
-            if (symbol === Clutter.KEY_space && this.playPauseStop()) {
+            if (symbol === Clutter.KEY_space) {
+                this.playPauseStop();
                 return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Left && this.previous()) {
+            } else if (symbol === Clutter.Left) {
+                this.previous();
                 return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Right && this.next()) {
+            } else if (symbol === Clutter.Right) {
+                this.next();
+                return Clutter.EVENT_STOP;
+            } else if (symbol === Clutter.Up) {
+                this.volumeUp();
+                return Clutter.EVENT_STOP;
+            } else if (symbol === Clutter.Down) {
+                this.volumeDown();
                 return Clutter.EVENT_STOP;
             }
         }
@@ -439,16 +455,25 @@ var MprisIndicatorButton = GObject.registerClass({
         });
 
         pushSignal(this, "key-press-event", (actor, event) => {
-            let state = event.get_state();
-            if (state === Clutter.ModifierType.CONTROL_MASK) {
+            let ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) != 0;
+            if (ctrl) {
                 let player = this._getLastActivePlayer();
                 if (player) {
                     let symbol = event.get_key_symbol();
-                    if (symbol === Clutter.KEY_space && player.playPauseStop()) {
+                    if (symbol === Clutter.KEY_space) {
+                        player.playPauseStop();
                         return Clutter.EVENT_STOP;
-                    } else if (symbol === Clutter.Left && player.previous()) {
+                    } else if (symbol === Clutter.Left) {
+                        player.previous();
                         return Clutter.EVENT_STOP;
-                    } else if (symbol === Clutter.Right && player.next()) {
+                    } else if (symbol === Clutter.Right) {
+                        player.next();
+                        return Clutter.EVENT_STOP;
+                    } else if (symbol === Clutter.Up) {
+                        player.volumeUp();
+                        return Clutter.EVENT_STOP;
+                    } else if (symbol === Clutter.Down) {
+                        player.volumeDown();
                         return Clutter.EVENT_STOP;
                     }
                 }

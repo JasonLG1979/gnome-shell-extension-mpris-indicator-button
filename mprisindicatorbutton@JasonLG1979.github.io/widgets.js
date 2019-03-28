@@ -285,8 +285,8 @@ var VolumeSlider = GObject.registerClass({
 
     set value(newValue) {
         newValue = newValue
-        ? Math.max(0.0, Math.min(newValue, 1.0))
-        : 0.0;
+            ? Math.max(0.0, Math.min(newValue, 1.0))
+            : 0.0;
         if (this._value !== newValue) {
             if (newValue) {
                 this._muted = false;
