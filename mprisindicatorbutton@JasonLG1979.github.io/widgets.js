@@ -258,13 +258,7 @@ var VolumeSlider = GObject.registerClass({
         });
 
         pushSignal(this._button, "clicked", () => {
-            if (this._muted) {
-                this.value = this._preMuteValue;
-            } else {
-                this._muted = true;
-                this._preMuteValue = this._value;
-                this.value = 0.0;
-            }
+            this.toggleMute();
         });
 
         pushSignal(this._slider, "value-changed", () => {
@@ -303,6 +297,16 @@ var VolumeSlider = GObject.registerClass({
             this._value = newValue;
             this.notify("value");
             this.show();
+        }
+    }
+
+    toggleMute() {
+        if (this._muted) {
+            this.value = this._preMuteValue;
+        } else {
+            this._muted = true;
+            this._preMuteValue = this._value;
+            this.value = 0.0;
         }
     }
 });

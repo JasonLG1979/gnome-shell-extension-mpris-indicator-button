@@ -254,11 +254,15 @@ class Player extends PopupMenu.PopupBaseMenuItem {
     }
 
     volumeUp() {
-        return this._mpris ? this._mpris.volumeUp() : false;
+        if (this._mpris) {
+            this._mpris.volumeUp();
+        }
     }
 
     volumeDown() {
-        return this._mpris ? this._mpris.volumeDown() : false;
+        if (this._mpris) {
+            this._mpris.volumeDown();
+        }
     }
 
     playPauseStop() {
@@ -275,6 +279,10 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
     toggleWindow(minimize) {
         return this._mpris ? this._mpris.toggleWindow(minimize) : false;
+    }
+
+    toggleMute() {
+        return;
     }
 
     refreshIcon() {
@@ -395,6 +403,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         volumeSlider.hide();
         this._mpris.testVolume();
+        this.toggleMute = () => {
+            volumeSlider.toggleMute();
+        };
     }
 
     _onKeyPressEvent(actor, event) {
@@ -415,6 +426,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
                 return Clutter.EVENT_STOP;
             } else if (symbol === Clutter.Down) {
                 this.volumeDown();
+                return Clutter.EVENT_STOP;
+            } else if (symbol === Clutter.Return) {
+                this.toggleMute();
                 return Clutter.EVENT_STOP;
             }
         }
@@ -474,6 +488,9 @@ var MprisIndicatorButton = GObject.registerClass({
                         return Clutter.EVENT_STOP;
                     } else if (symbol === Clutter.Down) {
                         player.volumeDown();
+                        return Clutter.EVENT_STOP;
+                    } else if (symbol === Clutter.Return) {
+                        player.toggleMute();
                         return Clutter.EVENT_STOP;
                     }
                 }
