@@ -440,7 +440,7 @@ var MprisIndicatorButton = GObject.registerClass({
     GTypeName: "MprisIndicatorButton"
 }, class MprisIndicatorButton extends PanelMenu.Button {
     _init() {
-        super._init(0.0, "Mpris Indicator Button", false);
+        super._init(0.5, "Mpris Indicator Button", false);
         this.accessible_name = "Mpris";
         this.menu.actor.add_style_class_name("aggregate-menu");
         this.menu.box.set_layout_manager(new Panel.AggregateLayout());
