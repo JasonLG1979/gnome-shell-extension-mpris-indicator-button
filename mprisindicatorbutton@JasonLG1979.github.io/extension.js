@@ -44,9 +44,7 @@ function enable() {
     if (!indicator) {
         indicator = Main.panel.addToStatusArea(
             "mprisindicatorbutton",
-            new MprisIndicatorButton(),
-            0,
-            "right"
+            new MprisIndicatorButton()
         );
     }
 }
@@ -296,7 +294,7 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             this._mpris.destroy();
         }
 
-        let getNamedActors = (actor) => {
+        let getNamedActors = actor => {
             return actor.get_children().reduce((actors, actor) => {
                 return actor.name
                 ? actors.concat(actor).concat(getNamedActors(actor))
@@ -306,8 +304,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         let namedActors = getNamedActors(this.actor);
 
-        let getActorByName = (name) => {
-            return namedActors.find((actor) => actor.name === name);
+        let getActorByName = name => {
+            return namedActors.find(actor => actor.name === name);
         };
 
         let coverIcon = getActorByName("coverIcon");
@@ -440,7 +438,7 @@ var MprisIndicatorButton = GObject.registerClass({
     GTypeName: "MprisIndicatorButton"
 }, class MprisIndicatorButton extends PanelMenu.Button {
     _init() {
-        super._init(0.5, "Mpris Indicator Button", false);
+        super._init(0.5, "Mpris Indicator Button");
         this.accessible_name = "Mpris";
         this.menu.actor.add_style_class_name("aggregate-menu");
         this.menu.box.set_layout_manager(new Panel.AggregateLayout());
@@ -498,7 +496,7 @@ var MprisIndicatorButton = GObject.registerClass({
             return Clutter.EVENT_PROPAGATE;
         });
 
-        let getPlayer = (busName) => this.menu._getMenuItems().find(p => p.busName === busName);
+        let getPlayer = busName => this.menu._getMenuItems().find(p => p.busName === busName);
 
         let updateIndicator = () => {
             let player = this._getLastActivePlayer();
