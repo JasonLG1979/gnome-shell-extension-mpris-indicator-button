@@ -119,6 +119,13 @@ class Player extends PopupMenu.PopupBaseMenuItem {
 
         vbox.add(playerButtonBox);
 
+        let shuffleButton = new Widgets.MediaControlButton(
+            "shuffleButton",
+            "media-playlist-shuffle-symbolic"
+        );
+
+        playerButtonBox.add(shuffleButton);
+
         let prevButton = new Widgets.MediaControlButton(
             "prevButton",
             "media-skip-backward-symbolic"
@@ -146,6 +153,13 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         );
 
         playerButtonBox.add(nextButton);
+
+        let repeatButton = new Widgets.MediaControlButton(
+            "repeatButton",
+            "media-playlist-repeat-symbolic"
+        );
+
+        playerButtonBox.add(repeatButton);
 
         let volumeSlider = new Widgets.VolumeSlider(
             "volumeSlider"
@@ -184,8 +198,51 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             });
         };
 
+        pushSignal(this.actor, "key-press-event", (actor, event) => {
+            let state = event.get_state();
+            let symbol = event.get_key_symbol();
+            let ctrl = (state & Clutter.ModifierType.CONTROL_MASK) != 0;
+            let shift = (state & Clutter.ModifierType.SHIFT_MASK) != 0;
+            if (ctrl) {
+                if (symbol === Clutter.KEY_space) {
+                    this.playPauseStop();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Left) {
+                    this.previous();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Right) {
+                    this.next();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Up) {
+                    this.volumeUp();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Down) {
+                    this.volumeDown();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Return) {
+                    this.toggleMute();
+                    return Clutter.EVENT_STOP;
+                }
+            } else if (shift) {
+                if (symbol === Clutter.Left) {
+                    this.toggleShuffle();
+                    return Clutter.EVENT_STOP;
+                } else if (symbol === Clutter.Right) {
+                    this.cycleRepeat();
+                    return Clutter.EVENT_STOP;
+                }
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
         pushSignal(this, "activate", () => {
             this.toggleWindow(false);
+        });
+
+        pushSignal(shuffleButton, "clicked", () => {
+            if (this._mpris) {
+                this._mpris.toggleShuffle();
+            }
         });
 
         pushSignal(prevButton, "clicked", () => {
@@ -209,6 +266,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         pushSignal(nextButton, "clicked", () => {
             if (this._mpris) {
                 this._mpris.next();
+            }
+        });
+
+        pushSignal(repeatButton, "clicked", () => {
+            if (this._mpris) {
+                this._mpris.cycleRepeat();
             }
         });
 
@@ -263,6 +326,18 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         }
     }
 
+    toggleShuffle() {
+        if (this._mpris) {
+            this._mpris.toggleShuffle();
+        }
+    }
+
+    cycleRepeat() {
+        if (this._mpris) {
+            this._mpris.cycleRepeat();
+        }
+    }
+
     playPauseStop() {
         return this._mpris ? this._mpris.playPauseStop() : false;
     }
@@ -313,6 +388,8 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         let playPauseButton = getActorByName("playPauseButton");
         let stopButton = getActorByName("stopButton");
         let nextButton = getActorByName("nextButton");
+        let repeatButton = getActorByName("repeatButton");
+        let shuffleButton = getActorByName("shuffleButton");
         let trackArtist = getActorByName("trackArtist");
         let trackTitle = getActorByName("trackTitle");
         let volumeSlider = getActorByName("volumeSlider");
@@ -378,6 +455,55 @@ class Player extends PopupMenu.PopupBaseMenuItem {
         );
 
         this._mpris.bind_property(
+            "repeat-reactive",
+            repeatButton,
+            "reactive",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
+            "show-shuffle-repeat",
+            repeatButton,
+            "visible",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
+            "repeat-active",
+            repeatButton,
+            "active",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
+            "repeat-icon-name",
+            repeatButton.child,
+            "icon-name",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
+            "show-shuffle-repeat",
+            shuffleButton,
+            "visible",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
+            "shuffle-reactive",
+            shuffleButton,
+            "reactive",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
+            "shuffle-active",
+            shuffleButton,
+            "active",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
             "artist",
             trackArtist,
             "text",
@@ -391,6 +517,12 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
+        this._mpris.bind_property(
+            "show-volume",
+            volumeSlider,
+            "visible",
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
 
         this._mpris.bind_property(
             "volume",
@@ -399,38 +531,9 @@ class Player extends PopupMenu.PopupBaseMenuItem {
             BIDIRECTIONAL_SYNC_CREATE_PROP_FLAGS
         );
 
-        volumeSlider.hide();
-        this._mpris.testVolume();
         this.toggleMute = () => {
             volumeSlider.toggleMute();
         };
-    }
-
-    _onKeyPressEvent(actor, event) {
-        let ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) != 0;
-        if (ctrl) {
-            let symbol = event.get_key_symbol();
-            if (symbol === Clutter.KEY_space) {
-                this.playPauseStop();
-                return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Left) {
-                this.previous();
-                return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Right) {
-                this.next();
-                return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Up) {
-                this.volumeUp();
-                return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Down) {
-                this.volumeDown();
-                return Clutter.EVENT_STOP;
-            } else if (symbol === Clutter.Return) {
-                this.toggleMute();
-                return Clutter.EVENT_STOP;
-            }
-        }
-        super._onKeyPressEvent(actor, event);
     }
 }
 
@@ -454,8 +557,10 @@ var MprisIndicatorButton = GObject.registerClass({
 
         let signals = [];
 
-        let pushSignal = (obj, signalName, callback) => {
-            let signalId = obj.connect(signalName, callback);
+        let pushSignal = (obj, signalName, callback, after) => {
+            let signalId = after
+            ? obj.connect_after(signalName, callback)
+            : obj.connect(signalName, callback);
             signals.push({
                 obj: obj,
                 signalId: signalId
@@ -464,32 +569,44 @@ var MprisIndicatorButton = GObject.registerClass({
 
         pushSignal(St.ThemeContext.get_for_stage(global.stage), "changed", () => {
             this.menu._getMenuItems().forEach(player => player.refreshIcon());
-        });
+        }, true);
 
         pushSignal(this, "key-press-event", (actor, event) => {
-            let ctrl = (event.get_state() & Clutter.ModifierType.CONTROL_MASK) != 0;
-            if (ctrl) {
+            let state = event.get_state();
+            let ctrl = (state & Clutter.ModifierType.CONTROL_MASK) != 0;
+            let shift = (state & Clutter.ModifierType.SHIFT_MASK) != 0;
+            if (ctrl || shift) {
                 let player = this._getLastActivePlayer();
                 if (player) {
                     let symbol = event.get_key_symbol();
-                    if (symbol === Clutter.KEY_space) {
-                        player.playPauseStop();
-                        return Clutter.EVENT_STOP;
-                    } else if (symbol === Clutter.Left) {
-                        player.previous();
-                        return Clutter.EVENT_STOP;
-                    } else if (symbol === Clutter.Right) {
-                        player.next();
-                        return Clutter.EVENT_STOP;
-                    } else if (symbol === Clutter.Up) {
-                        player.volumeUp();
-                        return Clutter.EVENT_STOP;
-                    } else if (symbol === Clutter.Down) {
-                        player.volumeDown();
-                        return Clutter.EVENT_STOP;
-                    } else if (symbol === Clutter.Return) {
-                        player.toggleMute();
-                        return Clutter.EVENT_STOP;
+                    if (ctrl) {
+                        if (symbol === Clutter.KEY_space) {
+                            player.playPauseStop();
+                            return Clutter.EVENT_STOP;
+                        } else if (symbol === Clutter.Left) {
+                            player.previous();
+                            return Clutter.EVENT_STOP;
+                        } else if (symbol === Clutter.Right) {
+                            player.next();
+                            return Clutter.EVENT_STOP;
+                        } else if (symbol === Clutter.Up) {
+                            player.volumeUp();
+                            return Clutter.EVENT_STOP;
+                        } else if (symbol === Clutter.Down) {
+                            player.volumeDown();
+                            return Clutter.EVENT_STOP;
+                        } else if (symbol === Clutter.Return) {
+                            player.toggleMute();
+                            return Clutter.EVENT_STOP;
+                        }
+                    } else if (shift) {
+                         if (symbol === Clutter.Left) {
+                            player.toggleShuffle();
+                            return Clutter.EVENT_STOP;
+                        } else if (symbol === Clutter.Right) {
+                            player.cycleRepeat();
+                            return Clutter.EVENT_STOP;
+                        }
                     }
                 }
             }
@@ -506,8 +623,13 @@ var MprisIndicatorButton = GObject.registerClass({
 
         let proxyHandler = new DBus.DBusProxyHandler();
 
-        pushSignal(proxyHandler, "add-player", (proxyHandler, mpris) => {
-            this.menu.addMenuItem(new Player(mpris, updateIndicator));
+        pushSignal(proxyHandler, "add-player", (proxyHandler, busName, mpris) => {
+            let player = getPlayer(busName);
+            if (player) {
+                player.setMpris(mpris, updateIndicator);
+            } else {
+                this.menu.addMenuItem(new Player(mpris, updateIndicator));
+            }
         });
 
         pushSignal(proxyHandler, "remove-player", (proxyHandler, busName) => {
@@ -515,13 +637,6 @@ var MprisIndicatorButton = GObject.registerClass({
             if (player) {
                 player.destroy();
                 updateIndicator();
-            }
-        });
-
-        pushSignal(proxyHandler, "change-player-owner", (proxyHandler, busName, mpris) => {
-            let player = getPlayer(busName);
-            if (player) {
-                player.setMpris(mpris, updateIndicator);
             }
         });
 

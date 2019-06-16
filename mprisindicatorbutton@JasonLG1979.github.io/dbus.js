@@ -24,6 +24,7 @@ const { Gio, GLib, GObject, Gtk, Meta, Shell } = imports.gi;
 const Main = imports.ui.main;
 
 const UUID = imports.misc.extensionUtils.getCurrentExtension().metadata.uuid;
+const MPRIS_PREFIX = "org.mpris.MediaPlayer2.";
 const METADATA_KEYS = [
     "xesam:artist",
     "xesam:albumArtist",
@@ -76,6 +77,8 @@ const MprisProxies = _makeProxyWrapper(
   <property name="CanPause" type="b" access="read" />
   <property name="Metadata" type="a{sv}" access="read" />
   <property name="PlaybackStatus" type="s" access="read" />
+  <property name="Shuffle" type="b" access="readwrite" />
+  <property name="LoopStatus" type="s" access="readwrite" />
   <property name="Volume" type="d" access="readwrite" />
 </interface>
 </node>`);
@@ -149,6 +152,7 @@ var DBusProxyHandler = GObject.registerClass({
         "add-player": {
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
+                GObject.TYPE_STRING,
                 GObject.TYPE_OBJECT
             ]
         },
@@ -156,13 +160,6 @@ var DBusProxyHandler = GObject.registerClass({
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING
-            ]
-        },
-        "change-player-owner": {
-            flags: GObject.SignalFlags.RUN_FIRST,
-            param_types: [
-                GObject.TYPE_STRING,
-                GObject.TYPE_OBJECT
             ]
         }
     }
@@ -183,58 +180,31 @@ var DBusProxyHandler = GObject.registerClass({
         this._cancellable.run_dispose();
         if (proxy) {
             this._proxy = proxy;
-            this._proxy.ListNamesRemote(([busNames]) => {
-                busNames.filter(n => n.startsWith("org.mpris.MediaPlayer2.")).sort().forEach(busName => {
-                    this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
-                        if (this._proxy) {
-                            let readyId = new MprisProxyHandler(busName, pid).connect("ready", (mpris, ready) => {
-                                mpris.disconnect(readyId);
-                                if (this._proxy && ready) {
-                                    this.emit("add-player", mpris);
-                                } else {
-                                    mpris.destroy();
-                                }
-                            });
-                        }
-                    });
+
+            let addPlayer = busName => {
+                this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
+                    if (this._proxy) {
+                        let readyId = new MprisProxyHandler(busName, pid).connect("ready", (mpris, ready) => {
+                            mpris.disconnect(readyId);
+                            if (this._proxy && ready) {
+                                this.emit("add-player", busName, mpris);
+                            } else {
+                                mpris.destroy();
+                                this.emit("remove-player", busName);
+                            }
+                        });
+                    }
                 });
-            });
+            }
+
+            this._proxy.ListNamesRemote(([n]) => n.filter(n => n.startsWith(MPRIS_PREFIX)).sort().forEach(n => addPlayer(n)));
 
             this._nameOwnerId = this._proxy.connectSignal("NameOwnerChanged", (proxy, sender, [busName, oldOwner, newOwner]) => {
-                if (busName.startsWith("org.mpris.MediaPlayer2.")) {
-                    if (newOwner && !oldOwner) {
-                        this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
-                            if (this._proxy) {
-                                let readyId = new MprisProxyHandler(busName, pid).connect("ready", (mpris, ready) => {
-                                    mpris.disconnect(readyId);
-                                    if (this._proxy && ready) {
-                                        this.emit("add-player", mpris);
-                                    } else {
-                                        mpris.destroy();
-                                    }
-                                });
-                            }
-                        });
-                    } else if (oldOwner && !newOwner) {
+                if (busName.startsWith(MPRIS_PREFIX)) {
+                    if (newOwner) {
+                        addPlayer(busName);
+                    } else {
                         this.emit("remove-player", busName);
-                    } else if (oldOwner && newOwner) {
-                        this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
-                            if (this._proxy) {
-                                let readyId = new MprisProxyHandler(busName, pid).connect("ready", (mpris, ready) => {
-                                    mpris.disconnect(readyId);
-                                    if (this._proxy) {
-                                        if (ready) {
-                                            this.emit("change-player-owner", busName, mpris);
-                                        } else {
-                                            mpris.destroy();
-                                            this.emit("remove-player", busName);
-                                        }
-                                    } else {
-                                        mpris.destroy();
-                                    }
-                                });
-                            }
-                        });
                     }
                 }
             });
@@ -419,8 +389,9 @@ const AppWrapper = GObject.registerClass({
         // or at _init
         let appMetaWindow = this._getNewAppMetaWindow();
         if (appMetaWindow) {
-            let parent = appMetaWindow.get_transient_for();
-            appMetaWindow = parent ? parent : appMetaWindow;
+            while (appMetaWindow.get_transient_for()) {
+                appMetaWindow = appMetaWindow.get_transient_for();
+            }
         }
         if (this._metaWindow !== appMetaWindow) {
             this._grabAppMetaWindow(appMetaWindow);
@@ -490,7 +461,7 @@ var MprisProxyHandler = GObject.registerClass({
         ),
         "playpause-icon-name": GObject.ParamSpec.string(
             "playpause-icon-name",
-            "playpause-icon-name",
+            "playpause-icon-name-prop",
             "The name of the icon in the playpause button",
             GObject.ParamFlags.READABLE,
             "media-playback-start-symbolic"
@@ -501,6 +472,48 @@ var MprisProxyHandler = GObject.registerClass({
             "If the next button should be reactive",
             GObject.ParamFlags.READABLE,
             false
+        ),
+        "show-shuffle-repeat": GObject.ParamSpec.boolean(
+            "show-shuffle-repeat",
+            "show-shuffle-repeat-prop",
+            "If the shuffle and repeat buttons should be shown",
+            GObject.ParamFlags.READABLE,
+            false
+        ),
+        "shuffle-reactive": GObject.ParamSpec.boolean(
+            "shuffle-reactive",
+            "shuffle-reactive-prop",
+            "If the shuffle button should be reactive",
+            GObject.ParamFlags.READABLE,
+            false
+        ),
+        "shuffle-active": GObject.ParamSpec.boolean(
+            "shuffle-active",
+            "shuffle-active-prop",
+            "If the shuffle button should appear active",
+            GObject.ParamFlags.READABLE,
+            false
+        ),
+        "repeat-reactive": GObject.ParamSpec.boolean(
+            "repeat-reactive",
+            "repeat-reactive-prop",
+            "If the repeat button should be reactive",
+            GObject.ParamFlags.READABLE,
+            false
+        ),
+        "repeat-active": GObject.ParamSpec.boolean(
+            "repeat-active",
+            "repeat-active-prop",
+            "If the repeat button should appear active",
+            GObject.ParamFlags.READABLE,
+            false
+        ),
+        "repeat-icon-name": GObject.ParamSpec.string(
+            "repeat-icon-name",
+            "repeat-icon-name-prop",
+            "The name of the icon in the repeat button",
+            GObject.ParamFlags.READABLE,
+            "media-playlist-repeat-symbolic"
         ),
         "cover-url": GObject.ParamSpec.string(
             "cover-url",
@@ -539,6 +552,13 @@ var MprisProxyHandler = GObject.registerClass({
             1.0,
             0.0
         ),
+        "show-volume": GObject.ParamSpec.boolean(
+            "show-volume",
+            "show-volume-prop",
+            "If the volume slider should be shown",
+            GObject.ParamFlags.READABLE,
+            false
+        ),
         "gicon": GObject.ParamSpec.object(
             "gicon",
             "gicon-prop",
@@ -566,6 +586,12 @@ var MprisProxyHandler = GObject.registerClass({
         this._playpause_reactive = false;
         this._playpause_icon_name = "media-playback-start-symbolic";
         this._next_reactive = false;
+        this._show_shuffle_repeat = false;
+        this._shuffle_reactive = false;
+        this._shuffle_active = false;
+        this._repeat_reactive = false;
+        this._repeat_active = false;
+        this._repeat_icon_name = "media-playlist-repeat-symbolic";
         this._cover_url = "";
         this._artist = "";
         this._title = "";
@@ -573,7 +599,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._playback_status = 0;
         this._status_time = 0;
         this._volume = 0.0;
-        this._workingVolume = false;
+        this._show_volume = false;
         this._mimetype_icon_name = "audio-x-generic-symbolic";
         this._gicon = Gio.ThemedIcon.new(this._mimetype_icon_name);
         this._gicon.isSymbolic = true;
@@ -632,8 +658,32 @@ var MprisProxyHandler = GObject.registerClass({
         return this._playpause_icon_name || "media-playback-start-symbolic";
     }
 
+    get show_shuffle_repeat() {
+        return this._show_shuffle_repeat || false;
+    }
+
     get next_reactive() {
         return this._next_reactive || false;
+    }
+
+    get shuffle_reactive() {
+        return this._shuffle_reactive || false;
+    }
+
+    get shuffle_active() {
+        return this._shuffle_active || false;
+    }
+
+    get repeat_reactive() {
+        return this._repeat_reactive || false;
+    }
+
+    get repeat_active() {
+        return this._repeat_active || false;
+    }
+
+    get repeat_icon_name() {
+        return this._repeat_icon_name || "media-playlist-repeat-symbolic";
     }
 
     get cover_url() {
@@ -664,27 +714,27 @@ var MprisProxyHandler = GObject.registerClass({
         return this._appWrapper ? this._appWrapper.user_time : 0;
     }
 
+    get show_volume() {
+        return this._show_volume || false;
+    }
+
     get volume() {
         return this._volume || 0.0;
     }
 
     set volume(newVolume) {
         newVolume = newVolume ? Math.max(0.0, Math.min(newVolume, 1.0)) : 0.0;
-        if (this._playerProxy && this._playerProxy.Volume !== newVolume) {
+        if (this._playerProxy && this._show_volume && this._volume !== newVolume) {
             this._playerProxy.Volume = newVolume;
         }
     }
 
     volumeUp() {
-        if (this._playerProxy && this._workingVolume && this._volume < 1.0) {
-            this._playerProxy.Volume = Math.min(this._volume + 0.05, 1.0);
-        }
+        this.volume = this._volume + 0.05;
     }
 
     volumeDown() {
-        if (this._playerProxy && this._workingVolume && this._volume > 0.0) {
-            this._playerProxy.Volume = Math.max(this._volume - 0.05, 0.0);
-        }
+        this.volume = this._volume - 0.05;
     }
 
     toggleWindow(minimize) {
@@ -751,6 +801,21 @@ var MprisProxyHandler = GObject.registerClass({
         return false;
     }
 
+    toggleShuffle() {
+        if (this._shuffle_reactive) {
+            this._playerProxy.Shuffle = !this._shuffle_active;
+        }
+    }
+
+    cycleRepeat() {
+        if (this._repeat_reactive) {
+            let loopStatus = this._playerProxy.LoopStatus || "None";
+            this._playerProxy.LoopStatus = loopStatus === "None" ? "Playlist"
+                : loopStatus === "Playlist" ? "Track"
+                : "None";
+        }
+    }
+
     _raise() {
         if (this._mprisProxy && this._mprisProxy.CanRaise) {
             this._mprisProxy.RaiseRemote();
@@ -772,15 +837,25 @@ var MprisProxyHandler = GObject.registerClass({
             if (props.includes("Metadata")) {
                 this._updateMetadata();
             }
+            if (props.includes("Shuffle")) {
+                this._updateShuffle();
+            }
+            if (props.includes("LoopStatus")) {
+                this._updateLoopStatus();
+            }
             if (props.includes("Volume")) {
-                this._workingVolume = true;
+                if (!this._show_volume) {
+                    this._show_volume = true;
+                    this.notify("show-volume");
+                }
                 this._updateVolume();
             }
         });
         this._updateMprisProps();
         this._updatePlayerProps();
         this._updateMetadata();
-        this._updateVolume();
+        this._testShuffleLoopStatus();
+        this._testVolume();
         this._cancellable = null;
     }
 
@@ -975,19 +1050,88 @@ var MprisProxyHandler = GObject.registerClass({
         }
     }
 
-    testVolume() {
+    _testShuffleLoopStatus() {
+        // This should cause a Shuffle and LoopStatus prop change signals
+        // if the player's Shuffle and LoopStatus props work correctly (and even exist, they are optional),
+        // which in turn should cause the buttons to show themselves.
+        // Otherwise they remain hidden since it's pointless to show widgets that don't do anything...
+        // For the sake of UI symmetry if either Shuffle or Loopstatus works both buttons will be shown,
+        // the button shown for whichever non-functional prop will just be non-reactive.
+        if (this._playerProxy.Shuffle !== null) {
+            let initialShuffle = this._playerProxy.Shuffle || false;
+            this._playerProxy.Shuffle = !initialShuffle;
+            this._playerProxy.Shuffle = initialShuffle;
+        }
+        if (this._playerProxy.LoopStatus !== null) {
+            let initialLoopStatus = this._playerProxy.LoopStatus || "None";
+            this._playerProxy.LoopStatus = initialLoopStatus === "None" ? "Playlist"
+                : loopStatus === "Playlist" ? "Track"
+                : "None";
+            this._playerProxy.LoopStatus = initialLoopStatus;
+        }
+    }
+
+    _updateShuffle() {
+        let shuffle_reactive = this._playerProxy.Shuffle !== null;
+        let shuffle_active = this._playerProxy.Shuffle || false;
+        let show_shuffle_repeat = shuffle_reactive || this._repeat_reactive;
+
+        if (this._shuffle_reactive !== shuffle_reactive) {
+            this._shuffle_reactive = shuffle_reactive;
+            this.notify("shuffle-reactive");
+        }
+        if (this._shuffle_active !== shuffle_active) {
+            this._shuffle_active = shuffle_active;
+            this.notify("shuffle-active");
+        }
+        if (this._show_shuffle_repeat !== show_shuffle_repeat) {
+            this._show_shuffle_repeat = show_shuffle_repeat;
+            this.notify("show-shuffle-repeat");
+        }
+    }
+
+    _updateLoopStatus() {
+        let repeat_reactive = this._playerProxy.LoopStatus !== null;
+        let show_shuffle_repeat = this._shuffle_reactive || repeat_reactive;
+        let loopStatus = this._playerProxy.LoopStatus || "None";
+        let repeat_active = loopStatus !== "None";
+        let repeat_icon_name = loopStatus == "Track"
+            ? "media-playlist-repeat-song-symbolic"
+            : "media-playlist-repeat-symbolic";
+
+        if (this._repeat_reactive !== repeat_reactive) {
+            this._repeat_reactive = repeat_reactive;
+            this.notify("repeat-reactive");
+        }
+        if (this._repeat_active !== repeat_active) {
+            this._repeat_active = repeat_active;
+            this.notify("repeat-active");
+        }
+        if (this._repeat_icon_name !== repeat_icon_name) {
+            this._repeat_icon_name = repeat_icon_name;
+            this.notify("repeat-icon-name");
+        }
+        if (this._show_shuffle_repeat !== show_shuffle_repeat) {
+            this._show_shuffle_repeat = show_shuffle_repeat;
+            this.notify("show-shuffle-repeat");
+        }
+    }
+
+    _testVolume() {
         // This should cause a Volume props change signal
         // if the player's Volume prop works correctly,
         // which in turn should cause the volume slider to show itself.
         // Spotify's Volume prop is broken for example so the volume slider
         // remains hidden since it's pointless to show a widget that doesn't do anything...
-        let initialVolume = this._playerProxy.Volume;
-        this._playerProxy.Volume = initialVolume <= 0.0
-            ? 0.1
-            : initialVolume >= 1.0
-            ? 0.9
-            : Math.min(initialVolume - 0.1, 0.0);
-        this._playerProxy.Volume = initialVolume;
+        if (this._playerProxy.Volume !== null) {
+            let initialVolume = this._playerProxy.Volume || 0.0;
+            this._playerProxy.Volume = initialVolume <= 0.0
+                ? 0.1
+                : initialVolume >= 1.0
+                ? 0.9
+                : Math.min(initialVolume - 0.1, 0.0);
+            this._playerProxy.Volume = initialVolume;
+        }
     }
 
     _updateVolume() {
@@ -1092,6 +1236,12 @@ var MprisProxyHandler = GObject.registerClass({
         this._playpause_reactive = null;
         this._playpause_icon_name = null;
         this._next_reactive = null;
+        this._show_shuffle_repeat = null;
+        this._shuffle_reactive = null;
+        this._shuffle_active = null;
+        this._repeat_reactive = null;
+        this._repeat_active = null;
+        this._repeat_icon_name = null;
         this._cover_url = null;
         this._artist = null;
         this._title = null;
@@ -1099,7 +1249,7 @@ var MprisProxyHandler = GObject.registerClass({
         this._playback_status = null;
         this._status_time = null;
         this._volume = null;
-        this._workingVolume = null;
+        this._show_volume = null;
         this._gicon = null;
         this._mimetype_icon_name = null;
         this._cancellable = null;

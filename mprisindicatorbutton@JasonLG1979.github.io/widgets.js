@@ -61,10 +61,10 @@ var CoverIcon = GObject.registerClass({
         super._init({
             name: name,
             style: "padding-right: 10px;",
-            icon_size: 32,
             opacity: 153,
             y_align: Clutter.ActorAlign.CENTER,
-            accessible_role: Atk.Role.ICON
+            accessible_role: Atk.Role.ICON,
+            icon_size: 32
         });
 
         this._cancellable = null;
@@ -172,12 +172,21 @@ var TrackLabel = GObject.registerClass({
 });
 
 var MediaControlButton = GObject.registerClass({
-    GTypeName: "MediaControlButton"
+    GTypeName: "MediaControlButton",
+    Properties: {
+        "active": GObject.ParamSpec.boolean(
+            "active",
+            "active-prop",
+            "If the button should appear active",
+            GObject.ParamFlags.READWRITE,
+            true
+        )
+    }
 }, class MediaControlButton extends St.Button {
     _init(name, iconName) {
         super._init({
             name: name,
-            style: "padding: 10px, 10px, 10px, 10px;",
+            style: "padding: 10px",
             opacity: 204,
             accessible_role: Atk.Role.PUSH_BUTTON,
             child: new St.Icon({
@@ -187,17 +196,29 @@ var MediaControlButton = GObject.registerClass({
             })
         });
 
+        this._active = true;
+
         let callback = () => {
-            this.opacity = !this.reactive ? 102 : this.hover ? 255 : 204;
+            this.opacity = !this.reactive ? 102 : this.hover ? 255 : !this._active ? 102 : 204;
         };
 
         let signalIds = [
             this.connect("notify::hover", callback),
             this.connect("notify::reactive", callback),
+            this.connect("notify::active", callback),
             this.connect("destroy", () => {
                 signalIds.forEach(signalId => this.disconnect(signalId));
+                this._active = null;
             })
         ];
+    }
+
+    set active(active) {
+        this._active = active;
+    }
+
+    get active() {
+        return this._active || true;
     }
 });
 
