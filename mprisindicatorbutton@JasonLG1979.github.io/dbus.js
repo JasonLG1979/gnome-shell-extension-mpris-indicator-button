@@ -1065,7 +1065,7 @@ var MprisProxyHandler = GObject.registerClass({
         if (this._playerProxy.LoopStatus !== null) {
             let initialLoopStatus = this._playerProxy.LoopStatus || "None";
             this._playerProxy.LoopStatus = initialLoopStatus === "None" ? "Playlist"
-                : loopStatus === "Playlist" ? "Track"
+                : initialLoopStatus === "Playlist" ? "Track"
                 : "None";
             this._playerProxy.LoopStatus = initialLoopStatus;
         }
