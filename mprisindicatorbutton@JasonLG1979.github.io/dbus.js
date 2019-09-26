@@ -1904,6 +1904,8 @@ const MprisProxyHandler = GObject.registerClass({
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             this._mprisProxy.run_dispose();
             this._playerProxy.run_dispose();
+        }
+        if (this._appWrapper) {
             this._appWrapper.destroy();
         }
         this._pid = null;
