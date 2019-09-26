@@ -266,7 +266,7 @@ const CustomButton = GObject.registerClass({
             reactive: true,
             accessible_role: Atk.Role.PUSH_BUTTON,
             icon_name: icon_name,
-            style: style || "",
+            style: style || null,
             style_class: "popup-menu-icon",
         });
 
