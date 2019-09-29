@@ -38,7 +38,7 @@ const VOULME_ICONS = [
 
 const Ornament = {
     NONE: 0,
-    ARROW: 1,
+    SHOW: 1,
     CHECK: 2,
 };
 
@@ -241,8 +241,8 @@ const CoverIcon = GObject.registerClass({
     }
 });
 
-const CustomButton = GObject.registerClass({
-    GTypeName: "CustomButton",
+const MediaButton = GObject.registerClass({
+    GTypeName: "MediaButton",
     Signals: {
         "clicked": {
             flags: GObject.SignalFlags.RUN_FIRST
@@ -257,8 +257,8 @@ const CustomButton = GObject.registerClass({
             true
         )
     }
-}, class CustomButton extends St.Icon {
-    _init(icon_name, style) {
+}, class MediaButton extends St.Icon {
+    _init(icon_name) {
         super._init({
             opacity: 204,
             track_hover: true,
@@ -266,8 +266,7 @@ const CustomButton = GObject.registerClass({
             reactive: true,
             accessible_role: Atk.Role.PUSH_BUTTON,
             icon_name: icon_name,
-            style: style || null,
-            style_class: "popup-menu-icon",
+            style_class: "media-controls-button",
         });
 
         this._active = true;
@@ -401,12 +400,12 @@ const MainItem = GObject.registerClass({
         // aloud the name of the unicode
         // character in ornamentLabel...
         this._ornamentLabel.destroy();
-        this._arrowIcon = new St.Icon({
-            style_class: "popup-menu-arrow",
-            icon_name: "pan-end-symbolic",
+        this._bulletIcon = new St.Icon({
+            icon_name: "media-record-symbolic",
+            style_class: "current-item-bullet",
             opacity: 0
         });
-        this.add(this._arrowIcon);
+        this.add(this._bulletIcon);
         this._signals = [];
         this.pushSignal(this, "destroy", this._onDestroy.bind(this));
     }
@@ -423,14 +422,14 @@ const MainItem = GObject.registerClass({
     setOrnament(ornament) {
         if (this._ornament !== ornament) {
             this._ornament = ornament;
-            if (ornament === Ornament.ARROW) {
-                this._arrowIcon.opacity = 255;
+            if (ornament === Ornament.SHOW) {
+                this._bulletIcon.opacity = 255;
                 this.add_accessible_state(Atk.StateType.CHECKED);
             } else if (ornament === Ornament.CHECK) {
-                this._arrowIcon.opacity = 0;
+                this._bulletIcon.opacity = 0;
                 this.add_accessible_state(Atk.StateType.CHECKED);
             } else if (ornament === Ornament.NONE) {
-                this._arrowIcon.opacity = 0;
+                this._bulletIcon.opacity = 0;
                 this.remove_accessible_state(Atk.StateType.CHECKED);
             }
         }
@@ -453,45 +452,44 @@ const MediaControlsItem = GObject.registerClass({
 
         let box = new St.BoxLayout({
             y_expand: true,
-            style_class: "popup-menu-item",
-            style: "padding: 0px;",
+            style_class: "media-controls-box",
             x_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.INTERNAL_FRAME
         });
 
         this.add(box, {expand: true});
 
-        this.shuffleButton = new CustomButton(
+        this.shuffleButton = new MediaButton(
             "media-playlist-shuffle-symbolic"
         );
 
         box.add(this.shuffleButton);
 
-        this.prevButton = new CustomButton(
+        this.prevButton = new MediaButton(
             "media-skip-backward-symbolic"
         );
 
         box.add(this.prevButton);
 
-        this.playPauseButton = new CustomButton(
+        this.playPauseButton = new MediaButton(
             "media-playback-start-symbolic"
         );
 
         box.add(this.playPauseButton);
 
-        this.stopButton = new CustomButton(
+        this.stopButton = new MediaButton(
             "media-playback-stop-symbolic"
         );
 
         box.add(this.stopButton);
 
-        this.nextButton = new CustomButton(
+        this.nextButton = new MediaButton(
             "media-skip-forward-symbolic"
         );
 
         box.add(this.nextButton);
 
-        this.repeatButton = new CustomButton(
+        this.repeatButton = new MediaButton(
             "media-playlist-repeat-symbolic"
         );
 
@@ -723,12 +721,19 @@ const PlayerItem = GObject.registerClass({
 }, class PlayerItem extends TrackItem {
     _init() {
         super._init();
-        this.closeButton = new CustomButton(
-            "window-close-symbolic",
-            "padding: 0px;"
-        );
+        this.closeButton = new St.Button({
+            style_class: "player-quit-button",
+            child: new St.Icon({
+                style_class: "player-quit-icon",
+                icon_name: "window-close-symbolic"
+            })
+        });
         this.closeButton.hide();
-        this.add(this.closeButton);
+        this.add(
+            new St.Bin({
+                child: this.closeButton
+            })
+        );
     }
 
     _onButtonReleaseEvent(actor, event) {
@@ -812,7 +817,7 @@ const SubMenu = GObject.registerClass({
                 this._current_obj_id = current_obj_id;
                 this.menu._getMenuItems().forEach(i => {
                     let ornament = current_obj_id === i.obj_id
-                        ? Ornament.ARROW
+                        ? Ornament.SHOW
                         : Ornament.NONE
                     i.setOrnament(ornament);
                 });
@@ -1322,7 +1327,7 @@ var MprisIndicatorButton = GObject.registerClass({
             players.forEach(player => {
                 if (player === activePlayer) {
                     if (numOfPlayers > 1) {
-                        player.setOrnament(Ornament.ARROW);
+                        player.setOrnament(Ornament.SHOW);
                     } else {
                         player.setOrnament(Ornament.CHECK);
                     }

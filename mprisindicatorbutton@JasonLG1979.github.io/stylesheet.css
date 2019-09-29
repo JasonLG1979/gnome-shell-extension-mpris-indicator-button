@@ -1,0 +1,33 @@
+.current-item-bullet {
+  color: inherit;
+  height: 1.09em;
+  width: 1.09em;
+  icon-size: 0.545em;
+}
+
+.player-quit-icon {
+  icon-size: 1.09em;
+}
+
+.player-quit-button {
+  border-radius: 1.635em;
+  height: 1.635em;
+  width: 1.635em;
+}
+
+.player-quit-button:hover {
+  background-color: rgba(237, 51, 59, 1);
+ }
+
+.player-quit-button:active {
+  background-color: rgba(192, 28, 40, 1);
+}
+
+.media-controls-box {
+  spacing: 0.545em;
+}
+
+.media-controls-button {
+  icon-size: 1.09em;
+  padding: 0em 0.545em 0em 0.545em;
+}
