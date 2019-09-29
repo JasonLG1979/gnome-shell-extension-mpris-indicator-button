@@ -34,3 +34,7 @@
   icon-size: 1.09em;
   padding: 0em 0.545em 0em 0.545em;
 }
+
+.title-label {
+  font-weight: lighter;
+}

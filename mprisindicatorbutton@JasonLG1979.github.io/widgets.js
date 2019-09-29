@@ -372,7 +372,7 @@ const TrackInfo = GObject.registerClass({
 
         this.titleLabel = new St.Label({
             x_expand: true,
-            style: "font-weight: lighter;"
+            style_class: "title-label"
         });
 
         this.add(this.titleLabel, {expand: true});
@@ -774,10 +774,8 @@ const SubMenu = GObject.registerClass({
         super._init("", true);
         this.hide();
         this._ornamentLabel.destroy();
-        let spacer = new St.Icon({
-            style_class: "popup-menu-arrow",
-            icon_name: "pan-end-symbolic",
-            opacity: 0
+        let spacer = new St.Bin({
+            style_class: "current-item-bin"
         });
         this.insert_child_at_index(spacer, 0);
         this._proxy = null;
