@@ -405,7 +405,13 @@ const MainItem = GObject.registerClass({
             style_class: "current-item-bullet",
             opacity: 0
         });
-        this.add(this._bulletIcon);
+
+        this.add(
+            new St.Bin({
+                style_class: "current-item-bin",
+                child: this._bulletIcon
+            })
+        );
         this._signals = [];
         this.pushSignal(this, "destroy", this._onDestroy.bind(this));
     }

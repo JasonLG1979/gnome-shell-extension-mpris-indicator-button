@@ -1,7 +1,10 @@
+.current-item-bin {
+  width: 1.09em;
+}
+
 .current-item-bullet {
   color: inherit;
-  height: 1.09em;
-  width: 1.09em;
+  padding-left: 0.545em; 
   icon-size: 0.545em;
 }
 
