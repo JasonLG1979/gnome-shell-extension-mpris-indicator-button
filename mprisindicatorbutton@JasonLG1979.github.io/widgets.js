@@ -42,6 +42,19 @@ const Ornament = {
     CHECK: 2,
 };
 
+function getSymbolicGiconByName(name) {
+    // Gtk.IconTheme.get_default().append_search_path seems to work correctly in init
+    // as Gtk.IconTheme.get_default().has_icon("current-item-left-symbolic")
+    // returns true, but creating a St.Icon with the icon_name of "current-item-left-symbolic"
+    // fails for some reason, so this little hack is needed for the time being.
+    let iconInfo = Gtk.IconTheme.get_default().lookup_icon(
+        name,
+        -1,
+        Gtk.IconLookupFlags.FORCE_SVG | Gtk.IconLookupFlags.FORCE_SYMBOLIC
+    );
+    return Gio.icon_new_for_string(iconInfo.get_filename());
+}
+
 class CoverArtIOHandler {
     // For it to work as intended there can only
     // be 1 instance of CoverArtIOHandler but it
@@ -266,7 +279,7 @@ const MediaButton = GObject.registerClass({
             reactive: true,
             accessible_role: Atk.Role.PUSH_BUTTON,
             icon_name: icon_name,
-            style_class: "media-controls-button",
+            style_class: "popup-menu-arrow media-controls-button",
         });
 
         this._active = true;
@@ -365,14 +378,15 @@ const TrackInfo = GObject.registerClass({
         });
 
         this.artistLabel = new St.Label({
-            x_expand: true
+            x_expand: true,
+            style_class: "normal-label"
         });
 
         this.add(this.artistLabel, {expand: true});
 
         this.titleLabel = new St.Label({
             x_expand: true,
-            style_class: "title-label"
+            style_class: "lighter-label"
         });
 
         this.add(this.titleLabel, {expand: true});
@@ -401,17 +415,10 @@ const MainItem = GObject.registerClass({
         // character in ornamentLabel...
         this._ornamentLabel.destroy();
         this._bulletIcon = new St.Icon({
-            icon_name: "media-record-symbolic",
-            style_class: "current-item-bullet",
+            style_class: "popup-menu-arrow",
             opacity: 0
         });
-
-        this.add(
-            new St.Bin({
-                style_class: "current-item-bin",
-                child: this._bulletIcon
-            })
-        );
+        this.add(this._bulletIcon);
         this._signals = [];
         this.pushSignal(this, "destroy", this._onDestroy.bind(this));
     }
@@ -451,14 +458,18 @@ const MainItem = GObject.registerClass({
 
 const MediaControlsItem = GObject.registerClass({
     GTypeName: "MediaControlsItem"
-}, class MediaControlsItem extends MainItem {
+}, class MediaControlsItem extends PopupBaseMenuItem {
     _init() {
         super._init();
+        this._ornamentLabel.destroy();
+        this.add_style_class_name("media-controls-item");
+        this._signals = [];
+        this.pushSignal(this, "destroy", this._onDestroy.bind(this));
         this.hide();
 
         let box = new St.BoxLayout({
             y_expand: true,
-            style_class: "media-controls-box",
+            x_expand: false,
             x_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.INTERNAL_FRAME
         });
@@ -502,6 +513,25 @@ const MediaControlsItem = GObject.registerClass({
         box.add(this.repeatButton);
     }
 
+    setOrnament(ornament) {
+    }
+
+    pushSignal(obj, signalName, callback) {
+        let signalId = obj.connect(signalName, callback);
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
+        });
+        return signalId;
+    }
+
+    _onDestroy() {
+        if (this._signals) {
+            this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
+            this._signals = null;
+        }
+    }
+
     _onButtonReleaseEvent(actor, event) {
         actor.remove_style_pseudo_class("active");
         return Clutter.EVENT_PROPAGATE;
@@ -526,7 +556,9 @@ const Volume = GObject.registerClass({
         this._preMuteValue = 0.0;
         this._preDragValue = 0.0;
         this._muted = false;
-
+        // It doesn't matter what the icon is.
+        // It's just a spacer. It will never be seen.
+        this._bulletIcon.icon_name = "pan-end-symbolic";
         this._icon = new St.Icon({
             icon_name: "audio-volume-muted-symbolic",
             style_class: "popup-menu-icon",
@@ -694,7 +726,10 @@ const PlayListSubMenuItem = GObject.registerClass({
 }, class PlayListSubMenuItem extends SubMenuItem {
     _init(proxy, metadata) {
         super._init(proxy);
-        this.label = new St.Label();
+        this._bulletIcon.gicon = getSymbolicGiconByName("current-item-left-symbolic");
+        this.label = new St.Label({
+            style_class: "normal-label"
+        });
         this.add(this.label);
         this.updateMetadata(metadata);
     }
@@ -727,10 +762,11 @@ const PlayerItem = GObject.registerClass({
 }, class PlayerItem extends TrackItem {
     _init() {
         super._init();
+        this._bulletIcon.gicon = getSymbolicGiconByName("current-item-right-symbolic");
         this.closeButton = new St.Button({
             style_class: "player-quit-button",
             child: new St.Icon({
-                style_class: "player-quit-icon",
+                style_class: "popup-menu-arrow",
                 icon_name: "window-close-symbolic"
             })
         });
@@ -757,6 +793,7 @@ const TrackListSubMenuItem = GObject.registerClass({
 }, class TrackListSubMenuItem extends TrackItem {
     _init(proxy, metadata) {
         super._init(proxy);
+        this._bulletIcon.gicon = getSymbolicGiconByName("current-item-left-symbolic");
         this.updateMetadata(metadata);
     }
 
@@ -774,8 +811,10 @@ const SubMenu = GObject.registerClass({
         super._init("", true);
         this.hide();
         this._ornamentLabel.destroy();
-        let spacer = new St.Bin({
-            style_class: "current-item-bin"
+        let spacer = new St.Icon({
+            style_class: "popup-menu-arrow",
+            icon_name: "pan-end-symbolic",
+            opacity: 0
         });
         this.insert_child_at_index(spacer, 0);
         this._proxy = null;
@@ -873,7 +912,6 @@ const SubMenu = GObject.registerClass({
     }
 
     setOrnament(ornament) {
-        return;
     }
 });
 

@@ -27,6 +27,10 @@ const { MprisIndicatorButton } = imports.misc.extensionUtils.getCurrentExtension
 
 var indicator = null;
 
+function init(extensionMeta) {
+    imports.gi.Gtk.IconTheme.get_default().append_search_path(extensionMeta.path + "/icons");
+}
+
 function enable() {
     stockMpris.actor.hide();
     stockMpris._shouldShow = () => false;
