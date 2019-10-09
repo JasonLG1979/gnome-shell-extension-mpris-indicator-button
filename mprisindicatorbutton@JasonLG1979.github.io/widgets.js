@@ -43,16 +43,18 @@ const Ornament = {
 };
 
 function getSymbolicGiconByName(name) {
-    // Gtk.IconTheme.get_default().append_search_path seems to work correctly in init
-    // as Gtk.IconTheme.get_default().has_icon("current-item-left-symbolic")
-    // returns true, but creating a St.Icon with the icon_name of "current-item-left-symbolic"
-    // fails for some reason, so this little hack is needed for the time being.
-    let iconInfo = Gtk.IconTheme.get_default().lookup_icon(
-        name,
-        -1,
-        Gtk.IconLookupFlags.FORCE_SVG | Gtk.IconLookupFlags.FORCE_SYMBOLIC
-    );
-    return Gio.icon_new_for_string(iconInfo.get_filename());
+    let theme = Gtk.IconTheme.get_default();
+    if (theme.has_icon(name)) {
+        let iconInfo = theme.lookup_icon(
+            name,
+            -1,
+            0
+        );
+        if (iconInfo) {
+            return Gio.Icon.new_for_string(iconInfo.get_filename());
+        }
+    }
+    return Gio.ThemedIcon.new("pan-end-symbolic");
 }
 
 class CoverArtIOHandler {
