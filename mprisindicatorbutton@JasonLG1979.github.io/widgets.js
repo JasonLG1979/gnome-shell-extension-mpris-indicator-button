@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.32+
+ * Mpris Indicator Button extension for Gnome Shell 3.34+
  * Copyright 2019 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -27,6 +27,8 @@ const { Slider } = imports.ui.slider;
 
 const { DBusProxyHandler, logError } = imports.misc.extensionUtils.getCurrentExtension().imports.dbus;
 
+const EXT_PATH = imports.misc.extensionUtils.getCurrentExtension().path;
+
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
 const VOULME_ICONS = [
@@ -43,18 +45,7 @@ const Ornament = {
 };
 
 function getSymbolicGiconByName(name) {
-    let theme = Gtk.IconTheme.get_default();
-    if (theme.has_icon(name)) {
-        let iconInfo = theme.lookup_icon(
-            name,
-            -1,
-            0
-        );
-        if (iconInfo) {
-            return Gio.Icon.new_for_string(iconInfo.get_filename());
-        }
-    }
-    return Gio.ThemedIcon.new("pan-end-symbolic");
+    return Gio.Icon.new_for_string(`${EXT_PATH}/icons/${name}.svg`);
 }
 
 class CoverArtIOHandler {
@@ -914,6 +905,7 @@ const SubMenu = GObject.registerClass({
     }
 
     setOrnament(ornament) {
+        return;
     }
 });
 

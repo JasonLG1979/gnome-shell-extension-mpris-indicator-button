@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.32+
+ * Mpris Indicator Button extension for Gnome Shell 3.34+
  * Copyright 2019 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -26,10 +26,6 @@ const shouldShow = stockMpris._shouldShow;
 const { MprisIndicatorButton } = imports.misc.extensionUtils.getCurrentExtension().imports.widgets;
 
 var indicator = null;
-
-function init(extensionMeta) {
-    imports.gi.Gtk.IconTheme.get_default().append_search_path(extensionMeta.path + "/icons");
-}
 
 function enable() {
     stockMpris.actor.hide();
