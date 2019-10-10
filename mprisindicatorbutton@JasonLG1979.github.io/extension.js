@@ -40,6 +40,13 @@ function enable() {
 
 function disable() {
     if (indicator) {
+        // Avoid - "JS ERROR: Exception in callback for signal:
+        // open-state-changed: Error: Argument 'descendant' (type interface) may not be null
+        // _onMenuSet/indicator.menu._openChangedId"
+        // When the Shell disables extensions on screen lock/blank and the menu happens to be open.
+        // If you connect a signal you should disconnect it... GNOME devs...
+        indicator.menu.disconnect(indicator.menu._openChangedId);
+        indicator.menu._openChangedId = null;
         indicator.destroy();
         indicator = null;
     }
