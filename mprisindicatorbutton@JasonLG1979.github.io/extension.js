@@ -18,44 +18,38 @@
  * If this extension breaks your desktop you get to keep all of the pieces...
  */
 
-const Main = imports.ui.main;
+const Panel = imports.ui.main.panel;
 
-const stockMpris = Main.panel.statusArea.dateMenu._messageList._mediaSection;
+const stockMpris = Panel.statusArea.dateMenu._messageList._mediaSection;
 const shouldShow = stockMpris._shouldShow;
 
 const { MprisIndicatorButton } = imports.misc.extensionUtils.getCurrentExtension().imports.widgets;
 
-var indicator = null;
+const ROLE = "mprisindicatorbutton";
 
 function init(extensionMeta) {
     imports.gi.Gtk.IconTheme.get_default().append_search_path(extensionMeta.path + "/icons");
 }
 
 function enable() {
-    stockMpris.actor.hide();
-    stockMpris._shouldShow = () => false;
-    if (!indicator) {
-        indicator = Main.panel.addToStatusArea(
-            "mprisindicatorbutton",
-            new MprisIndicatorButton()
-        );
+    if (!Panel.statusArea[ROLE]) {
+        stockMpris.actor.visible = false;
+        stockMpris._shouldShow = () => false;
+        Panel.addToStatusArea(ROLE, new MprisIndicatorButton());
     }
 }
 
 function disable() {
+    let indicator = Panel.statusArea[ROLE];
     if (indicator) {
+        stockMpris._shouldShow = shouldShow;
+        stockMpris.actor.visible = stockMpris._shouldShow();
         // Avoid - "JS ERROR: Exception in callback for signal:
         // open-state-changed: Error: Argument 'descendant' (type interface) may not be null
         // _onMenuSet/indicator.menu._openChangedId"
         // When the Shell disables extensions on screen lock/blank and the menu happens to be open.
         // If you connect a signal you should disconnect it... GNOME devs...
         indicator.menu.disconnect(indicator.menu._openChangedId);
-        indicator.menu._openChangedId = null;
         indicator.destroy();
-        indicator = null;
-    }
-    stockMpris._shouldShow = shouldShow;
-    if (stockMpris._shouldShow()) {
-        stockMpris.actor.show();
     }
 }
