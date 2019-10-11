@@ -27,8 +27,6 @@ const { Slider } = imports.ui.slider;
 
 const { DBusProxyHandler, logError } = imports.misc.extensionUtils.getCurrentExtension().imports.dbus;
 
-const EXT_PATH = imports.misc.extensionUtils.getCurrentExtension().path;
-
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
 const VOULME_ICONS = [
@@ -45,7 +43,25 @@ const Ornament = {
 };
 
 function getSymbolicGiconByName(name) {
-    return Gio.Icon.new_for_string(`${EXT_PATH}/icons/${name}.svg`);
+    let gicon = null;
+    let theme = Gtk.IconTheme.get_default();
+    if (theme.has_icon(name)) {
+        let iconInfo = theme.lookup_icon(
+            name,
+            -1,
+            Gtk.IconLookupFlags.FORCE_SVG | Gtk.IconLookupFlags.FORCE_SYMBOLIC
+        );
+        if (iconInfo) {
+            let iconPath = iconInfo.get_filename();
+            if (iconPath) {
+                gicon = Gio.Icon.new_for_string(iconPath);
+            }
+        }
+    }
+    if (!gicon) {
+        gicon = Gio.ThemedIcon.new("message-indicator-symbolic");
+    }
+    return gicon;
 }
 
 class CoverArtIOHandler {

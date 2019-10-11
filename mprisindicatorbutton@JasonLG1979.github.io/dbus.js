@@ -1,5 +1,5 @@
 /*
- * Mpris Indicator Button extension for Gnome Shell 3.32+
+ * Mpris Indicator Button extension for Gnome Shell 3.34+
  * Copyright 2019 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
