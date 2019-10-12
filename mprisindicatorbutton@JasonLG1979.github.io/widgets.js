@@ -43,6 +43,11 @@ const Ornament = {
 };
 
 function getSymbolicGiconByName(name) {
+    // Something is broken in Gio in regards to using custom/local icons.
+    // Gtk.IconTheme.get_default().append_search_path seems to work correctly in init
+    // as Gtk.IconTheme.get_default().has_icon(name) returns true, 
+    // but creating a St.Icon with the icon_name of name fails for some reason,
+    // so this little hack is needed for the time being.
     let gicon = null;
     let theme = Gtk.IconTheme.get_default();
     if (theme.has_icon(name)) {
