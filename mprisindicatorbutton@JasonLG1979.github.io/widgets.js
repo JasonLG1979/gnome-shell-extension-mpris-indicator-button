@@ -25,7 +25,7 @@ const { Button } = imports.ui.panelMenu;
 const { PopupBaseMenuItem, PopupSubMenuMenuItem, PopupMenuSection, PopupSeparatorMenuItem } = imports.ui.popupMenu;
 const { Slider } = imports.ui.slider;
 
-const { DBusProxyHandler, logError } = imports.misc.extensionUtils.getCurrentExtension().imports.dbus;
+const { DBusProxyHandler, logMyError } = imports.misc.extensionUtils.getCurrentExtension().imports.dbus;
 
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
@@ -101,7 +101,7 @@ class CoverArtIOHandler {
                     } catch (error) {
                         if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
                             this._fireCallbacks(cover_url, null, null);
-                            logError(error);
+                            logMyError(error);
                         }
                     }
                 }

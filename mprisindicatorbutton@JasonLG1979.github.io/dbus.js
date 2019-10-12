@@ -365,10 +365,10 @@ function parseMetadata(metadata, playerName) {
     return [obj_id, cover_url, artist, title, mimetype_icon];
 }
 
-function logError(error) {
+function logMyError(error) {
     // Cancelling counts as an error don't spam the logs.
     if (!error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED)) {
-        global.log(`[${UUID}]: ${error.message}`);
+        logError(error, `Extension ${UUID}`);
     }
 }
 
@@ -418,7 +418,7 @@ var DBusProxyHandler = GObject.registerClass({
                 }
             });
         } else {
-            logError(error);
+            logMyError(error);
         }
         this._cancellable = null;
     }
@@ -427,7 +427,7 @@ var DBusProxyHandler = GObject.registerClass({
         this._proxy.GetConnectionUnixProcessIDRemote(busName, ([pid]) => {
             makeMprisPoxies(busName, (error, mpris, player, tracklist, playlist) => {
                 if (error) {
-                    logError(error);
+                    logMyError(error);
                     if (this._proxy) {
                         this.emit("remove-player", busName);
                     }
