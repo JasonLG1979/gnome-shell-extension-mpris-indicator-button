@@ -1872,7 +1872,8 @@ const MprisProxyHandler = GObject.registerClass({
             if (desktopEntry.toLowerCase().includes("spotify")) {
                 iconNames = [
                     `${desktopEntry}${extra}`,
-                    `${desktopEntry}-client${extra}`
+                    `${desktopEntry}-client${extra}`,
+                    `com.${desktopEntry}.Client${extra}`
                 ];
             } else {
                 iconNames = [
