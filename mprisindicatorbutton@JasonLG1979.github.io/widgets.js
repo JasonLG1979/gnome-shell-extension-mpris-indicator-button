@@ -1372,7 +1372,7 @@ var MprisIndicatorButton = GObject.registerClass({
                         ? -1
                         : a.statusTime < b.statusTime
                         ? 1
-                        : a.playerName.toLowerCase().localeCompare(b.playerName.toLowerCase());
+                        : players.indexOf(b) - players.indexOf(a);
                 })[0]
                 : null;
         };
