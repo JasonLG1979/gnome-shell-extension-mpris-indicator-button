@@ -1316,6 +1316,10 @@ class Player extends PopupMenuSection {
             return this.previous();
         } else if (scrollDirection === Clutter.ScrollDirection.DOWN) {
             return this.next();
+        } else if (scrollDirection === Clutter.ScrollDirection.LEFT) {
+            return this.volumeDown();
+        } else if (scrollDirection === Clutter.ScrollDirection.RIGHT) {
+            return this.volumeUp();
         }
         return Clutter.EVENT_PROPAGATE;
     }
@@ -1468,6 +1472,10 @@ var MprisIndicatorButton = GObject.registerClass({
                     return player.previous();
                 } else if (scrollDirection === Clutter.ScrollDirection.DOWN) {
                     return player.next();
+                } else if (scrollDirection === Clutter.ScrollDirection.LEFT) {
+                    return player.volumeDown();
+                } else if (scrollDirection === Clutter.ScrollDirection.RIGHT) {
+                    return player.volumeUp();
                 }
             }
             return Clutter.EVENT_PROPAGATE;
