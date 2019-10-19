@@ -20,7 +20,9 @@
 
 const { Atk, Clutter, GLib, Gio, GObject, Gtk, St } = imports.gi;
 
+const { layoutManager } = imports.ui.main;
 const { AggregateLayout } = imports.ui.panel;
+const { DASH_ITEM_LABEL_SHOW_TIME, DASH_ITEM_LABEL_HIDE_TIME } = imports.ui.dash;
 const { Button } = imports.ui.panelMenu;
 const { PopupBaseMenuItem, PopupSubMenuMenuItem, PopupMenuSection, PopupSeparatorMenuItem } = imports.ui.popupMenu;
 const { Slider } = imports.ui.slider;
@@ -413,6 +415,111 @@ const TrackInfo = GObject.registerClass({
         if (this.titleLabel.text !== title) {
             this.titleLabel.text = title;
         }
+    }
+});
+
+const ToolTip = GObject.registerClass({
+    GTypeName: "ToolTip"
+}, class ToolTip extends St.Label {
+    _init(indicator) {
+        super._init({
+            style_class: "osd-window tool-tip",
+            visible: false
+        });
+
+        let focused = false;
+
+        let signals = [];
+
+        let pushSignal = (obj, signalName, callback) => {
+            let signalId = obj.connect(signalName, callback);
+            signals.push({
+                obj: obj,
+                signalId: signalId
+            });
+        };
+
+        pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused) => {
+            // Never show the tool tip if a player is focused. At that point it's
+            // redundant information. Also hide the tool tip if a player becomes
+            // focused while it is visible. (As in maybe the user secondary clicked the indicator)
+            focused = _focused;
+            this.text = title ? `${artist} • ${title}` : `${artist}`;
+            if (!this.visible) {
+                this.clutter_text.queue_relayout();
+            }
+            if ((focused && this.visible) || !this.text) {
+                this._hide();
+            }
+        });
+
+        pushSignal(indicator, "notify::hover", () => {
+            if (indicator.hover && this.text && !indicator.menu.isOpen && !focused && !this.visible) {
+                this.show();
+            } else if (this.visible) {
+                this.hide();
+            }
+        });
+
+        pushSignal(indicator,"notify::visible", () => {
+            if (!indicator.visible && this.visible) {
+                this.hide();
+            }
+        });
+
+        pushSignal(indicator.menu, 'open-state-changed', () => {
+            if (this.visible) {
+                this.hide();
+            }
+        });
+
+        pushSignal(indicator.menu, "destroy", () => {
+            signals.forEach(signal => signal.obj.disconnect(signal.signalId));
+            layoutManager.uiGroup.remove_actor(this);
+            this._indicator = null;
+            focused = null;
+            signals = null;
+        });
+
+        this._indicator = indicator;
+
+        layoutManager.uiGroup.add_actor(this);
+    }
+
+    vfunc_allocate(box, flags) {
+        super.vfunc_allocate(box, flags);
+        let monitor = layoutManager.findMonitorForActor(this._indicator);
+        let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
+        let thisWidth = box.x2 - box.x1;
+        let thisHeight = box.y2 - box.y1;
+        let indAllocation = this._indicator.get_allocation_box();
+        let indWidth = indAllocation.x2 - indAllocation.x1;
+        let indHeight = indAllocation.y2 - indAllocation.y1;
+        let xMargin = Math.ceil(4 * scaleFactor);
+        let yMargin = Math.min(indWidth, indHeight) + xMargin;
+        let [x, y] = this._indicator.get_transformed_position();
+        x = Math.ceil(Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - xMargin - thisWidth), xMargin));
+        y = Math.ceil(Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - yMargin - thisHeight), yMargin));
+        this.set_position(x, y); 
+    }
+
+    vfunc_show() {
+        this.opacity = 0;
+        super.vfunc_show();
+        this.ease({
+            opacity: 255,
+            duration: DASH_ITEM_LABEL_SHOW_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD
+        });
+    }
+
+    vfunc_hide() {
+        this.ease({
+            opacity: 0,
+            duration: DASH_ITEM_LABEL_HIDE_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => super.vfunc_hide()
+        });
     }
 });
 
@@ -1028,6 +1135,14 @@ class Player extends PopupMenuSection {
         return this._mpris ? this._mpris.busName : "";
     }
 
+    get artist() {
+        return this._mpris ? this._mpris.artist : "";
+    }
+
+    get trackTitle() {
+        return this._mpris ? this._mpris.title : "";
+    }
+
     get gicon() {
         return this._mpris ? this._mpris.gicon : null;
     }
@@ -1326,7 +1441,17 @@ class Player extends PopupMenuSection {
 }
 
 var MprisIndicatorButton = GObject.registerClass({
-    GTypeName: "MprisIndicatorButton"
+    GTypeName: "MprisIndicatorButton",
+    Signals: {
+        "update-tooltip": {
+            flags: GObject.SignalFlags.RUN_FIRST,
+            param_types: [
+                GObject.TYPE_STRING, // artist
+                GObject.TYPE_STRING, // title
+                GObject.TYPE_BOOLEAN // focused
+            ]
+        }
+    }
 }, class MprisIndicatorButton extends Button {
     _init() {
         super._init(0.5, "Mpris Indicator Button");
@@ -1385,6 +1510,14 @@ var MprisIndicatorButton = GObject.registerClass({
             let players = getPlayers();
             let numOfPlayers = players.length;
             let activePlayer = getLastActivePlayer(players);
+            if (activePlayer) {
+                this.emit(
+                    "update-tooltip",
+                    activePlayer.artist,
+                    activePlayer.trackTitle,
+                    activePlayer.focused
+                );
+            }
             players.forEach(player => {
                 if (player === activePlayer) {
                     if (numOfPlayers > 1) {
@@ -1509,10 +1642,13 @@ var MprisIndicatorButton = GObject.registerClass({
             updateIndicator();
         });
 
+        let toolTip = new ToolTip(this);
+
         pushSignal(this, "destroy", () => {
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             CoverArtIOHandler.destroy();
             proxyHandler.destroy();
+            toolTip.destroy();
         });
     }
 

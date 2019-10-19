@@ -1738,6 +1738,9 @@ const MprisProxyHandler = GObject.registerClass({
             this._accessible_name = accessible_name;
             this.notify("accessible-name");
         }
+        // For the tooltip
+        let emitUpdateIndicator = this._artist !== artist || this._title !== title;
+
         if (this._artist !== artist) {
             this._artist = artist;
             this.notify("artist");
@@ -1753,6 +1756,9 @@ const MprisProxyHandler = GObject.registerClass({
         if (this._mimetype_icon_name !== mimetype_icon) {
             this._mimetype_icon_name = mimetype_icon;
             this.refreshIcon();
+        }
+        if (emitUpdateIndicator) {
+            this.emit("update-indicator");
         }
     }
 
