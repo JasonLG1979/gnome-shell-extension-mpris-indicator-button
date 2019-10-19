@@ -439,14 +439,6 @@ const ToolTip = GObject.registerClass({
             });
         };
 
-        pushSignal(this, "notify::visible", () => { 
-            this.clutter_text.queue_relayout();
-        });
-
-        pushSignal(this, "notify::size", () => {
-            this.clutter_text.queue_relayout();
-        });
-
         pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused) => {
             // Never show the tool tip if a player is focused. At that point it's
             // redundant information. Also hide the tool tip if a player becomes
@@ -454,7 +446,7 @@ const ToolTip = GObject.registerClass({
             focused = _focused;
             this.text = title ? `${artist} • ${title}` : `${artist}`;
             if ((focused && this.visible) || !this.text) {
-                this._hide();
+                this.hide();
             }
         });
 
@@ -492,7 +484,7 @@ const ToolTip = GObject.registerClass({
     }
 
     vfunc_allocate(box, flags) {
-        super.vfunc_allocate(box, flags);
+        this.clutter_text.queue_relayout();
         let monitor = layoutManager.findMonitorForActor(this._indicator);
         let margin = this.margin_left * 2;
         let thisWidth = (box.x2 - box.x1) + margin;
@@ -503,6 +495,7 @@ const ToolTip = GObject.registerClass({
         let [x, y] = this._indicator.get_transformed_position();
         x = Math.round(Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - indWidth - thisWidth), indWidth));
         y = Math.round(Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - indHeight - thisHeight), indHeight));
+        super.vfunc_allocate(box, flags);
         this.set_position(x, y); 
     }
 
