@@ -439,15 +439,20 @@ const ToolTip = GObject.registerClass({
             });
         };
 
+        pushSignal(this, "notify::visible", () => { 
+            this.clutter_text.queue_relayout();
+        });
+
+        pushSignal(this, "notify::size", () => {
+            this.clutter_text.queue_relayout();
+        });
+
         pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused) => {
             // Never show the tool tip if a player is focused. At that point it's
             // redundant information. Also hide the tool tip if a player becomes
             // focused while it is visible. (As in maybe the user secondary clicked the indicator)
             focused = _focused;
             this.text = title ? `${artist} • ${title}` : `${artist}`;
-            if (!this.visible) {
-                this.clutter_text.queue_relayout();
-            }
             if ((focused && this.visible) || !this.text) {
                 this._hide();
             }
@@ -489,17 +494,15 @@ const ToolTip = GObject.registerClass({
     vfunc_allocate(box, flags) {
         super.vfunc_allocate(box, flags);
         let monitor = layoutManager.findMonitorForActor(this._indicator);
-        let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-        let thisWidth = box.x2 - box.x1;
-        let thisHeight = box.y2 - box.y1;
+        let margin = this.margin_left * 2;
+        let thisWidth = (box.x2 - box.x1) + margin;
+        let thisHeight = (box.y2 - box.y1) + margin;
         let indAllocation = this._indicator.get_allocation_box();
         let indWidth = indAllocation.x2 - indAllocation.x1;
         let indHeight = indAllocation.y2 - indAllocation.y1;
-        let xMargin = Math.ceil(4 * scaleFactor);
-        let yMargin = Math.min(indWidth, indHeight) + xMargin;
         let [x, y] = this._indicator.get_transformed_position();
-        x = Math.ceil(Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - xMargin - thisWidth), xMargin));
-        y = Math.ceil(Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - yMargin - thisHeight), yMargin));
+        x = Math.round(Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - indWidth - thisWidth), indWidth));
+        y = Math.round(Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - indHeight - thisHeight), indHeight));
         this.set_position(x, y); 
     }
 
