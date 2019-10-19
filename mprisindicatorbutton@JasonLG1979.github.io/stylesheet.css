@@ -33,13 +33,14 @@
 }
 
 .tool-tip {
-  padding: 0.6em;
+  spacing: 0.3em;
+  padding: 0.3em 0.6em 0.3em 0.6em;
   margin: 0.3em;
   font-size: 1em;
   font-weight: 400;
-  height: 1.3em;
-  min-height: 1.3em;
-  max-height: 1.3em;
+  height: 1.6em;
+  min-height: 1.6em;
+  max-height: 1.6em;
   max-width: 30em;
   min-width: 0em;
 }

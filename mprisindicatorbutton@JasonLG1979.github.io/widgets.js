@@ -420,12 +420,37 @@ const TrackInfo = GObject.registerClass({
 
 const ToolTip = GObject.registerClass({
     GTypeName: "ToolTip"
-}, class ToolTip extends St.Label {
+}, class ToolTip extends St.BoxLayout {
     _init(indicator) {
         super._init({
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.CENTER,
+            accessible_role: Atk.Role.INTERNAL_FRAME,
             style_class: "osd-window tool-tip",
             visible: false
         });
+
+        let iconName = [
+            "media-playback-stop-symbolic",
+            "media-playback-pause-symbolic",
+            "media-playback-start-symbolic"           
+        ]
+
+        let icon = new St.Icon({
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.START,
+            style_class: "popup-menu-arrow",
+            icon_name: "media-playback-stop-symbolic"
+        });
+
+        this.add(icon);
+
+        let label = new St.Label({
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.START,
+        });
+
+        this.add(label);
 
         let focused = false;
 
@@ -439,19 +464,20 @@ const ToolTip = GObject.registerClass({
             });
         };
 
-        pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused) => {
+        pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused, playbackStatus) => {
             // Never show the tool tip if a player is focused. At that point it's
             // redundant information. Also hide the tool tip if a player becomes
             // focused while it is visible. (As in maybe the user secondary clicked the indicator)
             focused = _focused;
-            this.text = title ? `${artist} • ${title}` : `${artist}`;
-            if ((focused && this.visible) || !this.text) {
+            icon.icon_name = iconName[playbackStatus];
+            label.text = title ? `${artist} • ${title}` : `${artist}`;
+            if ((focused && this.visible) || !label.text) {
                 this.hide();
             }
         });
 
         pushSignal(indicator, "notify::hover", () => {
-            if (indicator.hover && this.text && !indicator.menu.isOpen && !focused && !this.visible) {
+            if (indicator.hover && label.text && !indicator.menu.isOpen && !focused && !this.visible) {
                 this.show();
             } else if (this.visible) {
                 this.hide();
@@ -484,7 +510,6 @@ const ToolTip = GObject.registerClass({
     }
 
     vfunc_allocate(box, flags) {
-        this.clutter_text.queue_relayout();
         let monitor = layoutManager.findMonitorForActor(this._indicator);
         let margin = this.margin_left * 2;
         let thisWidth = (box.x2 - box.x1) + margin;
@@ -1442,9 +1467,10 @@ var MprisIndicatorButton = GObject.registerClass({
         "update-tooltip": {
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
-                GObject.TYPE_STRING, // artist
-                GObject.TYPE_STRING, // title
-                GObject.TYPE_BOOLEAN // focused
+                GObject.TYPE_STRING,  // artist
+                GObject.TYPE_STRING,  // title
+                GObject.TYPE_BOOLEAN, // focused
+                GObject.TYPE_INT      // playbackStatus
             ]
         }
     }
@@ -1511,7 +1537,8 @@ var MprisIndicatorButton = GObject.registerClass({
                     "update-tooltip",
                     activePlayer.artist,
                     activePlayer.trackTitle,
-                    activePlayer.focused
+                    activePlayer.focused,
+                    activePlayer.playbackStatus
                 );
             }
             players.forEach(player => {
