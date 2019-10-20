@@ -425,7 +425,7 @@ const ToolTip = GObject.registerClass({
         super._init({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
-            accessible_role: Atk.Role.INTERNAL_FRAME,
+            accessible_role: Atk.Role.TOOL_TIP,
             style_class: "osd-window tool-tip",
             visible: false
         });
@@ -436,21 +436,21 @@ const ToolTip = GObject.registerClass({
             "media-playback-start-symbolic"           
         ]
 
-        let icon = new St.Icon({
+        this._icon = new St.Icon({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
             style_class: "popup-menu-arrow",
             icon_name: "media-playback-stop-symbolic"
         });
 
-        this.add(icon);
+        this.add(this._icon);
 
-        let label = new St.Label({
+        this._label = new St.Label({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
         });
 
-        this.add(label);
+        this.add(this._label);
 
         let focused = false;
 
@@ -469,15 +469,15 @@ const ToolTip = GObject.registerClass({
             // redundant information. Also hide the tool tip if a player becomes
             // focused while it is visible. (As in maybe the user secondary clicked the indicator)
             focused = _focused;
-            icon.icon_name = iconName[playbackStatus];
-            label.text = title ? `${artist} • ${title}` : `${artist}`;
-            if ((focused && this.visible) || !label.text) {
+            this._icon.icon_name = iconName[playbackStatus];
+            this._label.text = title ? `${artist} • ${title}` : `${artist}`;
+            if ((focused && this.visible) || !this._label.text) {
                 this.hide();
             }
         });
 
         pushSignal(indicator, "notify::hover", () => {
-            if (indicator.hover && label.text && !indicator.menu.isOpen && !focused && !this.visible) {
+            if (indicator.hover && this._label.text && !indicator.menu.isOpen && !focused && !this.visible) {
                 this.show();
             } else if (this.visible) {
                 this.hide();
@@ -500,8 +500,6 @@ const ToolTip = GObject.registerClass({
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             layoutManager.uiGroup.remove_actor(this);
             this._indicator = null;
-            focused = null;
-            signals = null;
         });
 
         this._indicator = indicator;
@@ -510,6 +508,7 @@ const ToolTip = GObject.registerClass({
     }
 
     vfunc_allocate(box, flags) {
+        this._label.clutter_text.queue_relayout();
         let monitor = layoutManager.findMonitorForActor(this._indicator);
         let margin = this.margin_left * 2;
         let thisWidth = (box.x2 - box.x1) + margin;
