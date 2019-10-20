@@ -207,15 +207,15 @@ const CoverIcon = GObject.registerClass({
         this._coverCallback = this._setCoverGicon.bind(this);
         this._fallback_gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
         this.gicon = this._fallback_gicon;
+        this._signals = [];
+        this.pushSignal(this, "destroy", this._onDestroy.bind(this));
+    }
 
-        let destroyId = this.connect("destroy", () => {
-            this.disconnect(destroyId);
-            this._fallback_gicon = null;
-            this._useFallback = null;
-            this._fingerPrint = null;
-            this._coverArtIOHandler.cancel(this._coverCallback);
-            this._coverArtIOHandler = null;
-            this._coverCallback = null;
+    pushSignal(obj, signalName, callback) {
+        let signalId = obj.connect(signalName, callback);
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
         });
     }
 
@@ -266,6 +266,19 @@ const CoverIcon = GObject.registerClass({
             this._fingerPrint = "";
             this.gicon = this._fallback_gicon;
             this.accessible_role = Atk.Role.ICON;
+        }
+    }
+
+    _onDestroy() {
+        if (this._signals) {
+            this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
+            this._signals = null;
+            this._fallback_gicon = null;
+            this._useFallback = null;
+            this._fingerPrint = null;
+            this._coverArtIOHandler.cancel(this._coverCallback);
+            this._coverArtIOHandler = null;
+            this._coverCallback = null;
         }
     }
 });
@@ -917,6 +930,11 @@ const PlayerItem = GObject.registerClass({
                 child: this.closeButton
             })
         );
+        let iconEffect = new Clutter.DesaturateEffect();
+        this.coverIcon.add_effect(iconEffect);
+        this.coverIcon.pushSignal(this.coverIcon, "notify::gicon", () => {
+            iconEffect.enabled = this.coverIcon.gicon instanceof Gio.BytesIcon ? false : true;
+        });
     }
 
     _onButtonReleaseEvent(actor, event) {
@@ -1485,6 +1503,8 @@ var MprisIndicatorButton = GObject.registerClass({
         let indicator = new St.Icon({
             style_class: "system-status-icon"
         });
+
+        indicator.add_effect(new Clutter.DesaturateEffect());
 
         this.add_child(indicator);
 
