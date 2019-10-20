@@ -510,6 +510,7 @@ const ToolTip = GObject.registerClass({
         });
 
         pushSignal(indicator.menu, "destroy", () => {
+            this.remove_all_transitions();
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             layoutManager.uiGroup.remove_actor(this);
             this._indicator = null;
@@ -537,19 +538,23 @@ const ToolTip = GObject.registerClass({
     }
 
     vfunc_show() {
+        this.remove_all_transitions();
         this.opacity = 0;
         super.vfunc_show();
         this.ease({
             opacity: 255,
             duration: DASH_ITEM_LABEL_SHOW_TIME,
+            delay: DASH_ITEM_LABEL_HIDE_TIME / 2,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD
         });
     }
 
     vfunc_hide() {
+        this.remove_all_transitions();
         this.ease({
             opacity: 0,
             duration: DASH_ITEM_LABEL_HIDE_TIME,
+            delay: DASH_ITEM_LABEL_HIDE_TIME / 2,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => super.vfunc_hide()
         });
