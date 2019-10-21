@@ -530,8 +530,10 @@ const ToolTip = GObject.registerClass({
         let indWidth = indAllocation.x2 - indAllocation.x1;
         let indHeight = indAllocation.y2 - indAllocation.y1;
         let [x, y] = this._indicator.get_transformed_position();
-        x = Math.round(Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - indWidth - thisWidth), indWidth));
-        y = Math.round(Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - indHeight - thisHeight), indHeight));
+        let xMargin = Math.floor(x) == 0 || Math.ceil(x + indWidth) >= monitor.width ? indWidth : 0;
+        let yMargin = Math.floor(y) == 0 || Math.ceil(y + indHeight) >= monitor.height ? indHeight : 0; 
+        x = Math.round(Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - xMargin - thisWidth), xMargin));
+        y = Math.round(Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - yMargin - thisHeight), yMargin));
         super.vfunc_allocate(box, flags);
         this.set_position(x, y); 
     }
