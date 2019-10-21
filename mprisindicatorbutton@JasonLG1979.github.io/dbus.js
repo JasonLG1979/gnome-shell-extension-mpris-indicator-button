@@ -483,6 +483,7 @@ const AppWrapper = GObject.registerClass({
         super._init();
         this._app = shellApp;
         this._pid = pid;
+        this._appId = this._app.id.split("/").pop().replace(".desktop", "");
         this._instanceNum = this._getNumbersFromTheEndOf(busName);
         this._nameOwner = nameOwner;
         this._focused = false;
@@ -500,6 +501,10 @@ const AppWrapper = GObject.registerClass({
 
     get focused() {
         return this._focused || false;
+    }
+
+    get id() {
+        return this._appId || "";
     }
 
     get user_time() {
@@ -550,6 +555,7 @@ const AppWrapper = GObject.registerClass({
         this._metaWindowsChangedId = null;
         this._app = null;
         this._pid = null;
+        this._appId = null;
         this._focused = null;
         this._user_time = null;
         this._userActivated = null;
@@ -1449,6 +1455,10 @@ const MprisProxyHandler = GObject.registerClass({
         return (this._appWrapper && this._appWrapper.can_quit) || (this._mprisProxy && this._mprisProxy.CanQuit);
     }
 
+    get app_id() {
+        return this._appWrapper ? this._appWrapper.id : this._desktop_entry;
+    }
+
     get volume() {
         return this._volume || 0.0;
     }
@@ -1864,33 +1874,8 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     _getIcon(symbolic) {
-        // The default Spotify icon name is spotify-client,
-        // but the desktop entry is spotify.
-        // Icon names *should* match the desktop entry...
-        // Who knows if a 3rd party icon theme wil use spotify
-        // or spotify-client as their spotify icon's name and
-        // what they'll name their Spotify symbolic icon if
-        // they have one at all?
-        if (this._desktop_entry) {
-            let extra = symbolic ? "-symbolic" : "";
-            let desktopEntry = this._desktop_entry;
-            let iconNames = [];
-            if (desktopEntry.toLowerCase().includes("spotify")) {
-                iconNames = [
-                    `${desktopEntry}${extra}`,
-                    `${desktopEntry}-client${extra}`,
-                    `com.${desktopEntry}.Client${extra}`
-                ];
-            } else {
-                iconNames = [
-                    `${desktopEntry}${extra}`
-                ];
-            }
-            let currentIconTheme = Gtk.IconTheme.get_default();
-            let iconName = iconNames.find(name => currentIconTheme.has_icon(name));
-            return iconName ? Gio.ThemedIcon.new(iconName) : null;
-        }
-        return null;
+        let iconName = symbolic ? `${this.app_id}-symbolic` : this.app_id;
+        return this.app_id && Gtk.IconTheme.get_default().has_icon(iconName) ? Gio.ThemedIcon.new(iconName) : null;
     }
 
     _getMimeTypeIcon() {
