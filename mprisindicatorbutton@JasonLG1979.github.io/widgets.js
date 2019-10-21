@@ -525,16 +525,15 @@ const ToolTip = GObject.registerClass({
         // by checking the indicator's panel box to see if it's
         // vertical or horizontal and then comparing it's x or y
         // to the monitor's x or y. This has been tested to work
-        // with horizontal panels both the default panel and the
-        // dash to panel extension. It will need to be tested with
-        // vertical panels if they ever become a thing...
+        // with horizontal and vertical panels both the default panel
+        // and the dash to panel extension.
         let vertical = false;
         let side = St.Side.TOP;
-        let panelBox = this._indicator.get_parent();
-        while (panelBox.get_parent()) {
-            panelBox = panelBox.get_parent();
-            if (panelBox.hasOwnProperty("vertical")) {
-                vertical = panelBox.vertical;
+        let box = this._indicator;
+        while (box) {
+            box = box.get_parent();
+            if (box instanceof St.BoxLayout) {
+                vertical = box.get_vertical();
                 break;
             }
         }
