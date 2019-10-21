@@ -520,20 +520,64 @@ const ToolTip = GObject.registerClass({
         layoutManager.addTopChrome(this, {affectsInputRegion: false});
     }
 
+    _getIndicatorPosition() {
+        // Try to detect what side of the monitor the panel is on
+        // by checking the indicator's panel box to see if it's
+        // vertical or horizontal and then comparing it's x or y
+        // to the monitor's x or y. This has been tested to work
+        // with horizontal panels both the default panel and the
+        // dash to panel extension. It will need to be tested with
+        // vertical panels if they ever become a thing...
+        let vertical = false;
+        let side = St.Side.TOP;
+        let panelBox = this._indicator.get_parent();
+        while (panelBox.get_parent()) {
+            panelBox = panelBox.get_parent();
+            if (panelBox.hasOwnProperty("vertical")) {
+                vertical = panelBox.vertical;
+                break;
+            }
+        }
+        let monitor = layoutManager.findMonitorForActor(this._indicator);
+        let [x, y] = this._indicator.get_transformed_position();
+        if (vertical) {
+            side = Math.floor(x) == monitor.x ? St.Side.LEFT : St.Side.RIGHT;
+        } else {
+            side = Math.floor(y) == monitor.y ? St.Side.TOP : St.Side.BOTTOM;
+        }
+        return [monitor, side, x, y];
+    }
+
     vfunc_allocate(box, flags) {
         this._label.clutter_text.queue_relayout();
-        let monitor = layoutManager.findMonitorForActor(this._indicator);
         let margin = this.margin_left * 2;
         let thisWidth = (box.x2 - box.x1) + margin;
         let thisHeight = (box.y2 - box.y1) + margin;
         let indAllocation = this._indicator.get_allocation_box();
         let indWidth = indAllocation.x2 - indAllocation.x1;
         let indHeight = indAllocation.y2 - indAllocation.y1;
-        let [x, y] = this._indicator.get_transformed_position();
-        let xMargin = Math.floor(x) == 0 || Math.ceil(x + indWidth) >= monitor.width ? indWidth : 0;
-        let yMargin = Math.floor(y) == 0 || Math.ceil(y + indHeight) >= monitor.height ? indHeight : 0; 
-        x = Math.round(Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - xMargin - thisWidth), xMargin));
-        y = Math.round(Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - yMargin - thisHeight), yMargin));
+        let [monitor, side, x, y] = this._getIndicatorPosition();
+        switch (side) {
+            // Positioning logic inspired by the Cinnamon Desktop's PanelItemTooltip.
+            case St.Side.BOTTOM:
+                x = Math.round(monitor.x + Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - thisWidth), monitor.x));
+                y = Math.round(monitor.y + y - indHeight);
+                break;
+            case St.Side.TOP:
+                x = Math.round(monitor.x + Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - thisWidth), monitor.x));
+                y = Math.round(monitor.y + indHeight);
+                break;
+            case St.Side.LEFT:
+                x = Math.round(monitor.x + indWidth);
+                y = Math.round(monitor.y + Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - thisHeight), monitor.y));
+                break;
+            case St.Side.RIGHT:
+                x = Math.round(monitor.x + x - thisWidth);
+                y = Math.round(monitor.y + Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - thisHeight), monitor.y));
+                break;
+            default:
+                break;
+        }
         super.vfunc_allocate(box, flags);
         this.set_position(x, y); 
     }
