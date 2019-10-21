@@ -512,13 +512,12 @@ const ToolTip = GObject.registerClass({
         pushSignal(indicator.menu, "destroy", () => {
             this.remove_all_transitions();
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
-            layoutManager.uiGroup.remove_actor(this);
             this._indicator = null;
         });
 
         this._indicator = indicator;
 
-        layoutManager.uiGroup.add_actor(this);
+        layoutManager.addTopChrome(this, {affectsInputRegion: false});
     }
 
     vfunc_allocate(box, flags) {
