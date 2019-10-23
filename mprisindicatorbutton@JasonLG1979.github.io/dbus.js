@@ -483,6 +483,7 @@ const AppWrapper = GObject.registerClass({
         super._init();
         this._app = shellApp;
         this._pid = pid;
+        this._appName = this._app.get_name();
         this._appId = this._app.id.split("/").pop().replace(".desktop", "");
         this._instanceNum = this._getNumbersFromTheEndOf(busName);
         this._nameOwner = nameOwner;
@@ -505,6 +506,10 @@ const AppWrapper = GObject.registerClass({
 
     get id() {
         return this._appId || "";
+    }
+
+    get name() {
+        return this._appName || "";
     }
 
     get user_time() {
@@ -534,11 +539,16 @@ const AppWrapper = GObject.registerClass({
             // that's why they clicked on it...
             if (this._metaWindow) {
                 activateWindow(this._metaWindow);
+                return true;
             } else {
-                this._userActivated = true;
-                this._app.activate();
+                if (!this._app.is_window_backed() && !this._app.get_busy()) {
+                    this._userActivated = true;
+                    this._app.activate();
+                    return true;
+                } else {
+                    return false;
+                }
             }
-            return true;
         } else if (minimize && this._metaWindow && this._metaWindow.can_minimize()) {
             this._metaWindow.minimize();
             return true;
@@ -556,6 +566,7 @@ const AppWrapper = GObject.registerClass({
         this._app = null;
         this._pid = null;
         this._appId = null;
+        this._appName = null;
         this._focused = null;
         this._user_time = null;
         this._userActivated = null;
@@ -1356,7 +1367,7 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     get player_name() {
-        return this._player_name || "";
+        return this._appWrapper && this._appWrapper.name ? this._appWrapper.name : this._player_name || "";
     }
 
     get accessible_name() {
@@ -1658,7 +1669,7 @@ const MprisProxyHandler = GObject.registerClass({
             this._desktop_entry = desktop_entry;
             if (!this._appWrapper && this._desktop_entry) {
                 let desktopId = this._desktop_entry + ".desktop";
-                let identity = this._player_name;
+                let identity = this.player_name;
                 let lcIdentity = identity.toLowerCase();
                 let appSystem = Shell.AppSystem.get_default();
                 let shellApp = appSystem.lookup_app(desktopId) ||
@@ -1683,6 +1694,9 @@ const MprisProxyHandler = GObject.registerClass({
                     this.pushSignal(this._appWrapper, "notify::focused", () => {
                         this.emit("update-indicator");
                     });
+                    if (this._appWrapper.name) {
+                        this.notify("player-name");
+                    }
                 }
             }
             this.refreshIcon();
@@ -1740,10 +1754,10 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     _updateMetadata() {
-        let [obj_id, cover_url, artist, title, mimetype_icon] = parseMetadata(this._playerProxy.Metadata, this._player_name);
+        let [obj_id, cover_url, artist, title, mimetype_icon] = parseMetadata(this._playerProxy.Metadata, this.player_name);
         this._cover_url = cover_url;
         this.notify("cover-url");
-        let accessible_name = (artist == this._player_name) ? "" : this._player_name;
+        let accessible_name = (artist == this.player_name) ? "" : this.player_name;
         if (this._accessible_name !== accessible_name) {
             this._accessible_name = accessible_name;
             this.notify("accessible-name");
