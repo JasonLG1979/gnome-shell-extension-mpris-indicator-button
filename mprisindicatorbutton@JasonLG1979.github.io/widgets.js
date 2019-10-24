@@ -431,17 +431,112 @@ const TrackInfo = GObject.registerClass({
     }
 });
 
+// The point of this Constraint is to try to keep
+// the tooltip in the proper place in relation to the
+// indicator no matter what side of the monitor it's on.
+const ToolTipConstraint = GObject.registerClass({
+    GTypeName: "ToolTipConstraint"
+}, class ToolTipConstraint extends Clutter.Constraint {
+    _init() {
+        super._init();
+    }
+
+    _getIndicatorPosition(indicator) {
+        // Try to detect what side of the monitor the panel is on
+        // by checking the indicator's panel box to see if it's
+        // vertical or horizontal and then comparing it's x or y
+        // to the monitor's x or y. This has been tested to work
+        // with horizontal and vertical panels both the default panel
+        // and the dash to panel extension. (on a single monitor setup)
+        let vertical = false;
+        let side = St.Side.TOP;
+        let box = indicator;
+        // Walk the ancestors of the indicator
+        // until we find a BoxLayout so we can tell
+        // if the panel is horizontal or vertical.
+        while (box) {
+            box = box.get_parent();
+            if (box instanceof St.BoxLayout) {
+                vertical = box.get_vertical();
+                break;
+            }
+        }
+        // Get the monitor the the indicator is on and try to tell
+        // which side it's on.
+        let monitor = layoutManager.findMonitorForActor(indicator);
+        let [x, y] = indicator.get_transformed_position();
+        if (vertical) {
+            side = Math.floor(x) == monitor.x ? St.Side.LEFT : St.Side.RIGHT;
+        } else {
+            side = Math.floor(y) == monitor.y ? St.Side.TOP : St.Side.BOTTOM;
+        }
+        return [monitor, side, x, y];
+    }
+
+    vfunc_update_allocation(actor, box) {
+        if (!actor.indicator) {
+            return;
+        }
+        let thisWidth = box.x2 - box.x1;
+        let thisHeight = box.y2 - box.y1;
+        let indAllocation = actor.indicator.get_allocation_box();
+        let indWidth = indAllocation.x2 - indAllocation.x1;
+        let indHeight = indAllocation.y2 - indAllocation.y1;
+        let [monitor, side, x, y] = this._getIndicatorPosition(actor.indicator);
+        let tooltipTop = monitor.y;
+        let tooltipLeft = monitor.x;
+        switch (side) {
+            // Positioning logic inspired by the Cinnamon Desktop's PanelItemTooltip.
+            // Try to center the tooltip with the indicator but never go off screen
+            // or cover the indicator or panel.
+            case St.Side.BOTTOM:
+                tooltipTop =  monitor.y + monitor.height - thisHeight - indHeight;
+                tooltipLeft = x - ((thisWidth - indWidth) / 2);
+                tooltipLeft = Math.max(tooltipLeft, monitor.x);
+                tooltipLeft = Math.min(tooltipLeft, monitor.x + monitor.width - thisWidth);
+                break;
+            case St.Side.TOP:
+                tooltipTop =  monitor.y + indHeight;
+                tooltipLeft = x - ((thisWidth - indWidth) / 2);
+                tooltipLeft = Math.max(tooltipLeft, monitor.x);
+                tooltipLeft = Math.min(tooltipLeft, monitor.x + monitor.width - thisWidth);
+                break;
+            case St.Side.LEFT:
+                tooltipTop =  y - ((thisHeight - indHeight) / 2);
+                tooltipTop =  Math.max(tooltipTop, monitor.y);
+                tooltipTop =  Math.min(tooltipTop, monitor.y + monitor.height - thisHeight);
+                tooltipLeft = monitor.x + indWidth;
+                break;
+            case St.Side.RIGHT:
+                tooltipTop =  y - ((thisHeight - indHeight) / 2);
+                tooltipTop =  Math.max(tooltipTop, monitor.y);
+                tooltipTop =  Math.min(tooltipTop, monitor.y + monitor.height - thisHeight);
+                tooltipLeft = monitor.x + monitor.width - thisWidth - indWidth;
+                break;
+            default:
+                break;
+        }
+        box.set_origin(Math.round(tooltipLeft), Math.round(tooltipTop));
+        super.vfunc_update_allocation(actor, box);
+    }
+});
+
 const ToolTip = GObject.registerClass({
     GTypeName: "ToolTip"
-}, class ToolTip extends St.BoxLayout {
+}, class ToolTip extends St.Widget {
     _init(indicator) {
         super._init({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.TOOL_TIP,
+            layout_manager: new Clutter.BoxLayout(),
             style_class: "osd-window tool-tip",
             visible: false
         });
+
+        this.indicator = indicator;
+
+        this.add_constraint(new ToolTipConstraint()); 
 
         let iconName = [
             "media-playback-stop-symbolic",
@@ -449,21 +544,23 @@ const ToolTip = GObject.registerClass({
             "media-playback-start-symbolic"           
         ]
 
-        this._icon = new St.Icon({
+        let icon = new St.Icon({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
-            style_class: "popup-menu-arrow",
+            style_class: "popup-menu-arrow tool-tip-icon",
             icon_name: "media-playback-stop-symbolic"
         });
 
-        this.add(this._icon);
+        this.add_child(icon);
 
-        this._label = new St.Label({
+        let label = new St.Label({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
+            style_class: "tool-tip-label",
+            text: "Mpris Indicator Button"
         });
 
-        this.add(this._label);
+        this.add_child(label);
 
         let focused = false;
 
@@ -477,20 +574,24 @@ const ToolTip = GObject.registerClass({
             });
         };
 
+        // I'm not sure why this is necessary? But if not done the tooltip may end
+        // up extremely truncated even if it not even close to it's max size (30em).
+        pushSignal(this, "notify::allocation", () => label.clutter_text.queue_relayout());       
+
         pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused, playbackStatus) => {
             // Never show the tool tip if a player is focused. At that point it's
             // redundant information. Also hide the tool tip if a player becomes
             // focused while it is visible. (As in maybe the user secondary clicked the indicator)
             focused = _focused;
-            this._icon.icon_name = iconName[playbackStatus];
-            this._label.text = title ? `${artist} • ${title}` : `${artist}`;
-            if ((focused && this.visible) || !this._label.text) {
+            icon.icon_name = iconName[playbackStatus];
+            label.text = title ? `${artist} • ${title}` : `${artist}`;
+            if ((focused && this.visible) || !label.text) {
                 this.hide();
             }
         });
 
         pushSignal(indicator, "notify::hover", () => {
-            if (indicator.hover && this._label.text && !indicator.menu.isOpen && !focused && !this.visible) {
+            if (indicator.hover && label.text && !indicator.menu.isOpen && !focused && !this.visible) {
                 this.show();
             } else if (this.visible) {
                 this.hide();
@@ -512,73 +613,10 @@ const ToolTip = GObject.registerClass({
         pushSignal(indicator.menu, "destroy", () => {
             this.remove_all_transitions();
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
-            this._indicator = null;
+            this.indicator = null;
         });
 
-        this._indicator = indicator;
-
         layoutManager.addTopChrome(this, {affectsInputRegion: false});
-    }
-
-    _getIndicatorPosition() {
-        // Try to detect what side of the monitor the panel is on
-        // by checking the indicator's panel box to see if it's
-        // vertical or horizontal and then comparing it's x or y
-        // to the monitor's x or y. This has been tested to work
-        // with horizontal and vertical panels both the default panel
-        // and the dash to panel extension.
-        let vertical = false;
-        let side = St.Side.TOP;
-        let box = this._indicator;
-        while (box) {
-            box = box.get_parent();
-            if (box instanceof St.BoxLayout) {
-                vertical = box.get_vertical();
-                break;
-            }
-        }
-        let monitor = layoutManager.findMonitorForActor(this._indicator);
-        let [x, y] = this._indicator.get_transformed_position();
-        if (vertical) {
-            side = Math.floor(x) == monitor.x ? St.Side.LEFT : St.Side.RIGHT;
-        } else {
-            side = Math.floor(y) == monitor.y ? St.Side.TOP : St.Side.BOTTOM;
-        }
-        return [monitor, side, x, y];
-    }
-
-    vfunc_allocate(box, flags) {
-        this._label.clutter_text.queue_relayout();
-        let margin = this.margin_left * 2;
-        let thisWidth = (box.x2 - box.x1) + margin;
-        let thisHeight = (box.y2 - box.y1) + margin;
-        let indAllocation = this._indicator.get_allocation_box();
-        let indWidth = indAllocation.x2 - indAllocation.x1;
-        let indHeight = indAllocation.y2 - indAllocation.y1;
-        let [monitor, side, x, y] = this._getIndicatorPosition();
-        switch (side) {
-            // Positioning logic inspired by the Cinnamon Desktop's PanelItemTooltip.
-            case St.Side.BOTTOM:
-                x = Math.round(monitor.x + Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - thisWidth), monitor.x));
-                y = Math.round(monitor.y + y - indHeight);
-                break;
-            case St.Side.TOP:
-                x = Math.round(monitor.x + Math.max(Math.min(x + ((indWidth - thisWidth) / 2), monitor.width - thisWidth), monitor.x));
-                y = Math.round(monitor.y + indHeight);
-                break;
-            case St.Side.LEFT:
-                x = Math.round(monitor.x + indWidth);
-                y = Math.round(monitor.y + Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - thisHeight), monitor.y));
-                break;
-            case St.Side.RIGHT:
-                x = Math.round(monitor.x + x - thisWidth);
-                y = Math.round(monitor.y + Math.max(Math.min(y + ((indHeight - thisHeight) / 2), monitor.height - thisHeight), monitor.y));
-                break;
-            default:
-                break;
-        }
-        super.vfunc_allocate(box, flags);
-        this.set_position(x, y); 
     }
 
     vfunc_show() {

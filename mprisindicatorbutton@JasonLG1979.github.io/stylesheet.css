@@ -32,15 +32,24 @@
   font-weight: 300;
 }
 
-.tool-tip {
-  spacing: 0.4em;
-  padding: 0.4em 0.8em 0.4em 0.8em;
-  margin: 0.4em;
+.tool-tip-label {
+  text-align: left;
   font-size: 1em;
   font-weight: 400;
+}
+
+.tool-tip-icon {
+  padding-right: 0.4em;
+}
+
+.tool-tip {
+  text-align: left;
+  padding: 0.4em 0.8em 0.4em 0.8em;
+  margin: 0.4em;
   height: 1.8em;
   min-height: 1.8em;
   max-height: 1.8em;
   max-width: 30em;
-  min-width: 0em;
+  width: 0px;
+  min-width: 0px;
 }
