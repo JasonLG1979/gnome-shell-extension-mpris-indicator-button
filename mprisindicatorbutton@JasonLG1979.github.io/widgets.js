@@ -541,42 +541,32 @@ const ToolTipLayout = GObject.registerClass({
         super._init();
         this._container = null;
         this._signals = [];
-        this._alive = true;
     }
 
-    preDestroy() {
-        // Clutter.BoxLayout does not have a destroy signal,
-        // but at some point we want to do some cleanup and stop
-        // it from connecting more signals.
-        if (this._container) {
+    doCleanUp() {
+        // Clutter.BoxLayout does not have a destroy signal to connect to,
+        // but at some point we want to do some cleanup.
+        if (this._container && this._signals) {
             this._signals.forEach(id => this._container.disconnect(id));
         }
         this._container = null;
         this._signals = null;
-        this._alive = null;
     }
 
-    _connectContainer(container) {
-        if (this._container == container || !this._alive) {
-            return;
-        }
-        if (this._container) {
-            this._signals.forEach(id => this._container.disconnect(id));
-        }
+    vfunc_set_container(container) {
         this._container = container;
-        this._signals = [];
-        if (this._container) {
-            ['notify::scale-x', 'notify::scale-y'].forEach(signal => {
-                let id = this._container.connect(signal, () => {
-                    this.layout_changed();
-                });
-                this._signals.push(id);
+        ['notify::scale-x', 'notify::scale-y'].forEach(signal => {
+            let id = this._container.connect(signal, () => {
+                this.layout_changed();
             });
-        }
+            this._signals.push(id);
+        });
+        // Not even really sure if it's necessary
+        // to chain up here? It can't hurt though I guess?
+        super.vfunc_set_container(container);
     }
 
     vfunc_get_preferred_width(container, forHeight) {
-        this._connectContainer(container);
         let natWidth = 0;
         container.get_children().forEach(child => {
             let [childMin, childNat] = child.get_preferred_width(forHeight);
@@ -588,7 +578,6 @@ const ToolTipLayout = GObject.registerClass({
     }
 
     vfunc_get_preferred_height(container, forWidth) {
-        this._connectContainer(container);
         let natHeight = Math.floor(container.get_theme_node().get_min_height() * container.scale_y);
         return [natHeight, natHeight];
     }
@@ -724,7 +713,7 @@ const ToolTip = GObject.registerClass({
         pushSignal(indicator.menu, "destroy", () => {
             // The menu gets destroyed before the actual indicator but is soon to follow.
             this.remove_all_transitions();
-            this.layout_manager.preDestroy();
+            this.layout_manager.doCleanUp();
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             this.indicator = null;
         });
