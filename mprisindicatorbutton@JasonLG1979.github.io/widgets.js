@@ -435,10 +435,19 @@ const TrackInfo = GObject.registerClass({
 // the tooltip in the proper place in relation to the
 // indicator no matter what side of the monitor it's on.
 const ToolTipConstraint = GObject.registerClass({
-    GTypeName: "ToolTipConstraint"
+    GTypeName: "ToolTipConstraint",
+    Signals: {
+        "panel-side-changed": {
+            flags: GObject.SignalFlags.RUN_FIRST,
+            param_types: [
+                GObject.TYPE_INT // St.Side
+            ]
+        }
+    }
 }, class ToolTipConstraint extends Clutter.Constraint {
     _init() {
         super._init();
+        this._panelSide = null;
     }
 
     _getIndicatorPosition(indicator) {
@@ -469,6 +478,10 @@ const ToolTipConstraint = GObject.registerClass({
             side = Math.floor(x) == monitor.x ? St.Side.LEFT : St.Side.RIGHT;
         } else {
             side = Math.floor(y) == monitor.y ? St.Side.TOP : St.Side.BOTTOM;
+        }
+        if (this._panelSide !== side) {
+            this._panelSide = side;
+            this.emit("panel-side-changed", side);
         }
         return [monitor, side, x, y];
     }
@@ -521,6 +534,66 @@ const ToolTipConstraint = GObject.registerClass({
     }
 });
 
+const ToolTipLayout = GObject.registerClass({
+    GTypeName: "ToolTipLayout"
+}, class ToolTipLayout extends Clutter.BoxLayout {
+    _init() {
+        super._init();
+        this._container = null;
+        this._signals = [];
+        this._alive = true;
+    }
+
+    preDestroy() {
+        // Clutter.BoxLayout does not have a destroy signal,
+        // but at some point we want to do some cleanup and stop
+        // it from connecting more signals.
+        if (this._container) {
+            this._signals.forEach(id => this._container.disconnect(id));
+        }
+        this._container = null;
+        this._signals = null;
+        this._alive = null;
+    }
+
+    _connectContainer(container) {
+        if (this._container == container || !this._alive) {
+            return;
+        }
+        if (this._container) {
+            this._signals.forEach(id => this._container.disconnect(id));
+        }
+        this._container = container;
+        this._signals = [];
+        if (this._container) {
+            ['notify::scale-x', 'notify::scale-y'].forEach(signal => {
+                let id = this._container.connect(signal, () => {
+                    this.layout_changed();
+                });
+                this._signals.push(id);
+            });
+        }
+    }
+
+    vfunc_get_preferred_width(container, forHeight) {
+        this._connectContainer(container);
+        let natWidth = 0;
+        container.get_children().forEach(child => {
+            let [childMin, childNat] = child.get_preferred_width(forHeight);
+            let childMax = child.get_theme_node().get_max_width();
+            natWidth += Math.max(childMin, childMax > 0 ? Math.min(childNat, childMax) : childNat);
+        });
+        natWidth = Math.round(natWidth * container.scale_x);
+        return [natWidth, natWidth];
+    }
+
+    vfunc_get_preferred_height(container, forWidth) {
+        this._connectContainer(container);
+        let natHeight = Math.round(container.get_theme_node().get_min_height() * container.scale_y);
+        return [natHeight, natHeight];
+    }
+});
+
 const ToolTip = GObject.registerClass({
     GTypeName: "ToolTip"
 }, class ToolTip extends St.Widget {
@@ -529,16 +602,18 @@ const ToolTip = GObject.registerClass({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.TOOL_TIP,
-            layout_manager: new Clutter.BoxLayout(),
+            layout_manager: new ToolTipLayout(),
             style_class: "osd-window tool-tip",
             visible: false
         });
 
         this.indicator = indicator;
 
-        this.add_constraint(new ToolTipConstraint()); 
+        let constraint = new ToolTipConstraint();
 
-        let iconName = [
+        this.add_constraint(constraint); 
+
+        let iconNames = [
             "media-playback-stop-symbolic",
             "media-playback-pause-symbolic",
             "media-playback-start-symbolic"           
@@ -576,42 +651,80 @@ const ToolTip = GObject.registerClass({
 
         // I'm not sure why this is necessary? But if not done the tooltip may end
         // up extremely truncated even if it not even close to it's max size (30em).
-        pushSignal(this, "notify::allocation", () => label.clutter_text.queue_relayout());       
+        pushSignal(this, "notify::allocation", () => label.clutter_text.queue_relayout());
+
+        pushSignal(constraint, "panel-side-changed", (constraint, side) => {
+            // Sets the pivot point for the animation so that it appears to come from the panel side.
+            let x = 0.5;
+            let y = 0.5;
+            switch (side) {
+                case St.Side.BOTTOM:
+                    y = 1.0;
+                    break;
+                case St.Side.TOP:
+                    y = 0.0;
+                    break;
+                case St.Side.LEFT:
+                    x = 0.0;
+                    break;
+                case St.Side.RIGHT:
+                    x = 1.0;
+                    break;
+                default:
+                    break;
+            }
+            this.set_pivot_point(x, y);
+        });       
 
         pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused, playbackStatus) => {
             // Never show the tool tip if a player is focused. At that point it's
             // redundant information. Also hide the tool tip if a player becomes
             // focused while it is visible. (As in maybe the user secondary clicked the indicator)
             focused = _focused;
-            icon.icon_name = iconName[playbackStatus];
-            label.text = title ? `${artist} • ${title}` : `${artist}`;
+            let iconName = iconNames[playbackStatus];
+            let text = title ? `${artist} • ${title}` : `${artist}`;
+            if (this.visible && (label.text !== text || icon.icon_name !== iconName)) {
+                this._hide(() => {
+                    icon.icon_name = iconName;
+                    label.text = text;
+                    this._show();
+                });
+            } else {
+                icon.icon_name = iconName;
+                label.text = text;
+            }
             if ((focused && this.visible) || !label.text) {
-                this.hide();
+                this._hide(() => {
+                    icon.icon_name = iconName;
+                    label.text = text;
+                });
             }
         });
 
         pushSignal(indicator, "notify::hover", () => {
             if (indicator.hover && label.text && !indicator.menu.isOpen && !focused && !this.visible) {
-                this.show();
+                this._show();
             } else if (this.visible) {
-                this.hide();
+                this._hide();
             }
         });
 
         pushSignal(indicator,"notify::visible", () => {
             if (!indicator.visible && this.visible) {
-                this.hide();
+                this._hide();
             }
         });
 
         pushSignal(indicator.menu, 'open-state-changed', () => {
             if (this.visible) {
-                this.hide();
+                this._hide();
             }
         });
 
         pushSignal(indicator.menu, "destroy", () => {
+            // The menu gets destroyed before the actual indicator but is soon to follow.
             this.remove_all_transitions();
+            this.layout_manager.preDestroy();
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             this.indicator = null;
         });
@@ -619,26 +732,38 @@ const ToolTip = GObject.registerClass({
         layoutManager.addTopChrome(this, {affectsInputRegion: false});
     }
 
-    vfunc_show() {
+    _show() {
         this.remove_all_transitions();
         this.opacity = 0;
-        super.vfunc_show();
+        this.scale_x = 0.0;
+        this.scale_y = 0.0;
+        this.show();
         this.ease({
             opacity: 255,
-            duration: DASH_ITEM_LABEL_SHOW_TIME,
-            delay: DASH_ITEM_LABEL_HIDE_TIME / 2,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            duration: DASH_ITEM_LABEL_HIDE_TIME,
+            delay: DASH_ITEM_LABEL_SHOW_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD
         });
     }
 
-    vfunc_hide() {
+    _hide(onComplete) {
         this.remove_all_transitions();
         this.ease({
             opacity: 0,
+            scale_x: 0.0,
+            scale_y: 0.0,
             duration: DASH_ITEM_LABEL_HIDE_TIME,
-            delay: DASH_ITEM_LABEL_HIDE_TIME / 2,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => super.vfunc_hide()
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            onComplete: () => {
+                this.hide();
+                this.scale_x = 1.0;
+                this.scale_y = 1.0;
+                if (onComplete) {
+                   onComplete(); 
+                }
+            }
         });
     }
 });

@@ -33,9 +33,12 @@
 }
 
 .tool-tip-label {
+  margin: 0em;
+  padding: 0em;
   text-align: left;
   font-size: 1em;
   font-weight: 400;
+  max-width: 28em;
 }
 
 .tool-tip-icon {
@@ -43,13 +46,7 @@
 }
 
 .tool-tip {
-  text-align: left;
   padding: 0.4em 0.8em 0.4em 0.8em;
   margin: 0.4em;
-  height: 1.8em;
   min-height: 1.8em;
-  max-height: 1.8em;
-  max-width: 30em;
-  width: 0px;
-  min-width: 0px;
 }
