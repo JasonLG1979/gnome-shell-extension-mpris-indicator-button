@@ -583,13 +583,13 @@ const ToolTipLayout = GObject.registerClass({
             let childMax = child.get_theme_node().get_max_width();
             natWidth += Math.max(childMin, childMax > 0 ? Math.min(childNat, childMax) : childNat);
         });
-        natWidth = Math.round(natWidth * container.scale_x);
+        natWidth = Math.floor(natWidth * container.scale_x);
         return [natWidth, natWidth];
     }
 
     vfunc_get_preferred_height(container, forWidth) {
         this._connectContainer(container);
-        let natHeight = Math.round(container.get_theme_node().get_min_height() * container.scale_y);
+        let natHeight = Math.floor(container.get_theme_node().get_min_height() * container.scale_y);
         return [natHeight, natHeight];
     }
 });
