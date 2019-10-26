@@ -18,10 +18,10 @@
 }
 
 .media-controls-item {
-  spacing: 0px;
-  padding-left: 0px;
-  padding-right: 0px;
-  margin: 0px;
+  spacing: 0em;
+  padding-left: 0em;
+  padding-right: 0em;
+  margin: 0em;
 }
 
 .normal-label {
@@ -32,21 +32,21 @@
   font-weight: 300;
 }
 
-.tool-tip-label {
-  margin: 0em;
-  padding: 0em;
-  text-align: left;
-  font-size: 1em;
-  font-weight: 400;
-  max-width: 28em;
-}
-
 .tool-tip-icon {
   padding-right: 0.4em;
 }
 
 .tool-tip {
+  text-align: left;
+  font-size: 1em;
+  font-weight: 400;
   padding: 0.4em 0.8em 0.4em 0.8em;
   margin: 0.4em;
+  height: 1.8em;
   min-height: 1.8em;
+  max-height: 1.8em;
+  width: 0em;
+  min-width: 0em;
+  max-width: 30em;
 }
+

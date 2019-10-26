@@ -22,7 +22,7 @@ const { Atk, Clutter, GLib, Gio, GObject, Gtk, St } = imports.gi;
 
 const { layoutManager } = imports.ui.main;
 const { AggregateLayout } = imports.ui.panel;
-const { DASH_ITEM_LABEL_SHOW_TIME, DASH_ITEM_LABEL_HIDE_TIME } = imports.ui.dash;
+const { DASH_ITEM_LABEL_SHOW_TIME } = imports.ui.dash;
 const { Button } = imports.ui.panelMenu;
 const { PopupBaseMenuItem, PopupSubMenuMenuItem, PopupMenuSection, PopupSeparatorMenuItem } = imports.ui.popupMenu;
 const { Slider } = imports.ui.slider;
@@ -435,19 +435,10 @@ const TrackInfo = GObject.registerClass({
 // the tooltip in the proper place in relation to the
 // indicator no matter what side of the monitor it's on.
 const ToolTipConstraint = GObject.registerClass({
-    GTypeName: "ToolTipConstraint",
-    Signals: {
-        "panel-side-changed": {
-            flags: GObject.SignalFlags.RUN_FIRST,
-            param_types: [
-                GObject.TYPE_INT // St.Side
-            ]
-        }
-    }
+    GTypeName: "ToolTipConstraint"
 }, class ToolTipConstraint extends Clutter.Constraint {
     _init() {
         super._init();
-        this._panelSide = null;
     }
 
     _getIndicatorPosition(indicator) {
@@ -479,15 +470,11 @@ const ToolTipConstraint = GObject.registerClass({
         } else {
             side = Math.floor(y) == monitor.y ? St.Side.TOP : St.Side.BOTTOM;
         }
-        if (this._panelSide !== side) {
-            this._panelSide = side;
-            this.emit("panel-side-changed", side);
-        }
         return [monitor, side, x, y];
     }
 
     vfunc_update_allocation(actor, box) {
-        if (!actor.indicator) {
+        if (!actor.hasOwnProperty("indicator") || !actor.indicator) {
             return;
         }
         let thisWidth = box.x2 - box.x1;
@@ -501,7 +488,8 @@ const ToolTipConstraint = GObject.registerClass({
         switch (side) {
             // Positioning logic inspired by the Cinnamon Desktop's PanelItemTooltip.
             // Try to center the tooltip with the indicator but never go off screen
-            // or cover the indicator or panel.
+            // or cover the indicator or panel. And set the animation pivot point
+            // so that the animation appears to come from/go to the indicator.
             case St.Side.BOTTOM:
                 tooltipTop =  monitor.y + monitor.height - thisHeight - indHeight;
                 tooltipLeft = x - ((thisWidth - indWidth) / 2);
@@ -529,199 +517,164 @@ const ToolTipConstraint = GObject.registerClass({
             default:
                 break;
         }
+
+        let pivot_y = Math.max(0.0, Math.min(((y + (indHeight / 2)) - tooltipTop) / thisHeight, 1.0));
+        let pivot_x = Math.max(0.0, Math.min(((x + (indWidth / 2)) - tooltipLeft) / thisWidth, 1.0));
+
+        actor.set_pivot_point(pivot_x, pivot_y);
         box.set_origin(Math.round(tooltipLeft), Math.round(tooltipTop));
         super.vfunc_update_allocation(actor, box);
     }
 });
 
-const ToolTipLayout = GObject.registerClass({
-    GTypeName: "ToolTipLayout"
-}, class ToolTipLayout extends Clutter.BoxLayout {
-    _init() {
-        super._init();
-        this._container = null;
-        this._signals = [];
-    }
+const ToolTipBase = GObject.registerClass({
+    GTypeName: "ToolTipBase",
+    GTypeFlags: GObject.TypeFlags.ABSTRACT
+}, class ToolTipBase extends St.Widget {
+    _init(indicator, wantsIcon=false, text="",iconName="",
+        toolTipStyleClass="", iconStyleClass="", labelStyleClass="") {
 
-    doCleanUp() {
-        // Clutter.BoxLayout does not have a destroy signal to connect to,
-        // but at some point we want to do some cleanup.
-        if (this._container && this._signals) {
-            this._signals.forEach(id => this._container.disconnect(id));
-        }
-        this._container = null;
-        this._signals = null;
-    }
-
-    vfunc_set_container(container) {
-        this._container = container;
-        ['notify::scale-x', 'notify::scale-y'].forEach(signal => {
-            let id = this._container.connect(signal, () => {
-                this.layout_changed();
-            });
-            this._signals.push(id);
-        });
-        // Not even really sure if it's necessary
-        // to chain up here? It can't hurt though I guess?
-        super.vfunc_set_container(container);
-    }
-
-    vfunc_get_preferred_width(container, forHeight) {
-        let natWidth = 0;
-        container.get_children().forEach(child => {
-            let [childMin, childNat] = child.get_preferred_width(forHeight);
-            let childMax = child.get_theme_node().get_max_width();
-            natWidth += Math.max(childMin, childMax > 0 ? Math.min(childNat, childMax) : childNat);
-        });
-        natWidth = Math.floor(natWidth * container.scale_x);
-        return [natWidth, natWidth];
-    }
-
-    vfunc_get_preferred_height(container, forWidth) {
-        let natHeight = Math.floor(container.get_theme_node().get_min_height() * container.scale_y);
-        return [natHeight, natHeight];
-    }
-});
-
-const ToolTip = GObject.registerClass({
-    GTypeName: "ToolTip"
-}, class ToolTip extends St.Widget {
-    _init(indicator) {
         super._init({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.TOOL_TIP,
-            layout_manager: new ToolTipLayout(),
-            style_class: "osd-window tool-tip",
+            constraints: new ToolTipConstraint(),
+            layout_manager: new Clutter.BoxLayout(),
+            style_class: toolTipStyleClass,
             visible: false
         });
 
         this.indicator = indicator;
 
-        let constraint = new ToolTipConstraint();
+        this._signals = [];
 
-        this.add_constraint(constraint); 
-
-        let iconNames = [
-            "media-playback-stop-symbolic",
-            "media-playback-pause-symbolic",
-            "media-playback-start-symbolic"           
-        ]
-
-        let icon = new St.Icon({
+        this.icon = new St.Icon({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
-            style_class: "popup-menu-arrow tool-tip-icon",
-            icon_name: "media-playback-stop-symbolic"
+            style_class: iconStyleClass,
+            icon_name: iconName,
+            visible: wantsIcon
         });
 
-        this.add_child(icon);
+        this.add_child(this.icon);
 
-        let label = new St.Label({
+        this.label = new St.Label({
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START,
-            style_class: "tool-tip-label",
-            text: "Mpris Indicator Button"
+            style_class: labelStyleClass,
+            text: text
         });
 
-        this.add_child(label);
+        this.add_child(this.label);
 
-        let focused = false;
+        this.label_actor = this.label;
 
-        let signals = [];
-
-        let pushSignal = (obj, signalName, callback) => {
-            let signalId = obj.connect(signalName, callback);
-            signals.push({
-                obj: obj,
-                signalId: signalId
-            });
-        };
-
-        // I'm not sure why this is necessary? But if not done the tooltip may end
-        // up extremely truncated even if it not even close to it's max size (30em).
-        pushSignal(this, "notify::allocation", () => label.clutter_text.queue_relayout());
-
-        pushSignal(constraint, "panel-side-changed", (constraint, side) => {
-            // Sets the pivot point for the animation so that it appears to come from the panel side.
-            let x = 0.5;
-            let y = 0.5;
-            switch (side) {
-                case St.Side.BOTTOM:
-                    y = 1.0;
-                    break;
-                case St.Side.TOP:
-                    y = 0.0;
-                    break;
-                case St.Side.LEFT:
-                    x = 0.0;
-                    break;
-                case St.Side.RIGHT:
-                    x = 1.0;
-                    break;
-                default:
-                    break;
-            }
-            this.set_pivot_point(x, y);
-        });       
-
-        pushSignal(indicator, "update-tooltip", (indicator, artist, title, _focused, playbackStatus) => {
-            // Never show the tool tip if a player is focused. At that point it's
-            // redundant information. Also hide the tool tip if a player becomes
-            // focused while it is visible. (As in maybe the user secondary clicked the indicator)
-            focused = _focused;
-            let iconName = iconNames[playbackStatus];
-            let text = title ? `${artist} • ${title}` : `${artist}`;
-            if (this.visible && (label.text !== text || icon.icon_name !== iconName)) {
-                this._hide(() => {
-                    icon.icon_name = iconName;
-                    label.text = text;
-                    this._show();
-                });
-            } else {
-                icon.icon_name = iconName;
-                label.text = text;
-            }
-            if ((focused && this.visible) || !label.text) {
-                this._hide(() => {
-                    icon.icon_name = iconName;
-                    label.text = text;
-                });
+        this.pushSignal(this, "notify::allocation", () => {
+            if (!this.scale_x) {
+                this.label.clutter_text.queue_relayout();
             }
         });
 
-        pushSignal(indicator, "notify::hover", () => {
-            if (indicator.hover && label.text && !indicator.menu.isOpen && !focused && !this.visible) {
-                this._show();
-            } else if (this.visible) {
-                this._hide();
-            }
-        });
+        this.pushSignal(this.indicator,"notify::visible", this.onIndicatorVisibleChanged.bind(this));
 
-        pushSignal(indicator,"notify::visible", () => {
-            if (!indicator.visible && this.visible) {
-                this._hide();
-            }
-        });
+        this.pushSignal(this.indicator,"notify::hover", this.onIndicatorHover.bind(this));
 
-        pushSignal(indicator.menu, 'open-state-changed', () => {
-            if (this.visible) {
-                this._hide();
-            }
-        });
+        this.pushSignal(this.indicator.menu, "open-state-changed", this.onIndicatorMenuOpenStateChanged.bind(this));
 
-        pushSignal(indicator.menu, "destroy", () => {
-            // The menu gets destroyed before the actual indicator but is soon to follow.
-            this.remove_all_transitions();
-            this.layout_manager.doCleanUp();
-            signals.forEach(signal => signal.obj.disconnect(signal.signalId));
-            this.indicator = null;
-        });
+        this.pushSignal(this.indicator.menu, "destroy", this.onIndicatorMenuDestroy.bind(this));
 
         layoutManager.addTopChrome(this, {affectsInputRegion: false});
     }
 
-    _show() {
+    get text() {
+        return this.label.text || "";
+    }
+
+    set text(text) {
+        text = text || "";
+        if (this.label.text !== text) {
+            this.label.text = text;
+        }
+    }
+
+    get icon_name() {
+        return this.icon.icon_name || "";
+    }
+
+    set icon_name(icon_name) {
+        icon_name = icon_name || "";
+        if (this.icon.icon_name !== icon_name) {
+            this.icon.icon_name = icon_name;
+        }
+    }
+
+    get indicatorMenuIsOpen() {
+        // Not all indicators have real menus.
+        return this.indicator.menu.hasOwnProperty("isOpen") && this.indicator.menu.isOpen;
+    }
+
+    pushSignal(obj, signalName, callback) {
+        let signalId = obj.connect(signalName, callback);
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
+        });
+        return signalId;
+    }
+
+    onIndicatorVisibleChanged(indicator, pspec) {
+        if (!this.indicator.visible) {
+            this.animatedHide(true);
+        }
+    }
+
+    onIndicatorHover(indicator, hover) {
+        // Override Me!!!
+    }
+
+    onIndicatorMenuOpenStateChanged(indicatorMenu, open) {
+        this.animatedHide(true);
+    }
+
+    onIndicatorMenuDestroy(indicatorMenu) {
+        this.remove_all_transitions();
+        this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
+        this.indicator = null;
+        this._signals = null;
+    }
+
+    update(text, iconName) {
+        this.text = text;
+        this.icon_name = iconName;
+    }
+
+    animatedUpdate(text, iconName, noDelay) {
+        if (this.visible && (this.text !== text || this.icon_name !== iconName)) {
+            this.animatedHide(noDelay, () => {
+                this.icon_name = iconName;
+                this.text = text;
+                this.animatedShow(noDelay);
+            });
+        } else {
+            this.icon_name = iconName;
+            this.text = text;
+        }
+    }
+
+    updateAfterHide(text, iconName, noDelay) {
+        this.animatedHide(noDelay, () => {
+            this.icon_name = iconName;
+            this.text = text;
+        });
+    }
+
+    updateThenShow(text, iconName, noDelay) {
+        this.icon_name = iconName;
+        this.text = text;
+        this.animateShow(noDelay);
+    }
+
+    animatedShow(noDelay) {
         this.remove_all_transitions();
         this.opacity = 0;
         this.scale_x = 0.0;
@@ -731,20 +684,21 @@ const ToolTip = GObject.registerClass({
             opacity: 255,
             scale_x: 1.0,
             scale_y: 1.0,
-            duration: DASH_ITEM_LABEL_HIDE_TIME,
-            delay: DASH_ITEM_LABEL_SHOW_TIME,
+            duration: DASH_ITEM_LABEL_SHOW_TIME,
+            delay: noDelay ? 0 : DASH_ITEM_LABEL_SHOW_TIME * 2,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD
         });
     }
 
-    _hide(onComplete) {
+    animatedHide(noDelay, onComplete) {
         this.remove_all_transitions();
         this.ease({
             opacity: 0,
             scale_x: 0.0,
             scale_y: 0.0,
-            duration: DASH_ITEM_LABEL_HIDE_TIME,
-            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            duration: DASH_ITEM_LABEL_SHOW_TIME,
+            delay: noDelay ? 0 : DASH_ITEM_LABEL_SHOW_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => {
                 this.hide();
                 this.scale_x = 1.0;
@@ -755,10 +709,79 @@ const ToolTip = GObject.registerClass({
             }
         });
     }
+
+    unAnimatedShow() {
+        this.remove_all_transitions();
+        this.scale_x = 1.0;
+        this.scale_y = 1.0;
+        this.opacity = 255;
+        this.show();
+    }
+
+    unAnimatedHide() {
+        this.remove_all_transitions();
+        this.hide();
+        this.scale_x = 1.0;
+        this.scale_y = 1.0;
+        this.opacity = 255;
+    }
+});
+
+const ToolTip = GObject.registerClass({
+    GTypeName: "ToolTip"
+}, class ToolTip extends ToolTipBase {
+    _init(indicator) {
+        super._init(
+            indicator,
+            true,
+            "Mpris Indicator Button",
+            "media-playback-stop-symbolic",
+            "osd-window tool-tip",
+            "popup-menu-arrow tool-tip-icon"
+        );
+
+        this.focused = false; 
+
+        this.iconNames = [
+            "media-playback-stop-symbolic",
+            "media-playback-pause-symbolic",
+            "media-playback-start-symbolic"           
+        ]       
+
+        this.pushSignal(this.indicator, "update-tooltip", this.onUpdateToolTip.bind(this));
+    }
+
+    onUpdateToolTip(indicator, artist, title, focused, playbackStatus) {
+        // Never show the tool tip if a player is focused. At that point it's
+        // redundant information. Also hide the tool tip if a player becomes
+        // focused while it is visible. (As in maybe the user secondary clicked the indicator)
+        this.focused = focused;
+        let iconName = this.iconNames[playbackStatus];
+        let text = title ? `${artist} • ${title}` : `${artist}`;
+        this.animatedUpdate(text, iconName, true);
+        if ((this.focused && this.visible) || !this.text) {
+           this.updateAfterHide(text, iconName, true);
+        }
+    }
+
+    onIndicatorHover(indicator, hover) {
+        if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.focused && !this.visible) {
+            this.animatedShow();
+        } else {
+            this.animatedHide(true);
+        }
+    }
+
+    onIndicatorMenuDestroy(indicatorMenu) {
+        super.onIndicatorMenuDestroy(indicatorMenu);
+        this.focused = null; 
+        this.iconNames = null;
+    }
 });
 
 const MainItem = GObject.registerClass({
-    GTypeName: "MainItem"
+    GTypeName: "MainItem",
+    GTypeFlags: GObject.TypeFlags.ABSTRACT
 }, class MainItem extends PopupBaseMenuItem {
     _init() {
         super._init();
@@ -1059,7 +1082,8 @@ const Volume = GObject.registerClass({
 });
 
 const SubMenuItem = GObject.registerClass({
-    GTypeName: "SubMenuItem"
+    GTypeName: "SubMenuItem",
+    GTypeFlags: GObject.TypeFlags.ABSTRACT
 }, class SubMenuItem extends MainItem {
     _init(proxy) {
         super._init();
@@ -1096,7 +1120,8 @@ const PlayListSubMenuItem = GObject.registerClass({
 });
 
 const TrackItem = GObject.registerClass({
-    GTypeName: "TrackItem"
+    GTypeName: "TrackItem",
+    GTypeFlags: GObject.TypeFlags.ABSTRACT
 }, class TrackItem extends SubMenuItem {
     _init(proxy) {
         super._init(proxy);
