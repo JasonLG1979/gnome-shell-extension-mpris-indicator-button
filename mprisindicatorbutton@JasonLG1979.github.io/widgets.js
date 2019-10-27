@@ -599,8 +599,7 @@ const ToolTipBase = GObject.registerClass({
         return this.label.text || "";
     }
 
-    set text(text) {
-        text = text || "";
+    set text(text="") {
         if (this.label.text !== text) {
             this.label.text = text;
         }
@@ -610,8 +609,7 @@ const ToolTipBase = GObject.registerClass({
         return this.icon.icon_name || "";
     }
 
-    set icon_name(icon_name) {
-        icon_name = icon_name || "";
+    set icon_name(icon_name="") {
         if (this.icon.icon_name !== icon_name) {
             this.icon.icon_name = icon_name;
         }
@@ -668,12 +666,20 @@ const ToolTipBase = GObject.registerClass({
         this.destroy();
     }
 
-    update(text, iconName) {
+    update(text="", iconName="") {
         this.text = text;
         this.icon_name = iconName;
     }
 
-    animatedUpdate(text, iconName, noDelay) {
+    updateText(text="") {
+        this.text = text;
+    }
+
+    updateIconName(iconName="") {
+        this.icon_name = iconName;
+    }
+
+    animatedUpdate(text="", iconName="", noDelay=false) {
         if (this.visible && (this.text !== text || this.icon_name !== iconName)) {
             this.animatedHide(noDelay, () => {
                 this.icon_name = iconName;
@@ -686,14 +692,36 @@ const ToolTipBase = GObject.registerClass({
         }
     }
 
-    updateAfterHide(text, iconName, noDelay) {
+    animatedUpdateText(text="", noDelay=false) {
+        if (this.visible && this.text !== text) {
+            this.animatedHide(noDelay, () => {
+                this.text = text;
+                this.animatedShow(noDelay);
+            });
+        } else {
+            this.text = text;
+        }
+    }
+
+    animatedUpdateIconName(iconName="", noDelay=false) {
+        if (this.visible && this.icon_name !== iconName) {
+            this.animatedHide(noDelay, () => {
+                this.icon_name = iconName;
+                this.animatedShow(noDelay);
+            });
+        } else {
+            this.icon_name = iconName;
+        }
+    }
+
+    updateAfterHide(text="", iconName="", noDelay=false) {
         this.animatedHide(noDelay, () => {
             this.icon_name = iconName;
             this.text = text;
         });
     }
 
-    updateThenShow(text, iconName, noDelay) {
+    updateThenShow(text="", iconName="", noDelay=false) {
         this.icon_name = iconName;
         this.text = text;
         this.animateShow(noDelay);
@@ -706,7 +734,7 @@ const ToolTipBase = GObject.registerClass({
     // Doing so can leave the tooltip
     // in an undefined state of scale
     // and/or opacity.  
-    animatedShow(noDelay) {
+    animatedShow(noDelay=false) {
         this.remove_all_transitions();
         this.opacity = 0;
         this.scale_x = 0.0;
@@ -722,7 +750,7 @@ const ToolTipBase = GObject.registerClass({
         });
     }
 
-    animatedHide(noDelay, onComplete) {
+    animatedHide(noDelay=false, onComplete=null) {
         this.remove_all_transitions();
         this.ease({
             opacity: 0,
