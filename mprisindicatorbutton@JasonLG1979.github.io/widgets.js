@@ -581,7 +581,7 @@ const ToolTipBase = GObject.registerClass({
 
         this.pushSignal(this.indicator.menu, "open-state-changed", this.onIndicatorMenuOpenStateChanged.bind(this));
 
-        this.pushSignal(this.indicator.menu, "destroy", this.onIndicatorMenuDestroy.bind(this));
+        this.pushSignal(this.indicator, "destroy", this.onIndicatorDestroy.bind(this));
 
         layoutManager.addTopChrome(this, {affectsInputRegion: false});
     }
@@ -636,11 +636,12 @@ const ToolTipBase = GObject.registerClass({
         this.animatedHide(true);
     }
 
-    onIndicatorMenuDestroy(indicatorMenu) {
+    onIndicatorDestroy(indicator) {
         this.remove_all_transitions();
         this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         this.indicator = null;
         this._signals = null;
+        this.destroy();
     }
 
     update(text, iconName) {
@@ -1916,7 +1917,6 @@ var MprisIndicatorButton = GObject.registerClass({
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             CoverArtIOHandler.destroy();
             proxyHandler.destroy();
-            toolTip.destroy();
         });
     }
 
