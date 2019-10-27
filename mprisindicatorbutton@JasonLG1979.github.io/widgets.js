@@ -518,15 +518,24 @@ const ToolTipConstraint = GObject.registerClass({
                 break;
         }
 
+        tooltipTop = Math.round(tooltipTop);
+        tooltipLeft = Math.round(tooltipLeft);
+
         let pivot_y = Math.max(0.0, Math.min(((y + (indHeight / 2)) - tooltipTop) / thisHeight, 1.0));
         let pivot_x = Math.max(0.0, Math.min(((x + (indWidth / 2)) - tooltipLeft) / thisWidth, 1.0));
 
         actor.set_pivot_point(pivot_x, pivot_y);
-        box.set_origin(Math.round(tooltipLeft), Math.round(tooltipTop));
+        box.set_origin(tooltipLeft, tooltipTop);
         super.vfunc_update_allocation(actor, box);
     }
 });
 
+
+// This is an abstract base class to create Indicator tooltips.
+// It is meant to make it easy for others to extend and use along
+// with ToolTipConstraint (which should really never need to be touched)
+// to add tooltips to their Indicators if they like.
+// See the ToolTip class for an example implementation. 
 const ToolTipBase = GObject.registerClass({
     GTypeName: "ToolTipBase",
     GTypeFlags: GObject.TypeFlags.ABSTRACT
@@ -570,11 +579,11 @@ const ToolTipBase = GObject.registerClass({
         this.label_actor = this.label;
 
         this.pushSignal(this, "notify::allocation", () => {
-            if (!this.scale_x) {
-                this.label.clutter_text.queue_relayout();
-            }
+            this.label.clutter_text.queue_relayout();
         });
 
+        // All handler functions can be overridden, just remember to chain up if you want
+        // to maintain default behaviour. 
         this.pushSignal(this.indicator,"notify::visible", this.onIndicatorVisibleChanged.bind(this));
 
         this.pushSignal(this.indicator,"notify::hover", this.onIndicatorHover.bind(this));
@@ -609,11 +618,18 @@ const ToolTipBase = GObject.registerClass({
     }
 
     get indicatorMenuIsOpen() {
-        // Not all indicators have real menus.
+        // Not all indicators have real menus. Indicators without menus still have
+        // dummy menus though that lack isOpen.
         return this.indicator.menu.hasOwnProperty("isOpen") && this.indicator.menu.isOpen;
     }
 
     pushSignal(obj, signalName, callback) {
+        // This is a convenience function for connecting signals.
+        // Use this to make sure all signal are disconnected
+        // when the indicator is destroyed.
+        // In theory Objects should not emit signals
+        // after destruction, but that assumption is often
+        // times false with St widgets and Clutter.  
         let signalId = obj.connect(signalName, callback);
         this._signals.push({
             obj: obj,
@@ -628,8 +644,12 @@ const ToolTipBase = GObject.registerClass({
         }
     }
 
-    onIndicatorHover(indicator, hover) {
-        // Override Me!!!
+    onIndicatorHover(indicator, pspec) {
+        if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.visible) {
+            this.animatedShow();
+        } else {
+            this.animatedHide(true);
+        }
     }
 
     onIndicatorMenuOpenStateChanged(indicatorMenu, open) {
@@ -637,6 +657,10 @@ const ToolTipBase = GObject.registerClass({
     }
 
     onIndicatorDestroy(indicator) {
+        // All cleanup happens here.
+        // The tooltip is destroyed with the indicator.
+        // If you override this function you MUST chain up otherwise
+        // clean up will not happen. 
         this.remove_all_transitions();
         this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         this.indicator = null;
@@ -675,6 +699,13 @@ const ToolTipBase = GObject.registerClass({
         this.animateShow(noDelay);
     }
 
+    // Below are variants of show and hide.
+    // It is not advisable to call the default
+    // show and hide functions if you ever
+    // plan on animating anything.
+    // Doing so can leave the tooltip
+    // in an undefined state of scale
+    // and/or opacity.  
     animatedShow(noDelay) {
         this.remove_all_transitions();
         this.opacity = 0;
@@ -765,7 +796,7 @@ const ToolTip = GObject.registerClass({
         }
     }
 
-    onIndicatorHover(indicator, hover) {
+    onIndicatorHover(indicator, pspec) {
         if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.focused && !this.visible) {
             this.animatedShow();
         } else {
@@ -773,8 +804,8 @@ const ToolTip = GObject.registerClass({
         }
     }
 
-    onIndicatorMenuDestroy(indicatorMenu) {
-        super.onIndicatorMenuDestroy(indicatorMenu);
+    onIndicatorDestroy(indicator) {
+        super.onIndicatorDestroy(indicator);
         this.focused = null; 
         this.iconNames = null;
     }
