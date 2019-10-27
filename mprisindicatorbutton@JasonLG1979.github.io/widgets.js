@@ -1191,8 +1191,9 @@ const TrackItem = GObject.registerClass({
         this.add(this.info, {expand: true});
         this.pushSignal(this.info, "notify::height", () => {
             let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-            let size = this.info.height > 0 ? this.info.height : 32;
-            this.coverIcon.icon_size = Math.ceil(size / scaleFactor);
+            let size = Math.ceil(this.info.height > 0 ? this.info.height : 32 / scaleFactor); 
+            this.coverIcon.icon_size = size;
+            this.coverIcon.set_size(size, size);
         });
     }
 });
