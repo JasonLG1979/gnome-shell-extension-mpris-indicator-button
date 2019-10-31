@@ -17,8 +17,10 @@
 
 const { Atk, Clutter, GObject, St } = imports.gi;
 
-const { layoutManager } = imports.ui.main;
-const { DASH_ITEM_LABEL_SHOW_TIME } = imports.ui.dash;
+const LayoutManager = imports.ui.main.layoutManager;
+
+const TOOL_TIP_HOVER_DELAY = imports.ui.dash.DASH_ITEM_HOVER_TIMEOUT;
+const TOOL_TIP_ANIMATION_TIME = imports.ui.boxpointer.POPUP_ANIMATION_TIME;
 
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
@@ -54,7 +56,7 @@ const ToolTipConstraint = GObject.registerClass({
         }
         // Get the monitor the the indicator is on and try to tell
         // which side it's on.
-        let monitor = layoutManager.findMonitorForActor(indicator);
+        let monitor = LayoutManager.findMonitorForActor(indicator);
         let [x, y] = indicator.get_transformed_position();
         if (vertical) {
             side = Math.floor(x) == monitor.x ? St.Side.LEFT : St.Side.RIGHT;
@@ -186,6 +188,8 @@ var ToolTipBase = GObject.registerClass({
         this._icon_style_class = iconStyleClass;
         this._show_icon = wantsIcon;
 
+        this._showing = false;
+
         this.indicator = indicator;
 
         this._signals = [];
@@ -255,7 +259,7 @@ var ToolTipBase = GObject.registerClass({
 
         this.pushSignal(this.indicator, "destroy", this.onIndicatorDestroy.bind(this));
 
-        layoutManager.addTopChrome(this, {affectsInputRegion: false});
+        LayoutManager.addTopChrome(this, {affectsInputRegion: false});
     }
 
     get text() {
@@ -336,7 +340,7 @@ var ToolTipBase = GObject.registerClass({
 
     onIndicatorVisibleChanged(indicator, pspec) {
         if (!this.indicator.visible) {
-            this.animatedHide(true);
+            this.unAnimatedHide();
         }
     }
 
@@ -344,12 +348,14 @@ var ToolTipBase = GObject.registerClass({
         if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.visible) {
             this.animatedShow();
         } else {
-            this.animatedHide(true);
+            this.animatedHide();
         }
     }
 
     onIndicatorMenuOpenStateChanged(indicatorMenu, open) {
-        this.animatedHide(true);
+        if (open) {
+            this.unAnimatedHide();
+        }
     }
 
     onIndicatorDestroy(indicator) {
@@ -370,24 +376,45 @@ var ToolTipBase = GObject.registerClass({
     }
 
     update(text="", iconName="") {
+        let wasShowing = this._showing;
+        this.remove_all_transitions();
         this.text = text;
         this.icon_name = iconName;
+        if (wasShowing) {
+            this.unAnimatedShow();
+        } else {
+            this.unAnimatedHide();
+        }
     }
 
     updateText(text="") {
+        let wasShowing = this._showing;
+        this.remove_all_transitions();
         this.text = text;
+        if (wasShowing) {
+            this.unAnimatedShow();
+        } else {
+            this.unAnimatedHide();
+        }
     }
 
     updateIconName(iconName="") {
+        let wasShowing = this._showing;
+        this.remove_all_transitions();
         this.icon_name = iconName;
+        if (wasShowing) {
+            this.unAnimatedShow();
+        } else {
+            this.unAnimatedHide();
+        }
     }
 
-    animatedUpdate(text="", iconName="", noDelay=false) {
+    animatedUpdate(text="", iconName="") {
         if (this.visible && (this.text !== text || this.icon_name !== iconName)) {
-            this.animatedHide(noDelay, () => {
+            this.animatedHide(() => {
                 this.icon_name = iconName;
                 this.text = text;
-                this.animatedShow(noDelay);
+                this.animatedShow();
             });
         } else {
             this.icon_name = iconName;
@@ -395,39 +422,39 @@ var ToolTipBase = GObject.registerClass({
         }
     }
 
-    animatedUpdateText(text="", noDelay=false) {
+    animatedUpdateText(text="") {
         if (this.visible && this.text !== text) {
-            this.animatedHide(noDelay, () => {
+            this.animatedHide(() => {
                 this.text = text;
-                this.animatedShow(noDelay);
+                this.animatedShow();
             });
         } else {
             this.text = text;
         }
     }
 
-    animatedUpdateIconName(iconName="", noDelay=false) {
+    animatedUpdateIconName(iconName="") {
         if (this.visible && this.icon_name !== iconName) {
-            this.animatedHide(noDelay, () => {
+            this.animatedHide(() => {
                 this.icon_name = iconName;
-                this.animatedShow(noDelay);
+                this.animatedShow();
             });
         } else {
             this.icon_name = iconName;
         }
     }
 
-    updateAfterHide(text="", iconName="", noDelay=false) {
-        this.animatedHide(noDelay, () => {
+    updateAfterHide(text="", iconName="") {
+        this.animatedHide(() => {
             this.icon_name = iconName;
             this.text = text;
         });
     }
 
-    updateThenShow(text="", iconName="", noDelay=false) {
+    updateThenShow(text="", iconName="") {
         this.icon_name = iconName;
         this.text = text;
-        this.animateShow(noDelay);
+        this.animateShow();
     }
 
     // Below are variants of show and hide.
@@ -437,35 +464,48 @@ var ToolTipBase = GObject.registerClass({
     // Doing so can leave the tooltip
     // in an undefined state of scale
     // and/or opacity.  
-    animatedShow(noDelay=false) {
+    animatedShow() {
         this.remove_all_transitions();
+        this.show();
+        this._showing = true;
         this.opacity = 0;
         this.scale_x = 0.0;
         this.scale_y = 0.0;
-        this.show();
         this.ease({
             opacity: 255,
             scale_x: 1.0,
             scale_y: 1.0,
-            duration: DASH_ITEM_LABEL_SHOW_TIME,
-            delay: noDelay ? 0 : DASH_ITEM_LABEL_SHOW_TIME * 2,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD
+            duration: TOOL_TIP_ANIMATION_TIME,
+            // Not only does this delay stop the tooltip
+            // from popping up when the indicator is "glanced over"
+            // on the way to other UI elements,
+            // it also prevents the tooltip
+            // from strobing in the event of rapid updates,
+            // which is potentially an accessibility issue. 
+            delay: TOOL_TIP_HOVER_DELAY,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onStopped: (isFinished) => {
+                if (!isFinished) {
+                    this.hide();
+                    this._showing = false;
+                }
+            }
         });
     }
 
-    animatedHide(noDelay=false, onComplete=null) {
+    animatedHide(onComplete=null) {
         this.remove_all_transitions();
+        this._showing = false;
         this.ease({
             opacity: 0,
             scale_x: 0.0,
             scale_y: 0.0,
-            duration: DASH_ITEM_LABEL_SHOW_TIME,
-            delay: noDelay ? 0 : DASH_ITEM_LABEL_SHOW_TIME,
+            duration: TOOL_TIP_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => {
-                this.hide();
-                this.scale_x = 1.0;
-                this.scale_y = 1.0;
+            onStopped: (isFinished) => {
+                if (isFinished) {
+                    this.hide();
+                }
                 if (onComplete) {
                    onComplete(); 
                 }
@@ -475,6 +515,7 @@ var ToolTipBase = GObject.registerClass({
 
     unAnimatedShow() {
         this.remove_all_transitions();
+        this._showing = true;
         this.scale_x = 1.0;
         this.scale_y = 1.0;
         this.opacity = 255;
@@ -483,6 +524,7 @@ var ToolTipBase = GObject.registerClass({
 
     unAnimatedHide() {
         this.remove_all_transitions();
+        this._showing = false;
         this.hide();
         this.scale_x = 1.0;
         this.scale_y = 1.0;

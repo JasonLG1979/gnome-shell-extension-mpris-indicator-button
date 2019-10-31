@@ -461,9 +461,9 @@ const ToolTip = GObject.registerClass({
         this.focused = focused;
         let iconName = this.iconNames[playbackStatus];
         let text = title ? `${artist} • ${title}` : `${artist}`;
-        this.animatedUpdate(text, iconName, true);
+        this.animatedUpdate(text, iconName);
         if ((this.focused && this.visible) || !this.text) {
-           this.updateAfterHide(text, iconName, true);
+           this.updateAfterHide(text, iconName);
         }
     }
 
@@ -471,7 +471,7 @@ const ToolTip = GObject.registerClass({
         if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.focused && !this.visible) {
             this.animatedShow();
         } else {
-            this.animatedHide(true);
+            this.animatedHide();
         }
     }
 
