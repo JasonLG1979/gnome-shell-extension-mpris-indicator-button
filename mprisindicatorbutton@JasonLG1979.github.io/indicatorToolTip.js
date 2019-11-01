@@ -123,7 +123,6 @@ const ToolTipConstraint = GObject.registerClass({
     }
 });
 
-
 // This is an abstract base class to create Indicator tooltips.
 // It is meant to make it easy for others to extend and use along
 // with ToolTipConstraint (which should really never need to be touched)
