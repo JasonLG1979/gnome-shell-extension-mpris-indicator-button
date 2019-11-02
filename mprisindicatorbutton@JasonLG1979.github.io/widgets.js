@@ -31,10 +31,10 @@ const { ToolTipBase } = imports.misc.extensionUtils.getCurrentExtension().import
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
 
 const VOULME_ICONS = [
-    "audio-volume-muted-symbolic",
-    "audio-volume-low-symbolic",
-    "audio-volume-medium-symbolic",
-    "audio-volume-high-symbolic"
+    'audio-volume-muted-symbolic',
+    'audio-volume-low-symbolic',
+    'audio-volume-medium-symbolic',
+    'audio-volume-high-symbolic'
 ];
 
 const Ornament = {
@@ -65,7 +65,7 @@ function getSymbolicGiconByName(name) {
         }
     }
     if (!gicon) {
-        gicon = Gio.ThemedIcon.new("message-indicator-symbolic");
+        gicon = Gio.ThemedIcon.new('message-indicator-symbolic');
     }
     return gicon;
 }
@@ -178,21 +178,21 @@ class CoverArtIOHandler {
 }
 
 const CoverIcon = GObject.registerClass({
-    GTypeName: "CoverIcon",
+    GTypeName: 'CoverIcon',
     Properties: {
-        "cover-url": GObject.ParamSpec.string(
-            "cover-url",
-            "cover-url-prop",
-            "the url of the current track's cover art",
+        'cover-url': GObject.ParamSpec.string(
+            'cover-url',
+            'cover-url-prop',
+            'the url of the current track\'s cover art',
             GObject.ParamFlags.WRITABLE,
-            ""
+            ''
         ),
-        "fallback-gicon": GObject.ParamSpec.object(
-            "fallback-gicon",
-            "fallback-gicon-prop",
-            "the gicon to use if there is no cover url",
+        'fallback-gicon': GObject.ParamSpec.object(
+            'fallback-gicon',
+            'fallback-gicon-prop',
+            'the gicon to use if there is no cover url',
             GObject.ParamFlags.WRITABLE,
-            Gio.ThemedIcon.new("audio-x-generic-symbolic")
+            Gio.ThemedIcon.new('audio-x-generic-symbolic')
         )
     }
 }, class CoverIcon extends St.Icon {
@@ -201,13 +201,13 @@ const CoverIcon = GObject.registerClass({
             accessible_role: Atk.Role.ICON
         });
         this._useFallback = true;
-        this._fingerPrint = "";
+        this._fingerPrint = '';
         this._coverArtIOHandler = CoverArtIOHandler.singleton;
         this._coverCallback = this._setCoverGicon.bind(this);
-        this._fallback_gicon = Gio.ThemedIcon.new("audio-x-generic-symbolic");
+        this._fallback_gicon = Gio.ThemedIcon.new('audio-x-generic-symbolic');
         this.gicon = this._fallback_gicon;
         this._signals = [];
-        this.pushSignal(this, "destroy", this._onDestroy.bind(this));
+        this.pushSignal(this, 'destroy', this._onDestroy.bind(this));
     }
 
     pushSignal(obj, signalName, callback) {
@@ -262,7 +262,7 @@ const CoverIcon = GObject.registerClass({
     _fallback() {
         if (this._fallback_gicon) {
             this._useFallback = true;
-            this._fingerPrint = "";
+            this._fingerPrint = '';
             this.gicon = this._fallback_gicon;
             this.accessible_role = Atk.Role.ICON;
         }
@@ -283,44 +283,45 @@ const CoverIcon = GObject.registerClass({
 });
 
 const MediaButton = GObject.registerClass({
-    GTypeName: "MediaButton",
+    GTypeName: 'MediaButton',
     Signals: {
-        "clicked": {
+        'clicked': {
             flags: GObject.SignalFlags.RUN_FIRST
         }
     },
     Properties: {
-        "active": GObject.ParamSpec.boolean(
-            "active",
-            "active-prop",
-            "If the button should appear active",
+        'active': GObject.ParamSpec.boolean(
+            'active',
+            'active-prop',
+            'If the button should appear active',
             GObject.ParamFlags.READWRITE,
             true
         )
     }
 }, class MediaButton extends St.Icon {
-    _init(icon_name) {
+    _init(icon_name, acc_name) {
         super._init({
             opacity: 204,
             track_hover: true,
             can_focus: true,
             reactive: true,
             accessible_role: Atk.Role.PUSH_BUTTON,
+            accessible_name: acc_name,
             icon_name: icon_name,
-            style_class: "popup-menu-arrow media-controls-button",
+            style_class: 'popup-menu-arrow media-controls-button',
         });
 
         this._active = true;
 
         let signalIds = [
-            this.connect("notify::active", this._onHover.bind(this)),
-            this.connect("notify::reactive", this._onHover.bind(this)),
-            this.connect("notify::hover", this._onHover.bind(this)),
-            this.connect("button-press-event", this._onButtonPressEvent.bind(this)),
-            this.connect("button-release-event", this._onButtonReleaseEvent.bind(this)),
-            this.connect("touch-event", this._onTouchEvent.bind(this)),
-            this.connect("key-press-event", this._onKeyPressEvent.bind(this)),
-            this.connect("destroy", () => {
+            this.connect('notify::active', this._onHover.bind(this)),
+            this.connect('notify::reactive', this._onHover.bind(this)),
+            this.connect('notify::hover', this._onHover.bind(this)),
+            this.connect('button-press-event', this._onButtonPressEvent.bind(this)),
+            this.connect('button-release-event', this._onButtonReleaseEvent.bind(this)),
+            this.connect('touch-event', this._onTouchEvent.bind(this)),
+            this.connect('key-press-event', this._onKeyPressEvent.bind(this)),
+            this.connect('destroy', () => {
                 signalIds.forEach(signalId => this.disconnect(signalId));
                 this._active = null;
             })
@@ -329,7 +330,7 @@ const MediaButton = GObject.registerClass({
 
     set active(active) {
         this._active = active;
-        this.notify("active");
+        this.notify('active');
     }
 
     get active() {
@@ -357,7 +358,7 @@ const MediaButton = GObject.registerClass({
     _onButtonReleaseEvent(actor, event) {
         if (event.get_button() === Clutter.BUTTON_PRIMARY) {
             this._onHover();
-            this.emit("clicked");
+            this.emit('clicked');
             return Clutter.EVENT_STOP;
         }
         return Clutter.EVENT_PROPAGATE;
@@ -367,7 +368,7 @@ const MediaButton = GObject.registerClass({
         event = event.type();
         if (event === Clutter.EventType.TOUCH_END) {
             this._onHover();
-            this.emit("clicked");
+            this.emit('clicked');
             return Clutter.EVENT_STOP;
         } else if (event === Clutter.EventType.TOUCH_BEGIN) {
             this.opacity = 102;
@@ -387,7 +388,7 @@ const MediaButton = GObject.registerClass({
         let symbol = event.get_key_symbol();
         if (symbol === Clutter.KEY_space || symbol === Clutter.KEY_Return) {
             this._onHover();
-            this.emit("clicked");
+            this.emit('clicked');
             return Clutter.EVENT_STOP;
         }
         return Clutter.EVENT_PROPAGATE;
@@ -395,7 +396,7 @@ const MediaButton = GObject.registerClass({
 });
 
 const TrackInfo = GObject.registerClass({
-    GTypeName: "TrackInfo"
+    GTypeName: 'TrackInfo'
 }, class TrackInfo extends St.BoxLayout {
     _init() {
         super._init({
@@ -407,14 +408,14 @@ const TrackInfo = GObject.registerClass({
 
         this.artistLabel = new St.Label({
             x_expand: true,
-            style_class: "normal-label"
+            style_class: 'normal-label'
         });
 
         this.add(this.artistLabel, {expand: true});
 
         this.titleLabel = new St.Label({
             x_expand: true,
-            style_class: "lighter-label"
+            style_class: 'lighter-label'
         });
 
         this.add(this.titleLabel, {expand: true});
@@ -431,27 +432,28 @@ const TrackInfo = GObject.registerClass({
 });
 
 const ToolTip = GObject.registerClass({
-    GTypeName: "ToolTip"
+    GTypeName: 'ToolTip'
 }, class ToolTip extends ToolTipBase {
     _init(indicator) {
         super._init(
             indicator,
             true,
-            "Mpris Indicator Button",
-            "media-playback-stop-symbolic",
-            "osd-window tool-tip",
-            "popup-menu-arrow tool-tip-icon"
+            // TRANSLATORS: Mpris is an acronym do not translate Mpris.
+            'Mpris' + " Indicator Button",
+            'media-playback-stop-symbolic',
+            'osd-window tool-tip',
+            'popup-menu-arrow tool-tip-icon'
         );
 
         this.focused = false; 
 
         this.iconNames = [
-            "media-playback-stop-symbolic",
-            "media-playback-pause-symbolic",
-            "media-playback-start-symbolic"           
+            'media-playback-stop-symbolic',
+            'media-playback-pause-symbolic',
+            'media-playback-start-symbolic'           
         ]       
 
-        this.pushSignal(this.indicator, "update-tooltip", this.onUpdateToolTip.bind(this));
+        this.pushSignal(this.indicator, 'update-tooltip', this.onUpdateToolTip.bind(this));
     }
 
     onUpdateToolTip(indicator, artist, title, focused, playbackStatus) {
@@ -460,7 +462,7 @@ const ToolTip = GObject.registerClass({
         // focused while it is visible. (As in maybe the user secondary clicked the indicator)
         this.focused = focused;
         let iconName = this.iconNames[playbackStatus];
-        let text = title ? `${artist} • ${title}` : `${artist}`;
+        let text = title ? artist + ' • ' + title : artist;
         this.animatedUpdate(text, iconName);
         if ((this.focused && this.visible) || !this.text) {
            this.updateAfterHide(text, iconName);
@@ -483,7 +485,7 @@ const ToolTip = GObject.registerClass({
 });
 
 const MainItem = GObject.registerClass({
-    GTypeName: "MainItem",
+    GTypeName: 'MainItem',
     GTypeFlags: GObject.TypeFlags.ABSTRACT
 }, class MainItem extends PopupBaseMenuItem {
     _init() {
@@ -496,12 +498,12 @@ const MainItem = GObject.registerClass({
         // character in ornamentLabel...
         this._ornamentLabel.destroy();
         this._bulletIcon = new St.Icon({
-            style_class: "popup-menu-arrow",
+            style_class: 'popup-menu-arrow',
             opacity: 0
         });
         this.add(this._bulletIcon);
         this._signals = [];
-        this.pushSignal(this, "destroy", this._onDestroy.bind(this));
+        this.pushSignal(this, 'destroy', this._onDestroy.bind(this));
     }
 
     pushSignal(obj, signalName, callback) {
@@ -538,14 +540,25 @@ const MainItem = GObject.registerClass({
 });
 
 const MediaControlsItem = GObject.registerClass({
-    GTypeName: "MediaControlsItem"
+    GTypeName: 'MediaControlsItem',
+    Properties: {
+        'player-name': GObject.ParamSpec.string(
+            'player-name',
+            'player-name-prop',
+            'the player\'s name',
+            GObject.ParamFlags.READWRITE,
+            ''
+        )
+    }
 }, class MediaControlsItem extends PopupBaseMenuItem {
     _init() {
         super._init();
         this._ornamentLabel.destroy();
-        this.add_style_class_name("media-controls-item");
+        this.add_style_class_name('media-controls-item');
         this._signals = [];
-        this.pushSignal(this, "destroy", this._onDestroy.bind(this));
+        this.accessible_name = "Media Controls";
+        this._player_name = '';
+        this.pushSignal(this, 'destroy', this._onDestroy.bind(this));
         this.hide();
 
         let box = new St.BoxLayout({
@@ -558,43 +571,61 @@ const MediaControlsItem = GObject.registerClass({
         this.add(box, {expand: true});
 
         this.shuffleButton = new MediaButton(
-            "media-playlist-shuffle-symbolic"
+            'media-playlist-shuffle-symbolic',
+            "Shuffle"
         );
 
         box.add(this.shuffleButton);
 
         this.prevButton = new MediaButton(
-            "media-skip-backward-symbolic"
+            'media-skip-backward-symbolic',
+            "Previous"
         );
 
         box.add(this.prevButton);
 
         this.playPauseButton = new MediaButton(
-            "media-playback-start-symbolic"
+            'media-playback-start-symbolic',
+            "Play Pause"
         );
 
         box.add(this.playPauseButton);
 
         this.stopButton = new MediaButton(
-            "media-playback-stop-symbolic"
+            'media-playback-stop-symbolic',
+            "Stop"
         );
 
         box.add(this.stopButton);
 
         this.nextButton = new MediaButton(
-            "media-skip-forward-symbolic"
+            'media-skip-forward-symbolic',
+            "Next"
         );
 
         box.add(this.nextButton);
 
         this.repeatButton = new MediaButton(
-            "media-playlist-repeat-symbolic"
+            'media-playlist-repeat-symbolic',
+            "Repeat"
         );
 
         box.add(this.repeatButton);
     }
 
     setOrnament(ornament) {
+    }
+
+    get player_name() {
+        return this._player_name;
+    }
+
+    set player_name(player_name) {
+        if (this._player_name !== player_name) {
+            this._player_name = player_name;
+            this.accessible_name = player_name + ' ' + "Media Controls";
+            this.notify('player-name');
+        }
     }
 
     pushSignal(obj, signalName, callback) {
@@ -614,20 +645,20 @@ const MediaControlsItem = GObject.registerClass({
     }
 
     _onButtonReleaseEvent(actor, event) {
-        actor.remove_style_pseudo_class("active");
+        actor.remove_style_pseudo_class('active');
         return Clutter.EVENT_PROPAGATE;
     }
 
     _onButtonPressEvent(actor, event) {
         if (event.get_button() === Clutter.BUTTON_SECONDARY) {
-            actor.add_style_pseudo_class("active");
+            actor.add_style_pseudo_class('active');
         }
         return Clutter.EVENT_PROPAGATE;
     }
 });
 
 const Volume = GObject.registerClass({
-    GTypeName: "Volume"
+    GTypeName: 'Volume'
 }, class Volume extends MainItem {
     _init() {
         super._init();
@@ -639,10 +670,10 @@ const Volume = GObject.registerClass({
         this._muted = false;
         // It doesn't matter what the icon is.
         // It's just a spacer. It will never be seen.
-        this._bulletIcon.icon_name = "pan-end-symbolic";
+        this._bulletIcon.icon_name = 'pan-end-symbolic';
         this._icon = new St.Icon({
-            icon_name: "audio-volume-muted-symbolic",
-            style_class: "popup-menu-icon",
+            icon_name: 'audio-volume-muted-symbolic',
+            style_class: 'popup-menu-icon',
         });
 
         this.add(this._icon);
@@ -652,34 +683,34 @@ const Volume = GObject.registerClass({
 
         this.add(this._slider, {expand: true});
 
-        this.pushSignal(this, "scroll-event", (actor, event) => {
+        this.pushSignal(this, 'scroll-event', (actor, event) => {
             return this._slider._onScrollEvent(actor, event);
         });
 
-        this.pushSignal(this, "touch-event", (actor, event) => {
+        this.pushSignal(this, 'touch-event', (actor, event) => {
             return this._slider._touchDragging(actor, event);
         });
 
-        this.pushSignal(this, "button-press-event", (actor, event) => {
+        this.pushSignal(this, 'button-press-event', (actor, event) => {
             if (event.get_button() === Clutter.BUTTON_SECONDARY) {
                 this.toggleMute();
             }
             return this._slider.startDragging(event);
         });
 
-        this.pushSignal(this, "key-press-event", (actor, event) => {
+        this.pushSignal(this, 'key-press-event', (actor, event) => {
             return this._slider.onKeyPressEvent(actor, event);
         });
 
-        this._sliderChangedId = this.pushSignal(this._slider, "notify::value", () => {
+        this._sliderChangedId = this.pushSignal(this._slider, 'notify::value', () => {
             this.value = this._sliderValue;
         });
 
-        this.pushSignal(this._slider, "drag-begin", () => {
+        this.pushSignal(this._slider, 'drag-begin', () => {
             this._preDragValue = this.value;
         });
 
-        this.pushSignal(this._slider, "drag-end", () => {
+        this.pushSignal(this._slider, 'drag-end', () => {
             this.remove_style_pseudo_class('active');
             if (this._preDragValue && !this.value) {
                 this._preMuteValue = this._preDragValue;
@@ -692,18 +723,18 @@ const Volume = GObject.registerClass({
         this._mpris = mpris;
         this.value = this._mprisVolume;
         if (this._mpris.player_name) {
-            this._slider.accessible_name = `${this._mpris.player_name} Volume`;
+            this._slider.accessible_name = this._mpris.player_name + ' ' + "Volume";
         }
-        this._volumeChangedId = this._mpris.pushSignal(this._mpris, "notify::volume", () => {
+        this._volumeChangedId = this._mpris.pushSignal(this._mpris, 'notify::volume', () => {
             this.value = this._mprisVolume;
         });
-        this._mpris.pushSignal(this._mpris, "notify::player-name", () => {
-            this._slider.accessible_name = `${this._mpris.player_name} Volume`;
+        this._mpris.pushSignal(this._mpris, 'notify::player-name', () => {
+            this._slider.accessible_name = this._mpris.player_name + ' ' + "Volume";
         });
         this._mpris.bind_property(
-            "show-volume",
+            'show-volume',
             this,
-            "visible",
+            'visible',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
     }
@@ -785,35 +816,41 @@ const Volume = GObject.registerClass({
 });
 
 const SubMenuItem = GObject.registerClass({
-    GTypeName: "SubMenuItem",
+    GTypeName: 'SubMenuItem',
     GTypeFlags: GObject.TypeFlags.ABSTRACT
 }, class SubMenuItem extends MainItem {
     _init(proxy) {
         super._init();
         this._obj_id = null;
         if (proxy) {
-            this.pushSignal(this, "activate", () => {
+            this.pushSignal(this, 'activate', () => {
                 proxy.goTo(this.obj_id);
             });
         }
     }
 
     get obj_id() {
-        return this._obj_id || "";
+        return this._obj_id || '';
     }
 });
 
 const PlayListSubMenuItem = GObject.registerClass({
-    GTypeName: "PlayListSubMenuItem"
+    GTypeName: 'PlayListSubMenuItem'
 }, class PlayListSubMenuItem extends SubMenuItem {
     _init(proxy, metadata) {
         super._init(proxy);
-        this._bulletIcon.gicon = getSymbolicGiconByName("current-item-left-symbolic");
+        this._bulletIcon.gicon = getSymbolicGiconByName('current-item-left-symbolic');
         this.label = new St.Label({
-            style_class: "normal-label"
+            style_class: 'normal-label'
         });
         this.add(this.label);
+        this.updateMetadata(proxy.player_name);
         this.updateMetadata(metadata);
+    }
+
+    updatePlayerName(player_name) {
+        // TRANSLATORS: The semicolon is important leave it alone.
+        this.accessible_name = player_name + ' ' + "PlayList Item" +';';
     }
 
     updateMetadata([obj_id, title]) {
@@ -823,7 +860,7 @@ const PlayListSubMenuItem = GObject.registerClass({
 });
 
 const TrackItem = GObject.registerClass({
-    GTypeName: "TrackItem",
+    GTypeName: 'TrackItem',
     GTypeFlags: GObject.TypeFlags.ABSTRACT
 }, class TrackItem extends SubMenuItem {
     _init(proxy) {
@@ -832,7 +869,7 @@ const TrackItem = GObject.registerClass({
         this.add(this.coverIcon);
         this.info = new TrackInfo();
         this.add(this.info, {expand: true});
-        this.pushSignal(this.info, "notify::height", () => {
+        this.pushSignal(this.info, 'notify::height', () => {
             let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
             let size = Math.ceil(this.info.height > 0 ? this.info.height : 32 / scaleFactor); 
             this.coverIcon.icon_size = size;
@@ -842,16 +879,16 @@ const TrackItem = GObject.registerClass({
 });
 
 const PlayerItem = GObject.registerClass({
-    GTypeName: "PlayerItem"
+    GTypeName: 'PlayerItem'
 }, class PlayerItem extends TrackItem {
     _init() {
         super._init();
-        this._bulletIcon.gicon = getSymbolicGiconByName("current-item-right-symbolic");
+        this._bulletIcon.gicon = getSymbolicGiconByName('current-item-right-symbolic');
         this.closeButton = new St.Button({
-            style_class: "player-quit-button",
+            style_class: 'player-quit-button',
             child: new St.Icon({
-                style_class: "popup-menu-arrow",
-                icon_name: "window-close-symbolic"
+                style_class: 'popup-menu-arrow',
+                icon_name: 'window-close-symbolic'
             })
         });
         this.closeButton.hide();
@@ -862,7 +899,7 @@ const PlayerItem = GObject.registerClass({
         );
         let iconEffect = new Clutter.DesaturateEffect();
         this.coverIcon.add_effect(iconEffect);
-        this.coverIcon.pushSignal(this.coverIcon, "notify::gicon", () => {
+        this.coverIcon.pushSignal(this.coverIcon, 'notify::gicon', () => {
             iconEffect.enabled = this.coverIcon.gicon instanceof Gio.BytesIcon ? false : true;
         });
     }
@@ -878,12 +915,17 @@ const PlayerItem = GObject.registerClass({
 });
 
 const TrackListSubMenuItem = GObject.registerClass({
-    GTypeName: "TrackListSubMenuItem"
+    GTypeName: 'TrackListSubMenuItem'
 }, class TrackListSubMenuItem extends TrackItem {
     _init(proxy, metadata) {
         super._init(proxy);
-        this._bulletIcon.gicon = getSymbolicGiconByName("current-item-left-symbolic");
+        this._bulletIcon.gicon = getSymbolicGiconByName('current-item-left-symbolic');
+        this.updatePlayerName(proxy.player_name);
         this.updateMetadata(metadata);
+    }
+
+    updatePlayerName(player_name) {
+        this.accessible_name = player_name + ' ' + "TrackList Item" +';';
     }
 
     updateMetadata([obj_id, cover_url, artist, title, mimetype_icon]) {
@@ -894,27 +936,28 @@ const TrackListSubMenuItem = GObject.registerClass({
 });
 
 const SubMenu = GObject.registerClass({
-    GTypeName: "SubMenu"
+    GTypeName: 'SubMenu'
 }, class SubMenu extends PopupSubMenuMenuItem {
     _init(itemClass) {
-        super._init("", true);
+        super._init('', true);
+        this.label_actor = null;
         this.hide();
         this._ornamentLabel.destroy();
         let spacer = new St.Icon({
-            style_class: "popup-menu-arrow",
-            icon_name: "pan-end-symbolic",
+            style_class: 'popup-menu-arrow',
+            icon_name: 'pan-end-symbolic',
             opacity: 0
         });
         this.insert_child_at_index(spacer, 0);
         this._proxy = null;
         this._itemClass = itemClass;
-        this._current_obj_id = "";
+        this._current_obj_id = '';
         this._signals = [];
-        this.icon.icon_name = "view-list-bullet-symbolic";
+        this.icon.icon_name = 'view-list-bullet-symbolic';
     }
 
     get busName() {
-        return this._proxy ? this._proxy.busName : "";
+        return this._proxy ? this._proxy.busName : '';
     }
 
     setProxy(proxy) {
@@ -922,28 +965,45 @@ const SubMenu = GObject.registerClass({
             this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             this._signals = [];
             this._proxy.destroy();
-            this._current_obj_id = "";
+            this._current_obj_id = '';
             this.menu.removeAll();
         }
         this._proxy = proxy;
-        this._proxy.bind_property(
-            "list-title",
-            this.label,
-            "text",
-            DEFAULT_SYNC_CREATE_PROP_FLAGS
-        );
 
-        this.pushSignal(this._proxy, "notify::show-list", (proxy) => {
+        let updatePlayerName = (proxy) => {
+            let listTile = proxy.list_title == 'TrackList'
+                ? "TrackList"
+                : proxy.list_title == 'PlayLists'
+                ? "PlayLists"
+                : proxy.list_title;
+            this.label.text = listTile;
+            let ifaceName = proxy.ifaceName.split('.').pop();
+            let menuType = ifaceName == 'TrackList'
+                ? "TrackList"
+                : "PlayLists";
+            this.accessible_name = ifaceName !== proxy.list_title
+                ? proxy.player_name + ' ' + menuType + ';'
+                : proxy.player_name;
+            this.menu._getMenuItems().forEach(item => item.updatePlayerName(proxy.player_name));
+        }
+
+        updatePlayerName(proxy);
+
+        this.pushSignal(this._proxy, 'notify::list-title', (proxy) => {
+            updatePlayerName(proxy);
+        });
+
+        this.pushSignal(this._proxy, 'notify::show-list', (proxy) => {
             if (!proxy.show_list) {
                 if (this.menu.isOpen) {
                     this.menu.toggle();
                 }
-                this._current_obj_id = "";
+                this._current_obj_id = '';
                 this.menu.removeAll();
             }
             this.visible = proxy.show_list;
         });
-        this.pushSignal(this._proxy, "notify::current-obj-id", (proxy) => {
+        this.pushSignal(this._proxy, 'notify::current-obj-id', (proxy) => {
             let current_obj_id = proxy.current_obj_id;
             if (this._current_obj_id !== current_obj_id) {
                 this._current_obj_id = current_obj_id;
@@ -955,15 +1015,15 @@ const SubMenu = GObject.registerClass({
                 });
             }
         });
-        this.pushSignal(this._proxy, "metadata-changed", (_, obj_id, ...metadata) => {
+        this.pushSignal(this._proxy, 'metadata-changed', (_, obj_id, ...metadata) => {
             let item = this.menu._getMenuItems().find(i => i.obj_id === obj_id);
             if (item) {
-                this._current_obj_id = "";
+                this._current_obj_id = '';
                 item.updateMetadata(metadata);
             }
         });
-        this.pushSignal(this._proxy, "new-metadata", (proxy) => {
-            this._current_obj_id = "";
+        this.pushSignal(this._proxy, 'new-metadata', (proxy) => {
+            this._current_obj_id = '';
             let items = this.menu._getMenuItems();
             let metadata = proxy.metadata;
             metadata.forEach((m, i) => {
@@ -979,7 +1039,7 @@ const SubMenu = GObject.registerClass({
             // Destroy any submenu items we don't need.
             items.slice(metadata.length).forEach(i => i.destroy());
         });
-        this.pushSignal(this, "destroy", () => {
+        this.pushSignal(this, 'destroy', () => {
             if (this._proxy) {
                 this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
                 this._proxy.destroy();
@@ -1025,66 +1085,66 @@ class Player extends PopupMenuSection {
         this._trackListSubMenu = new SubMenu(TrackListSubMenuItem);
         this.addMenuItem(this._trackListSubMenu);
 
-        this._playerItem.pushSignal(this._playerItem, "activate", () => {
+        this._playerItem.pushSignal(this._playerItem, 'activate', () => {
             this.toggleWindow(false);
         });
 
-        this._playerItem.pushSignal(this._playerItem, "notify::hover", () => {
+        this._playerItem.pushSignal(this._playerItem, 'notify::hover', () => {
             this._playerItem.closeButton.visible = this._playerItem.hover && this._mpris && this._mpris.show_close;
         });
 
-        this._playerItem.pushSignal(this._playerItem, "key-press-event", this._onKeyPressEvent.bind(this));
-        this._controls.pushSignal(this._controls, "key-press-event", this._onKeyPressEvent.bind(this));
+        this._playerItem.pushSignal(this._playerItem, 'key-press-event', this._onKeyPressEvent.bind(this));
+        this._controls.pushSignal(this._controls, 'key-press-event', this._onKeyPressEvent.bind(this));
 
-        this._playerItem.pushSignal(this._playerItem, "scroll-event", this._onScrollEvent.bind(this));
-        this._controls.pushSignal(this._controls, "scroll-event", this._onScrollEvent.bind(this));
+        this._playerItem.pushSignal(this._playerItem, 'scroll-event', this._onScrollEvent.bind(this));
+        this._controls.pushSignal(this._controls, 'scroll-event', this._onScrollEvent.bind(this));
 
-        this._playerItem.pushSignal(this._playerItem, "button-release-event", (actor, event) => {
+        this._playerItem.pushSignal(this._playerItem, 'button-release-event', (actor, event) => {
             return this.toggleWindow(true);
         });
 
-        this._controls.pushSignal(this._controls, "button-release-event", (actor, event) => {
+        this._controls.pushSignal(this._controls, 'button-release-event', (actor, event) => {
             if (event.get_button() === Clutter.BUTTON_SECONDARY) {
                 return this.playPauseStop();
             }
             return Clutter.EVENT_PROPAGATE;
         });
 
-        this._playerItem.pushSignal(this._playerItem.closeButton, "clicked", () => {
+        this._playerItem.pushSignal(this._playerItem.closeButton, 'clicked', () => {
             if (this._mpris) {
                 this._mpris.quit();
             }
         });
 
-        this._controls.pushSignal(this._controls.shuffleButton, "clicked", () => {
+        this._controls.pushSignal(this._controls.shuffleButton, 'clicked', () => {
             this.toggleShuffle();
         });
 
-        this._controls.pushSignal(this._controls.prevButton, "clicked", () => {
+        this._controls.pushSignal(this._controls.prevButton, 'clicked', () => {
             this.previous();
         });
 
-        this._controls.pushSignal(this._controls.playPauseButton, "clicked", () => {
+        this._controls.pushSignal(this._controls.playPauseButton, 'clicked', () => {
             if (this._mpris) {
                 this._mpris.playPause();
             }
         });
 
-        this._controls.pushSignal(this._controls.stopButton, "clicked", () => {
+        this._controls.pushSignal(this._controls.stopButton, 'clicked', () => {
             if (this._mpris) {
                 this._mpris.stop();
             }
         });
 
-        this._controls.pushSignal(this._controls.nextButton, "clicked", () => {
+        this._controls.pushSignal(this._controls.nextButton, 'clicked', () => {
              this.next();
         });
 
-        this._controls.pushSignal(this._controls.repeatButton, "clicked", () => {
+        this._controls.pushSignal(this._controls.repeatButton, 'clicked', () => {
             this.cycleRepeat();
         });
 
-        let destroyId = this.connect( "destroy", () => {
+        let destroyId = this.connect( 'destroy', () => {
             this.disconnect(destroyId);
             if (this._mpris) {
                 this._mpris.destroy();
@@ -1096,19 +1156,19 @@ class Player extends PopupMenuSection {
     }
 
     get playerName() {
-        return this._mpris ? this._mpris.player_name : "";
+        return this._mpris ? this._mpris.player_name : '';
     }
 
     get busName() {
-        return this._mpris ? this._mpris.busName : "";
+        return this._mpris ? this._mpris.busName : '';
     }
 
     get artist() {
-        return this._mpris ? this._mpris.artist : "";
+        return this._mpris ? this._mpris.artist : '';
     }
 
     get trackTitle() {
-        return this._mpris ? this._mpris.title : "";
+        return this._mpris ? this._mpris.title : '';
     }
 
     get gicon() {
@@ -1210,155 +1270,162 @@ class Player extends PopupMenuSection {
         }
 
         mpris.bind_property(
-            "obj-id",
+            'obj-id',
             trackList,
-            "current-obj-id",
+            'current-obj-id',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
         mpris.bind_property(
-            "player-name",
+            'player-name',
             trackList,
-            "player-name",
+            'player-name',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
         mpris.bind_property(
-            "player-name",
+            'player-name',
             playList,
-            "player-name",
+            'player-name',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris = mpris;
 
-        this._mpris.pushSignal(this._mpris, "update-indicator", updateIndicator);
+        this._mpris.pushSignal(this._mpris, 'update-indicator', updateIndicator);
 
         this._volume.setProxy(mpris);
         this._playListSubMenu.setProxy(playList);
         this._trackListSubMenu.setProxy(trackList);
 
         this._mpris.bind_property(
-            "accessible-name",
+            'accessible-name',
             this._playerItem,
-            "accessible-name",
+            'accessible-name',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "show-controls",
+            'show-controls',
             this._controls,
-            "visible",
+            'visible',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "cover-url",
+            'player-name',
+            this._controls,
+            'player-name',
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+
+        this._mpris.bind_property(
+            'cover-url',
             this._playerItem.coverIcon,
-            "cover-url",
+            'cover-url',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "gicon",
+            'gicon',
             this._playerItem.coverIcon,
-            "fallback-gicon",
+            'fallback-gicon',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "show-stop",
+            'show-stop',
             this._controls.stopButton,
-            "visible",
+            'visible',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "prev-reactive",
+            'prev-reactive',
             this._controls.prevButton,
-            "reactive",
+            'reactive',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "playpause-reactive",
+            'playpause-reactive',
             this._controls.playPauseButton,
-            "reactive",
+            'reactive',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "playpause-icon-name",
+            'playpause-icon-name',
             this._controls.playPauseButton,
-            "icon-name",
+            'icon-name',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "next-reactive",
+            'next-reactive',
             this._controls.nextButton,
-            "reactive",
+            'reactive',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "repeat-reactive",
+            'repeat-reactive',
             this._controls.repeatButton,
-            "reactive",
+            'reactive',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "show-shuffle-repeat",
+            'show-shuffle-repeat',
             this._controls.repeatButton,
-            "visible",
+            'visible',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "repeat-active",
+            'repeat-active',
             this._controls.repeatButton,
-            "active",
+            'active',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "repeat-icon-name",
+            'repeat-icon-name',
             this._controls.repeatButton,
-            "icon-name",
+            'icon-name',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "show-shuffle-repeat",
+            'show-shuffle-repeat',
             this._controls.shuffleButton,
-            "visible",
+            'visible',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "shuffle-reactive",
+            'shuffle-reactive',
             this._controls.shuffleButton,
-            "reactive",
+            'reactive',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "shuffle-active",
+            'shuffle-active',
             this._controls.shuffleButton,
-            "active",
+            'active',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "artist",
+            'artist',
             this._playerItem.info.artistLabel,
-            "text",
+            'text',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this._mpris.bind_property(
-            "title",
+            'title',
             this._playerItem.info.titleLabel,
-            "text",
+            'text',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
     }
@@ -1409,9 +1476,9 @@ class Player extends PopupMenuSection {
 }
 
 var MprisIndicatorButton = GObject.registerClass({
-    GTypeName: "MprisIndicatorButton",
+    GTypeName: 'MprisIndicatorButton',
     Signals: {
-        "update-tooltip": {
+        'update-tooltip': {
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING,  // artist
@@ -1423,15 +1490,15 @@ var MprisIndicatorButton = GObject.registerClass({
     }
 }, class MprisIndicatorButton extends Button {
     _init() {
-        super._init(0.5, "Mpris Indicator Button");
-        this.accessible_name = "Mpris";
-        this.menu.actor.add_style_class_name("aggregate-menu");
+        super._init(0.5, 'Mpris Indicator Button');
+        this.accessible_name = 'Mpris';
+        this.menu.actor.add_style_class_name('aggregate-menu');
         this.menu.box.set_layout_manager(new AggregateLayout());
 
         this.hide();
 
         let indicator = new St.Icon({
-            style_class: "system-status-icon"
+            style_class: 'system-status-icon'
         });
 
         indicator.add_effect(new Clutter.DesaturateEffect());
@@ -1483,7 +1550,7 @@ var MprisIndicatorButton = GObject.registerClass({
             let activePlayer = getLastActivePlayer(players);
             if (activePlayer) {
                 this.emit(
-                    "update-tooltip",
+                    'update-tooltip',
                     activePlayer.artist,
                     activePlayer.trackTitle,
                     activePlayer.focused,
@@ -1509,11 +1576,11 @@ var MprisIndicatorButton = GObject.registerClass({
             this.visible = visible;
         };
 
-        pushSignal(St.TextureCache.get_default(), "icon-theme-changed", () => {
+        pushSignal(St.TextureCache.get_default(), 'icon-theme-changed', () => {
             getPlayers().forEach(p => p.refreshIcon());
         });
 
-        pushSignal(this, "key-press-event", (actor, event) => {
+        pushSignal(this, 'key-press-event', (actor, event) => {
             let ctrl = event.has_control_modifier();
             let shift = event.has_shift_modifier();
             let player = getLastActivePlayer();
@@ -1546,7 +1613,7 @@ var MprisIndicatorButton = GObject.registerClass({
             return Clutter.EVENT_PROPAGATE;
         });
 
-        pushSignal(this, "button-press-event", (actor, event) => {
+        pushSignal(this, 'button-press-event', (actor, event) => {
             let player = getLastActivePlayer();
             if (player) {
                 let button = event.get_button();
@@ -1562,14 +1629,14 @@ var MprisIndicatorButton = GObject.registerClass({
             return Clutter.EVENT_PROPAGATE;
         });
 
-        pushSignal(this, "touch-event", (actor, event) => {
+        pushSignal(this, 'touch-event', (actor, event) => {
             if (event.type() == Clutter.EventType.TOUCH_BEGIN) {
                 this.menu.toggle();
             }
             return Clutter.EVENT_PROPAGATE;
         });
 
-        pushSignal(this, "scroll-event", (actor, event) => {
+        pushSignal(this, 'scroll-event', (actor, event) => {
             let player = getLastActivePlayer();
             if (player) {
                 let scrollDirection = event.get_scroll_direction();
@@ -1588,7 +1655,7 @@ var MprisIndicatorButton = GObject.registerClass({
 
         let proxyHandler = new DBusProxyHandler();
 
-        pushSignal(proxyHandler, "add-player", (proxyHandler, busName, mpris, trackList, playList) => {
+        pushSignal(proxyHandler, 'add-player', (proxyHandler, busName, mpris, trackList, playList) => {
             let player = getPlayers().find(p => p.busName === busName);
             if (player) {
                 player.setProxies(mpris, trackList, playList, updateIndicator);
@@ -1603,7 +1670,7 @@ var MprisIndicatorButton = GObject.registerClass({
             updateIndicator();
         });
 
-        pushSignal(proxyHandler, "remove-player", (proxyHandler, busName) => {
+        pushSignal(proxyHandler, 'remove-player', (proxyHandler, busName) => {
             this.menu._getMenuItems().forEach(i => {
                 if (i.busName === busName) {
                     i.destroy();
@@ -1616,7 +1683,7 @@ var MprisIndicatorButton = GObject.registerClass({
 
         let toolTip = new ToolTip(this);
 
-        pushSignal(this, "destroy", () => {
+        pushSignal(this, 'destroy', () => {
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
             CoverArtIOHandler.destroy();
             proxyHandler.destroy();

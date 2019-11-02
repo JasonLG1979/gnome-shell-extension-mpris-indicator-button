@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// No translatable strings in this file.
 const { Atk, Clutter, GObject, St } = imports.gi;
 
 const LayoutManager = imports.ui.main.layoutManager;
@@ -28,7 +29,7 @@ const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.Bi
 // the tooltip in the proper place in relation to the
 // indicator no matter what side of the monitor it's on.
 const ToolTipConstraint = GObject.registerClass({
-    GTypeName: "ToolTipConstraint"
+    GTypeName: 'ToolTipConstraint'
 }, class ToolTipConstraint extends Clutter.Constraint {
     _init() {
         super._init();
@@ -67,7 +68,7 @@ const ToolTipConstraint = GObject.registerClass({
     }
 
     vfunc_update_allocation(actor, box) {
-        if (!actor.hasOwnProperty("indicator") || !actor.indicator) {
+        if (!actor.hasOwnProperty('indicator') || !actor.indicator) {
             return;
         }
         let thisWidth = box.x2 - box.x1;
@@ -128,48 +129,48 @@ const ToolTipConstraint = GObject.registerClass({
 // with ToolTipConstraint (which should really never need to be touched)
 // to add tooltips to their Indicators if they like.
 var ToolTipBase = GObject.registerClass({
-    GTypeName: "ToolTipBase",
+    GTypeName: 'ToolTipBase',
     GTypeFlags: GObject.TypeFlags.ABSTRACT,
     Properties: {
-        "text": GObject.ParamSpec.string(
-            "text",
-            "text-prop",
-            "the tooltip's text",
+        'text': GObject.ParamSpec.string(
+            'text',
+            'text-prop',
+            'the tooltip\'s text',
             GObject.ParamFlags.READWRITE,
-            ""
+            ''
         ),
-        "icon-name": GObject.ParamSpec.string(
-            "icon-name",
-            "icon-name-prop",
-            "the tooltip's icon-name",
+        'icon-name': GObject.ParamSpec.string(
+            'icon-name',
+            'icon-name-prop',
+            'the tooltip\'s icon-name',
             GObject.ParamFlags.READWRITE,
-            ""
+            ''
         ),
-        "label-style-class": GObject.ParamSpec.string(
-            "label-style-class",
-            "label-style-class-prop",
-            "the style class of the tooltip's label",
+        'label-style-class': GObject.ParamSpec.string(
+            'label-style-class',
+            'label-style-class-prop',
+            'the style class of the tooltip\'s label',
             GObject.ParamFlags.READWRITE,
-            ""
+            ''
         ),
-        "icon-style-class": GObject.ParamSpec.string(
-            "icon-style-class",
-            "text-style-class-prop",
-            "the style class of the tooltip's icon",
+        'icon-style-class': GObject.ParamSpec.string(
+            'icon-style-class',
+            'text-style-class-prop',
+            'the style class of the tooltip\'s icon',
             GObject.ParamFlags.READWRITE,
-            ""
+            ''
         ),
-        "show-icon": GObject.ParamSpec.boolean(
-            "show-icon",
-            "show-icon-prop",
-            "if the tooltip's icon should be shown",
+        'show-icon': GObject.ParamSpec.boolean(
+            'show-icon',
+            'show-icon-prop',
+            'if the tooltip\'s icon should be shown',
             GObject.ParamFlags.READWRITE,
             false
         )
     }
 }, class ToolTipBase extends St.Widget {
-    _init(indicator, wantsIcon=false, text="", iconName="",
-        toolTipStyleClass="", iconStyleClass="", labelStyleClass="") {
+    _init(indicator, wantsIcon=false, text='', iconName='',
+        toolTipStyleClass='', iconStyleClass='', labelStyleClass='') {
 
         super._init({
             y_align: Clutter.ActorAlign.CENTER,
@@ -210,98 +211,98 @@ var ToolTipBase = GObject.registerClass({
         this.label_actor = this._label;
 
         this.bind_property(
-            "text",
+            'text',
             this._label,
-            "text",
+            'text',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this.bind_property(
-            "icon-name",
+            'icon-name',
             this._icon,
-            "icon-name",
+            'icon-name',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this.bind_property(
-            "label-style-class",
+            'label-style-class',
             this._label,
-            "style-class",
+            'style-class',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this.bind_property(
-            "icon-style-class",
+            'icon-style-class',
             this._icon,
-            "style-class",
+            'style-class',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
         this.bind_property(
-            "show-icon",
+            'show-icon',
             this._icon,
-            "visible",
+            'visible',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
-        this.pushSignal(this, "notify::allocation", () => {
+        this.pushSignal(this, 'notify::allocation', () => {
             this._label.clutter_text.queue_relayout();
         });
 
         // All handler functions can be overridden, just remember to chain up if you want
         // to maintain default behaviour.
-        this.pushSignal(this.indicator,"notify::visible", this.onIndicatorVisibleChanged.bind(this));
+        this.pushSignal(this.indicator,'notify::visible', this.onIndicatorVisibleChanged.bind(this));
 
-        this.pushSignal(this.indicator,"notify::hover", this.onIndicatorHover.bind(this));
+        this.pushSignal(this.indicator,'notify::hover', this.onIndicatorHover.bind(this));
 
-        this.pushSignal(this.indicator.menu, "open-state-changed", this.onIndicatorMenuOpenStateChanged.bind(this));
+        this.pushSignal(this.indicator.menu, 'open-state-changed', this.onIndicatorMenuOpenStateChanged.bind(this));
 
-        this.pushSignal(this.indicator, "destroy", this.onIndicatorDestroy.bind(this));
+        this.pushSignal(this.indicator, 'destroy', this.onIndicatorDestroy.bind(this));
 
         LayoutManager.addTopChrome(this, {affectsInputRegion: false});
     }
 
     get text() {
-        return this._text || "";
+        return this._text || '';
     }
 
-    set text(text="") {
+    set text(text='') {
         if (this._text !== text) {
             this._text = text;
-            this.notify("text");
+            this.notify('text');
         }
     }
 
     get icon_name() {
-        return this._icon_name || "";
+        return this._icon_name || '';
     }
 
-    set icon_name(icon_name="") {
+    set icon_name(icon_name='') {
         if (this._icon_name !== icon_name) {
             this._icon_name = icon_name;
-            this.notify("icon-name");
+            this.notify('icon-name');
         }
     }
 
     get label_style_class() {
-        return this._label_style_class || "";
+        return this._label_style_class || '';
     }
 
-    set label_style_class(label_style_class="") {
+    set label_style_class(label_style_class='') {
         if (this._label_style_class !== label_style_class) {
             this._label_style_class = label_style_class;
-            this.notify("label-style-class");
+            this.notify('label-style-class');
         }
     }
 
     get icon_style_class() {
-        return this._icon_style_class || "";
+        return this._icon_style_class || '';
     }
 
-    set icon_style_class(icon_style_class="") {
+    set icon_style_class(icon_style_class='') {
         if (this._icon_style_class !== icon_style_class) {
             this._icon_style_class = icon_style_class;
-            this.notify("icon-style-class");
+            this.notify('icon-style-class');
         }
     }
 
@@ -312,14 +313,14 @@ var ToolTipBase = GObject.registerClass({
     set show_icon(show_icon=false) {
         if (this._show_icon !== show_icon) {
             this._show_icon = show_icon;
-            this.notify("show-icon");
+            this.notify('show-icon');
         }
     }
 
     get indicatorMenuIsOpen() {
         // Not all indicators have real menus. Indicators without menus still have
         // dummy menus though that lack isOpen.
-        return this.indicator.menu.hasOwnProperty("isOpen") && this.indicator.menu.isOpen;
+        return this.indicator.menu.hasOwnProperty('isOpen') && this.indicator.menu.isOpen;
     }
 
     pushSignal(obj, signalName, callback) {
@@ -374,7 +375,7 @@ var ToolTipBase = GObject.registerClass({
         this.destroy();
     }
 
-    update(text="", iconName="") {
+    update(text='', iconName='') {
         let wasShowing = this._showing;
         this.remove_all_transitions();
         this.text = text;
@@ -386,7 +387,7 @@ var ToolTipBase = GObject.registerClass({
         }
     }
 
-    updateText(text="") {
+    updateText(text='') {
         let wasShowing = this._showing;
         this.remove_all_transitions();
         this.text = text;
@@ -397,7 +398,7 @@ var ToolTipBase = GObject.registerClass({
         }
     }
 
-    updateIconName(iconName="") {
+    updateIconName(iconName='') {
         let wasShowing = this._showing;
         this.remove_all_transitions();
         this.icon_name = iconName;
@@ -408,7 +409,7 @@ var ToolTipBase = GObject.registerClass({
         }
     }
 
-    animatedUpdate(text="", iconName="") {
+    animatedUpdate(text='', iconName='') {
         if (this.visible && (this.text !== text || this.icon_name !== iconName)) {
             this.animatedHide(() => {
                 this.icon_name = iconName;
@@ -421,7 +422,7 @@ var ToolTipBase = GObject.registerClass({
         }
     }
 
-    animatedUpdateText(text="") {
+    animatedUpdateText(text='') {
         if (this.visible && this.text !== text) {
             this.animatedHide(() => {
                 this.text = text;
@@ -432,7 +433,7 @@ var ToolTipBase = GObject.registerClass({
         }
     }
 
-    animatedUpdateIconName(iconName="") {
+    animatedUpdateIconName(iconName='') {
         if (this.visible && this.icon_name !== iconName) {
             this.animatedHide(() => {
                 this.icon_name = iconName;
@@ -443,14 +444,14 @@ var ToolTipBase = GObject.registerClass({
         }
     }
 
-    updateAfterHide(text="", iconName="") {
+    updateAfterHide(text='', iconName='') {
         this.animatedHide(() => {
             this.icon_name = iconName;
             this.text = text;
         });
     }
 
-    updateThenShow(text="", iconName="") {
+    updateThenShow(text='', iconName='') {
         this.icon_name = iconName;
         this.text = text;
         this.animateShow();
@@ -476,7 +477,7 @@ var ToolTipBase = GObject.registerClass({
             scale_y: 1.0,
             duration: TOOL_TIP_ANIMATION_TIME,
             // Not only does this delay stop the tooltip
-            // from popping up when the indicator is "glanced over"
+            // from popping up when the indicator is 'glanced over'
             // on the way to other UI elements,
             // it also prevents the tooltip
             // from strobing in the event of rapid updates,

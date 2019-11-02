@@ -18,112 +18,113 @@
  * If this extension breaks your desktop you get to keep all of the pieces...
  */
 
+// No translatable strings in this file.
 const { Gio, GLib, GObject, Gtk, Meta, Shell } = imports.gi;
 
 const { activateWindow } = imports.ui.main;
 
 const UUID = imports.misc.extensionUtils.getCurrentExtension().metadata.uuid;
-const MPRIS_PREFIX = "org.mpris.MediaPlayer2.";
+const MPRIS_PREFIX = 'org.mpris.MediaPlayer2.';
 // See https://specifications.freedesktop.org/mpris-spec/latest/Player_Interface.html#Simple-Type:Track_Id
-const NO_TRACK_PATH = "/org/mpris/MediaPlayer2/TrackList/NoTrack";
-const FORBIDDEN_OBJ_ID_PREFIX = "/org/mpris";
+const NO_TRACK_PATH = '/org/mpris/MediaPlayer2/TrackList/NoTrack';
+const FORBIDDEN_OBJ_ID_PREFIX = '/org/mpris';
 const METADATA_KEYS = [
-    "xesam:artist",
-    "xesam:albumArtist",
-    "xesam:composer",
-    "xesam:lyricist",
-    "rhythmbox:streamTitle",
-    "xesam:title",
-    "xesam:trackNumber",
-    "xesam:album",
-    "xesam:discNumber",
-    "mpris:artUrl",
-    "mpris:trackid",
-    "xesam:url"
+    'xesam:artist',
+    'xesam:albumArtist',
+    'xesam:composer',
+    'xesam:lyricist',
+    'rhythmbox:streamTitle',
+    'xesam:title',
+    'xesam:trackNumber',
+    'xesam:album',
+    'xesam:discNumber',
+    'mpris:artUrl',
+    'mpris:trackid',
+    'xesam:url'
 ];
 
 const Node = Gio.DBusNodeInfo.new_for_xml(
 `<node>
-<interface name="org.freedesktop.DBus">
-  <method name="GetConnectionUnixProcessID">
-    <arg type="s" direction="in" />
-    <arg type="u" direction="out" />
+<interface name='org.freedesktop.DBus'>
+  <method name='GetConnectionUnixProcessID'>
+    <arg type='s' direction='in' />
+    <arg type='u' direction='out' />
   </method>
-  <method name="ListNames">
-    <arg type="as" direction="out" />
+  <method name='ListNames'>
+    <arg type='as' direction='out' />
   </method>
-  <signal name="NameOwnerChanged">
-    <arg type="s" direction="out" />
-    <arg type="s" direction="out" />
-    <arg type="s" direction="out" />
+  <signal name='NameOwnerChanged'>
+    <arg type='s' direction='out' />
+    <arg type='s' direction='out' />
+    <arg type='s' direction='out' />
   </signal>
 </interface>
-<interface name="org.mpris.MediaPlayer2">
-  <method name="Raise" />
-  <method name="Quit" />
-  <property name="CanQuit" type="b" access="read" />
-  <property name="CanRaise" type="b" access="read" />
-  <property name="Identity" type="s" access="read" />
-  <property name="DesktopEntry" type="s" access="read" />
+<interface name='org.mpris.MediaPlayer2'>
+  <method name='Raise' />
+  <method name='Quit' />
+  <property name='CanQuit' type='b' access='read' />
+  <property name='CanRaise' type='b' access='read' />
+  <property name='Identity' type='s' access='read' />
+  <property name='DesktopEntry' type='s' access='read' />
 </interface>
-<interface name="org.mpris.MediaPlayer2.Player">
-  <method name="PlayPause" />
-  <method name="Next" />
-  <method name="Previous" />
-  <method name="Stop" />
-  <method name="Play" />
-  <property name="CanControl" type="b" access="read" />
-  <property name="CanGoNext" type="b" access="read" />
-  <property name="CanGoPrevious" type="b" access="read" />
-  <property name="CanPlay" type="b" access="read" />
-  <property name="CanPause" type="b" access="read" />
-  <property name="Metadata" type="a{sv}" access="read" />
-  <property name="PlaybackStatus" type="s" access="read" />
-  <property name="Shuffle" type="b" access="readwrite" />
-  <property name="LoopStatus" type="s" access="readwrite" />
-  <property name="Volume" type="d" access="readwrite" />
+<interface name='org.mpris.MediaPlayer2.Player'>
+  <method name='PlayPause' />
+  <method name='Next' />
+  <method name='Previous' />
+  <method name='Stop' />
+  <method name='Play' />
+  <property name='CanControl' type='b' access='read' />
+  <property name='CanGoNext' type='b' access='read' />
+  <property name='CanGoPrevious' type='b' access='read' />
+  <property name='CanPlay' type='b' access='read' />
+  <property name='CanPause' type='b' access='read' />
+  <property name='Metadata' type='a{sv}' access='read' />
+  <property name='PlaybackStatus' type='s' access='read' />
+  <property name='Shuffle' type='b' access='readwrite' />
+  <property name='LoopStatus' type='s' access='readwrite' />
+  <property name='Volume' type='d' access='readwrite' />
 </interface>
-<interface name="org.mpris.MediaPlayer2.TrackList">
-  <method name="GetTracksMetadata">
-    <arg type="ao" direction="in" />
-    <arg type="aa{sv}" direction="out" />
+<interface name='org.mpris.MediaPlayer2.TrackList'>
+  <method name='GetTracksMetadata'>
+    <arg type='ao' direction='in' />
+    <arg type='aa{sv}' direction='out' />
   </method>
-  <method name="GoTo">
-  <arg type="o" direction="in" />
+  <method name='GoTo'>
+  <arg type='o' direction='in' />
   </method>
-  <property name="Tracks" type="ao" access="read" />
-  <signal name="TrackListReplaced">
-    <arg type="ao" direction="out" />
-    <arg type="o" direction="out" />
+  <property name='Tracks' type='ao' access='read' />
+  <signal name='TrackListReplaced'>
+    <arg type='ao' direction='out' />
+    <arg type='o' direction='out' />
   </signal>
-  <signal name="TrackAdded">
-    <arg type="a{sv}" direction="out" />
-    <arg type="o" direction="out" />
+  <signal name='TrackAdded'>
+    <arg type='a{sv}' direction='out' />
+    <arg type='o' direction='out' />
   </signal>
-  <signal name="TrackRemoved">
-    <arg type="o" direction="out" />
+  <signal name='TrackRemoved'>
+    <arg type='o' direction='out' />
   </signal>
-  <signal name="TrackMetadataChanged">
-    <arg type="o" direction="out" />
-    <arg type="a{sv}" direction="out" />
+  <signal name='TrackMetadataChanged'>
+    <arg type='o' direction='out' />
+    <arg type='a{sv}' direction='out' />
   </signal>
 </interface>
-<interface name="org.mpris.MediaPlayer2.Playlists">
-  <method name="ActivatePlaylist">
-    <arg type="o" direction="in" />
+<interface name='org.mpris.MediaPlayer2.Playlists'>
+  <method name='ActivatePlaylist'>
+    <arg type='o' direction='in' />
   </method>
-  <method name="GetPlaylists">
-    <arg type="u" direction="in" />
-    <arg type="u" direction="in" />
-    <arg type="s" direction="in" />
-    <arg type="b" direction="in" />
-    <arg type="a(oss)" direction="out" />
+  <method name='GetPlaylists'>
+    <arg type='u' direction='in' />
+    <arg type='u' direction='in' />
+    <arg type='s' direction='in' />
+    <arg type='b' direction='in' />
+    <arg type='a(oss)' direction='out' />
   </method>
-  <property name="PlaylistCount" type="u" access="read" />
-  <property name="Orderings" type="as" access="read" />
-  <property name="ActivePlaylist" type="(b(oss))" access="read" />
-  <signal name="PlaylistChanged">
-    <arg type="(oss)" direction="out" />
+  <property name='PlaylistCount' type='u' access='read' />
+  <property name='Orderings' type='as' access='read' />
+  <property name='ActivePlaylist' type='(b(oss))' access='read' />
+  <signal name='PlaylistChanged'>
+    <arg type='(oss)' direction='out' />
   </signal>
 </interface>
 </node>`);
@@ -158,7 +159,7 @@ function makeProxy(ifaceName, busName, objectPath, flags, asyncCallback) {
                             asyncCallback(proxy, null);
                         } else {
                             error = Gio.DBusError.new_for_dbus_error(
-                                " No Name Owner",
+                                ' No Name Owner',
                                 `${busName} has no owner.`
                             );
                             asyncCallback(null, error);
@@ -167,7 +168,7 @@ function makeProxy(ifaceName, busName, objectPath, flags, asyncCallback) {
                         if (!error) {
                             // Should never really happen.
                             error = Gio.DBusError.new_for_dbus_error(
-                                " Unknow Error",
+                                ' Unknow Error',
                                 busName
                             );
                         }
@@ -182,9 +183,9 @@ function makeProxy(ifaceName, busName, objectPath, flags, asyncCallback) {
 
 function makeDBusProxy(asyncCallback) {
     return makeProxy(
-        "org.freedesktop.DBus",
-        "org.freedesktop.DBus",
-        "/org/freedesktop/DBus",
+        'org.freedesktop.DBus',
+        'org.freedesktop.DBus',
+        '/org/freedesktop/DBus',
         Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES,
         asyncCallback
     );
@@ -192,9 +193,9 @@ function makeDBusProxy(asyncCallback) {
 
 function makeMprisProxy(busName, asyncCallback) {
     return makeProxy(
-        "org.mpris.MediaPlayer2",
+        'org.mpris.MediaPlayer2',
         busName,
-        "/org/mpris/MediaPlayer2",
+        '/org/mpris/MediaPlayer2',
         Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS | Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
         asyncCallback
     );
@@ -202,9 +203,9 @@ function makeMprisProxy(busName, asyncCallback) {
 
 function makePlayerProxy(busName, asyncCallback) {
     return makeProxy(
-        "org.mpris.MediaPlayer2.Player",
+        'org.mpris.MediaPlayer2.Player',
         busName,
-        "/org/mpris/MediaPlayer2",
+        '/org/mpris/MediaPlayer2',
         Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS | Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
         asyncCallback
     );
@@ -212,9 +213,9 @@ function makePlayerProxy(busName, asyncCallback) {
 
 function makeTrackListProxy(busName, asyncCallback) {
     return makeProxy(
-        "org.mpris.MediaPlayer2.TrackList",
+        'org.mpris.MediaPlayer2.TrackList',
         busName,
-        "/org/mpris/MediaPlayer2",
+        '/org/mpris/MediaPlayer2',
         null,
         asyncCallback
     );
@@ -222,9 +223,9 @@ function makeTrackListProxy(busName, asyncCallback) {
 
 function makePlayListProxy(busName, asyncCallback) {
     return makeProxy(
-        "org.mpris.MediaPlayer2.Playlists",
+        'org.mpris.MediaPlayer2.Playlists',
         busName,
-        "/org/mpris/MediaPlayer2",
+        '/org/mpris/MediaPlayer2',
         Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES,
         asyncCallback
     );
@@ -249,16 +250,16 @@ function makeMprisPoxies(busName, asyncCallback) {
             mpris = player = tracklist = playlist = null;
             asyncCallback(error, mpris, player, tracklist, playlist);
         } else if (proxy) {
-            if (proxy.g_interface_name === "org.mpris.MediaPlayer2") {
+            if (proxy.g_interface_name === 'org.mpris.MediaPlayer2') {
                 mpris = proxy;
             }
-            if (proxy.g_interface_name === "org.mpris.MediaPlayer2.Player") {
+            if (proxy.g_interface_name === 'org.mpris.MediaPlayer2.Player') {
                 player = proxy;
             }
-            if (proxy.g_interface_name === "org.mpris.MediaPlayer2.TrackList") {
+            if (proxy.g_interface_name === 'org.mpris.MediaPlayer2.TrackList') {
                 tracklist = proxy;
             }
-            if (proxy.g_interface_name === "org.mpris.MediaPlayer2.Playlists") {
+            if (proxy.g_interface_name === 'org.mpris.MediaPlayer2.Playlists') {
                 playlist = proxy;
             }
             if (mpris && player && tracklist && playlist) {
@@ -280,85 +281,85 @@ function makeMprisPoxies(busName, asyncCallback) {
 
 function parseMetadata(metadata, playerName) {
     metadata = metadata || {};
-    playerName = playerName || "";
-    let mimetype_icon = "audio-x-generic-symbolic";
+    playerName = playerName || '';
+    let mimetype_icon = 'audio-x-generic-symbolic';
     let obj_id = NO_TRACK_PATH;
-    let cover_url = "";
+    let cover_url = '';
     let artist = playerName;
-    let title = "";
+    let title = '';
 
     if (Object.keys(metadata).length) {
         // Unpack all Metadata keys that we care about in place.
         // If the key doesn't exsist set it to an empty string and join all arrays.
-        // Most of our "artist" keys are (or at least should be) arrays of strings.
+        // Most of our 'artist' keys are (or at least should be) arrays of strings.
         METADATA_KEYS.forEach(key => {
-            let value = metadata[key] ? metadata[key].deep_unpack() : "";
-            metadata[key] = Array.isArray(value) ? value.join(", ") : value;
+            let value = metadata[key] ? metadata[key].deep_unpack() : '';
+            metadata[key] = Array.isArray(value) ? value.join(', ') : value;
         });
 
-        cover_url = metadata["mpris:artUrl"];
-        obj_id = metadata["mpris:trackid"] || NO_TRACK_PATH;
+        cover_url = metadata['mpris:artUrl'];
+        obj_id = metadata['mpris:trackid'] || NO_TRACK_PATH;
 
-        let trackUrl = metadata["xesam:url"];
+        let trackUrl = metadata['xesam:url'];
 
         // Spotify videos and ads don't follow MPRIS metadata spec.
         // This more or less matches what Spotify shows in it's UI.
-        if (playerName === "Spotify" && !trackUrl.includes("/track/")) {
-            mimetype_icon = (!trackUrl || trackUrl.includes("/episode/")) ? "video-x-generic-symbolic" : "audio-x-generic-symbolic";
-            if (!metadata["xesam:artist"]) {
-                let delimiter = metadata["xesam:title"].includes(" - ") ? " - " : ": ";
-                let artist_title = metadata["xesam:title"].split(delimiter);
+        if (playerName === 'Spotify' && !trackUrl.includes('/track/')) {
+            mimetype_icon = (!trackUrl || trackUrl.includes('/episode/')) ? 'video-x-generic-symbolic' : 'audio-x-generic-symbolic';
+            if (!metadata['xesam:artist']) {
+                let delimiter = metadata['xesam:title'].includes(' - ') ? ' - ' : ': ';
+                let artist_title = metadata['xesam:title'].split(delimiter);
                 if (artist_title.length > 1) {
                     artist = artist_title.shift().trim() || playerName;
                     title = artist_title.join(delimiter).trim();
                 } else {
-                    delimiter = metadata["xesam:album"].includes(" - ") ? " - " : ": ";
-                    artist = metadata["xesam:album"].split(delimiter)[0].trim() || playerName;
-                    title = metadata["xesam:title"];
+                    delimiter = metadata['xesam:album'].includes(' - ') ? ' - ' : ': ';
+                    artist = metadata['xesam:album'].split(delimiter)[0].trim() || playerName;
+                    title = metadata['xesam:title'];
                 }
             } else {
-                artist = metadata["xesam:artist"];
-                title = metadata["xesam:title"];
+                artist = metadata['xesam:artist'];
+                title = metadata['xesam:title'];
             }
         } else {
             // There are better ways to sniff the mimetype of the track
             // but they involve doing I/O on the url which isn't worth it.
             // This is good enough and works just fine most of the time.
-            // If all else fails fallback to "audio-x-generic-symbolic"
+            // If all else fails fallback to 'audio-x-generic-symbolic'
             if (trackUrl) {
-                let fileExt = `.${trackUrl.split(/\#|\?/)[0].split(".").pop().trim()}`;
+                let fileExt = `.${trackUrl.split(/\#|\?/)[0].split('.').pop().trim()}`;
                 let [mimetype, uncertain] = Gio.content_type_guess(fileExt, null);
 
-                mimetype_icon = (!uncertain && Gio.content_type_is_a(mimetype, "video/*"))
-                    ? "video-x-generic-symbolic"
-                    : "audio-x-generic-symbolic";
+                mimetype_icon = (!uncertain && Gio.content_type_is_a(mimetype, 'video/*'))
+                    ? 'video-x-generic-symbolic'
+                    : 'audio-x-generic-symbolic';
             }
 
-            // Be rather exhaustive and liberal as far as what constitutes an "artist".
+            // Be rather exhaustive and liberal as far as what constitutes an 'artist'.
             // If all else fails fallback to the Player's name.
-            artist = metadata["xesam:artist"] ? metadata["xesam:artist"]
-                : metadata["xesam:albumArtist"] ? metadata["xesam:albumArtist"]
-                : metadata["xesam:composer"] ? metadata["xesam:composer"]
-                : metadata["xesam:lyricist"] ? metadata["xesam:lyricist"]
-                : metadata["rhythmbox:streamTitle"] ? metadata["rhythmbox:streamTitle"]
+            artist = metadata['xesam:artist'] ? metadata['xesam:artist']
+                : metadata['xesam:albumArtist'] ? metadata['xesam:albumArtist']
+                : metadata['xesam:composer'] ? metadata['xesam:composer']
+                : metadata['xesam:lyricist'] ? metadata['xesam:lyricist']
+                : metadata['rhythmbox:streamTitle'] ? metadata['rhythmbox:streamTitle']
                 : playerName;
 
             // Prefer the track title, but in it's absence if the
             // track number and album title are available use them.
-            // For example, "5 - My favorite Album".
+            // For example, '5 - My favorite Album'.
             // If the disc number is more than 1 also add the disc number.
-            // for example, "5 - My favorite Album (2)".
+            // for example, '5 - My favorite Album (2)'.
             // If all else fails fallback to an empty string.
-            title = metadata["xesam:title"] ? metadata["xesam:title"]
-                : (Number.isInteger(metadata["xesam:trackNumber"])
-                    && Number.isInteger(metadata["xesam:discNumber"])
-                    && metadata["xesam:discNumber"] > 1
-                    && metadata["xesam:album"])
-                ? `${metadata["xesam:trackNumber"]} - ${metadata["xesam:album"]} (${metadata["xesam:discNumber"]})`
-                : (Number.isInteger(metadata["xesam:trackNumber"])
-                    && metadata["xesam:album"])
-                ? `${metadata["xesam:trackNumber"]} - ${metadata["xesam:album"]}`
-                : "";
+            title = metadata['xesam:title'] ? metadata['xesam:title']
+                : (Number.isInteger(metadata['xesam:trackNumber'])
+                    && Number.isInteger(metadata['xesam:discNumber'])
+                    && metadata['xesam:discNumber'] > 1
+                    && metadata['xesam:album'])
+                ? `${metadata['xesam:trackNumber']} - ${metadata['xesam:album']} (${metadata['xesam:discNumber']})`
+                : (Number.isInteger(metadata['xesam:trackNumber'])
+                    && metadata['xesam:album'])
+                ? `${metadata['xesam:trackNumber']} - ${metadata['xesam:album']}`
+                : '';
        }
     }
 
@@ -373,9 +374,9 @@ function logMyError(error) {
 }
 
 var DBusProxyHandler = GObject.registerClass({
-    GTypeName: "DBusProxyHandler",
+    GTypeName: 'DBusProxyHandler',
     Signals: {
-        "add-player": {
+        'add-player': {
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING, // busName
@@ -384,7 +385,7 @@ var DBusProxyHandler = GObject.registerClass({
                 GObject.TYPE_OBJECT  // PlayListProxyHandler
             ]
         },
-        "remove-player": {
+        'remove-player': {
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING // busName
@@ -408,12 +409,12 @@ var DBusProxyHandler = GObject.registerClass({
                 let players = n.filter(n => n.startsWith(MPRIS_PREFIX));
                 players.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())).forEach(p => this._addPlayer(p));
             });
-            this._nameOwnerId = this._proxy.connectSignal("NameOwnerChanged", (...[,,[busName, oldOwner, newOwner]]) => {
+            this._nameOwnerId = this._proxy.connectSignal('NameOwnerChanged', (...[,,[busName, oldOwner, newOwner]]) => {
                 if (busName.startsWith(MPRIS_PREFIX)) {
                     if (newOwner) {
                         this._addPlayer(busName);
                     } else {
-                        this.emit("remove-player", busName);
+                        this.emit('remove-player', busName);
                     }
                 }
             });
@@ -429,13 +430,13 @@ var DBusProxyHandler = GObject.registerClass({
                 if (error) {
                     logMyError(error);
                     if (this._proxy) {
-                        this.emit("remove-player", busName);
+                        this.emit('remove-player', busName);
                     }
                 } else if (this._proxy) {
                     mpris = new MprisProxyHandler(pid, mpris, player);
                     tracklist = new TrackListProxyHandler(tracklist);
                     playlist = new PlayListProxyHandler(playlist);
-                    this.emit("add-player", busName, mpris, tracklist, playlist);
+                    this.emit('add-player', busName, mpris, tracklist, playlist);
                 }
             });
         });
@@ -468,12 +469,12 @@ var DBusProxyHandler = GObject.registerClass({
 // of and differentiate the instance metaWindows by pid or
 // gtk_unique_bus_name/nameOwner.
 const AppWrapper = GObject.registerClass({
-    GTypeName: "AppWrapper",
+    GTypeName: 'AppWrapper',
     Properties: {
-        "focused": GObject.ParamSpec.boolean(
-            "focused",
-            "focused-prop",
-            "If the instance of the app is focused",
+        'focused': GObject.ParamSpec.boolean(
+            'focused',
+            'focused-prop',
+            'If the instance of the app is focused',
             GObject.ParamFlags.READABLE,
             false
         )
@@ -484,7 +485,7 @@ const AppWrapper = GObject.registerClass({
         this._app = shellApp;
         this._pid = pid;
         this._appName = this._app.get_name();
-        this._appId = this._app.id.split("/").pop().replace(".desktop", "");
+        this._appId = this._app.id.split('/').pop().replace('.desktop', '');
         this._instanceNum = this._getNumbersFromTheEndOf(busName);
         this._nameOwner = nameOwner;
         this._focused = false;
@@ -494,7 +495,7 @@ const AppWrapper = GObject.registerClass({
         this._appearsFocusedId = null;
         this._unmanagedId = null;
         this._metaWindowsChangedId = this._app.connect(
-            "windows-changed",
+            'windows-changed',
             this._onWindowsChanged.bind(this)
         );
         this._onWindowsChanged();
@@ -505,11 +506,11 @@ const AppWrapper = GObject.registerClass({
     }
 
     get id() {
-        return this._appId || "";
+        return this._appId || '';
     }
 
     get name() {
-        return this._appName || "";
+        return this._appName || '';
     }
 
     get user_time() {
@@ -534,7 +535,7 @@ const AppWrapper = GObject.registerClass({
 
     toggleWindow(minimize) {
         if (!this._focused) {
-            // Go ahead and skip the whole "Player is Ready"
+            // Go ahead and skip the whole 'Player is Ready'
             // notification, after all the user wants the player focused,
             // that's why they clicked on it...
             if (this._metaWindow) {
@@ -623,11 +624,11 @@ const AppWrapper = GObject.registerClass({
             this._onUnmanaged();
             this._metaWindow = appMetaWindow;
             this._appearsFocusedId = this._metaWindow.connect(
-               "notify::appears-focused",
+               'notify::appears-focused',
                 this._onAppearsFocused.bind(this)
             );
             this._unmanagedId = this._metaWindow.connect(
-                "unmanaged",
+                'unmanaged',
                 this._onUnmanaged.bind(this)
             );
             this._onAppearsFocused();
@@ -640,7 +641,7 @@ const AppWrapper = GObject.registerClass({
 
     _onWindowsChanged() {
         // We get this signal when metaWindows show up
-        // Really only useful when a player "unhides"
+        // Really only useful when a player 'unhides'
         // or at _init
         let appMetaWindow = this._getNewAppMetaWindow();
         if (appMetaWindow) {
@@ -660,12 +661,12 @@ const AppWrapper = GObject.registerClass({
         if (this._focused != focused) {
             this._user_time = GLib.get_monotonic_time();
             this._focused = focused;
-            this.notify("focused");
+            this.notify('focused');
         }
     }
 
     _onUnmanaged() {
-        // "unmanaged" metaWindows are either hidden and/or
+        // 'unmanaged' metaWindows are either hidden and/or
         // will soon be destroyed. Disconnect from them
         // and null the metaWindow.
         if (this._metaWindow) {
@@ -683,12 +684,12 @@ const AppWrapper = GObject.registerClass({
 });
 
 const TrackListProxyHandler = GObject.registerClass({
-    GTypeName: "TrackListProxyHandler",
+    GTypeName: 'TrackListProxyHandler',
     Signals: {
-        "new-metadata": {
+        'new-metadata': {
             flags: GObject.SignalFlags.RUN_FIRST
         },
-        "metadata-changed": {
+        'metadata-changed': {
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING, // old_obj_id
@@ -701,31 +702,31 @@ const TrackListProxyHandler = GObject.registerClass({
         }
     },
     Properties: {
-        "player-name": GObject.ParamSpec.string(
-            "player-name",
-            "player-name-prop",
-            "The player's name",
+        'player-name': GObject.ParamSpec.string(
+            'player-name',
+            'player-name-prop',
+            'The player\'s name',
             GObject.ParamFlags.READWRITE,
-            ""
+            ''
         ),
-        "current-obj-id": GObject.ParamSpec.string(
-            "current-obj-id",
-            "current-obj-id-prop",
-            "The current track's trackId",
+        'current-obj-id': GObject.ParamSpec.string(
+            'current-obj-id',
+            'current-obj-id-prop',
+            'The current track\'s trackId',
             GObject.ParamFlags.READWRITE,
-            ""
+            ''
         ),
-        "list-title": GObject.ParamSpec.string(
-            "list-title",
-            "list-title-prop",
-            "The title of the corresponding list",
+        'list-title': GObject.ParamSpec.string(
+            'list-title',
+            'list-title-prop',
+            'The title of the corresponding list',
             GObject.ParamFlags.READABLE,
-            "TrackList"
+            'TrackList'
         ),
-        "show-list": GObject.ParamSpec.boolean(
-            "show-list",
-            "show-list-prop",
-            "If the track list should be shown",
+        'show-list': GObject.ParamSpec.boolean(
+            'show-list',
+            'show-list-prop',
+            'If the track list should be shown',
             GObject.ParamFlags.READABLE,
             false
         )
@@ -735,17 +736,21 @@ const TrackListProxyHandler = GObject.registerClass({
         super._init();
         this._proxy = proxy;
         this._signals = [];
-        this._current_obj_id = "";
+        this._current_obj_id = '';
         this._show_list = false;
-        this._list_title = "TrackList";
+        this._list_title = 'TrackList';
         this._trackIds = [];
         this._metadata = [];
-        this._player_name = "";
+        this._player_name = '';
         this._finish_init();
     }
 
+    get ifaceName() {
+        return this._proxy ? this._proxy.g_interface_name : '';
+    }
+
     get busName() {
-        return this._proxy ? this._proxy.g_name : "";
+        return this._proxy ? this._proxy.g_name : '';
     }
 
     get show_list() {
@@ -753,25 +758,25 @@ const TrackListProxyHandler = GObject.registerClass({
     }
 
     get list_title() {
-        return this._list_title || "TrackList";
+        return this._list_title || 'TrackList';
     }
 
     get player_name() {
-        return this._player_name || "";
+        return this._player_name || '';
     }
 
     set player_name(player_name) {
         this._player_name = player_name;
-        this.notify("player-name");
+        this.notify('player-name');
     }
 
     get current_obj_id() {
-        return this._current_obj_id || "";
+        return this._current_obj_id || '';
     }
 
     set current_obj_id(current_obj_id) {
         this._current_obj_id = current_obj_id;
-        this.notify("current-obj-id");
+        this.notify('current-obj-id');
     }
 
     get metadata() {
@@ -794,16 +799,16 @@ const TrackListProxyHandler = GObject.registerClass({
         let show_list = Array.isArray(this._trackIds) && this._trackIds.length ? true : false;
         if (this._show_list !== show_list) {
             this._show_list = show_list;
-            this.notify("show-list");
+            this.notify('show-list');
         }
         if (this._show_list) {
-            this.notify("current-obj-id");
+            this.notify('current-obj-id');
         }
     }
 
     _getTrackId(metadata) {
         metadata = metadata || {};
-        return metadata["mpris:trackid"] ? (metadata["mpris:trackid"].deep_unpack() || NO_TRACK_PATH) : NO_TRACK_PATH;
+        return metadata['mpris:trackid'] ? (metadata['mpris:trackid'].deep_unpack() || NO_TRACK_PATH) : NO_TRACK_PATH;
     }
 
     _trackListIncludes(trackId) {
@@ -840,7 +845,7 @@ const TrackListProxyHandler = GObject.registerClass({
                 if (this._arraysOfEqualLenght(trackIds, trackListMetaData, cleanMetadata)) {
                     this._trackIds = cleanMetadata.map(m => m[0]);
                     this._metadata = cleanMetadata;
-                    this.emit("new-metadata");
+                    this.emit('new-metadata');
                 }
                 this._syncTrackListProps();
             });
@@ -851,10 +856,10 @@ const TrackListProxyHandler = GObject.registerClass({
 
     _finish_init() {
         this._trackIds = this._cleanTrackIds(this._proxy.Tracks);
-        this.pushSignal("TrackListReplaced", (...[,,[trackIds]]) => {
+        this.pushSignal('TrackListReplaced', (...[,,[trackIds]]) => {
             this._replaceTracklist(trackIds);
         });
-        this.pushSignal("TrackAdded", (...[,,[metadata, afterTrackId]]) => {
+        this.pushSignal('TrackAdded', (...[,,[metadata, afterTrackId]]) => {
             let newTrackId = this._getTrackId(metadata);
             if (this._goodTrackListId(newTrackId) && !this._trackListIncludes(newTrackId)) {
                 if (afterTrackId) {
@@ -867,13 +872,13 @@ const TrackListProxyHandler = GObject.registerClass({
                 }
             }
         });
-        this.pushSignal("TrackRemoved", (...[,,[trackId]]) => {
+        this.pushSignal('TrackRemoved', (...[,,[trackId]]) => {
             if (this._trackListIncludes(trackId)) {
                 this._trackIds.splice(this._trackIds.indexOf(trackId), 1);
                 this._replaceTracklist(this._trackIds);
             }
         });
-        this.pushSignal("TrackMetadataChanged", (...[,,[oldtrackId, metadata]]) => {
+        this.pushSignal('TrackMetadataChanged', (...[,,[oldtrackId, metadata]]) => {
             if (this._trackListIncludes(oldtrackId)) {
                 let [newTrackId, cover_url, artist, title, mimetype_icon] = parseMetadata(metadata, this._player_name);
                 if (this._goodTrackListId(newTrackId)) {
@@ -881,7 +886,7 @@ const TrackListProxyHandler = GObject.registerClass({
                     this._metadata[index] = [newTrackId, cover_url, artist, title, mimetype_icon];
                     this._trackIds[index] = newTrackId;
                     this.emit(
-                        "metadata-changed",
+                        'metadata-changed',
                         oldtrackId,
                         newTrackId,
                         cover_url,
@@ -917,12 +922,12 @@ const TrackListProxyHandler = GObject.registerClass({
 });
 
 const PlayListProxyHandler = GObject.registerClass({
-    GTypeName: "PlayListProxyHandler",
+    GTypeName: 'PlayListProxyHandler',
     Signals: {
-        "new-metadata": {
+        'new-metadata': {
             flags: GObject.SignalFlags.RUN_FIRST
         },
-        "metadata-changed": {
+        'metadata-changed': {
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING, // obj_id
@@ -932,31 +937,31 @@ const PlayListProxyHandler = GObject.registerClass({
         }
     },
     Properties: {
-        "player-name": GObject.ParamSpec.string(
-            "player-name",
-            "player-name-prop",
-            "The player's name",
+        'player-name': GObject.ParamSpec.string(
+            'player-name',
+            'player-name-prop',
+            'The player\'s name',
             GObject.ParamFlags.READWRITE,
-            ""
+            ''
         ),
-        "current-obj-id": GObject.ParamSpec.string(
-            "current-obj-id",
-            "current-obj-id-prop",
-            "The current playlist's playlistId",
+        'current-obj-id': GObject.ParamSpec.string(
+            'current-obj-id',
+            'current-obj-id-prop',
+            'The current playlist\'s playlistId',
             GObject.ParamFlags.READABLE,
-            ""
+            ''
         ),
-        "list-title": GObject.ParamSpec.string(
-            "list-title",
-            "list-title-prop",
-            "The title of the corresponding list",
+        'list-title': GObject.ParamSpec.string(
+            'list-title',
+            'list-title-prop',
+            'The title of the corresponding list',
             GObject.ParamFlags.READABLE,
-            "PlayLists"
+            'PlayLists'
         ),
-        "show-list": GObject.ParamSpec.boolean(
-            "show-list",
-            "show-list-prop",
-            "If the PlayLists should be shown",
+        'show-list': GObject.ParamSpec.boolean(
+            'show-list',
+            'show-list-prop',
+            'If the PlayLists should be shown',
             GObject.ParamFlags.READABLE,
             false
         )
@@ -966,17 +971,21 @@ const PlayListProxyHandler = GObject.registerClass({
         super._init();
         this._proxy = proxy;
         this._playlists = [];
-        this._player_name = "";
-        this._current_obj_id = "";
+        this._player_name = '';
+        this._current_obj_id = '';
         this._show_list = false;
-        this._list_title = "PlayLists";
+        this._list_title = 'PlayLists';
         this._propChangeId = null;
         this._getPlayListsId = null;
         this._finish_init();
     }
 
+    get ifaceName() {
+        return this._proxy ? this._proxy.g_interface_name : '';
+    }
+
     get busName() {
-        return this._proxy ? this._proxy.g_name : "";
+        return this._proxy ? this._proxy.g_name : '';
     }
 
     get show_list() {
@@ -984,20 +993,20 @@ const PlayListProxyHandler = GObject.registerClass({
     }
 
     get list_title() {
-        return this._list_title || "PlayLists";
+        return this._list_title || 'PlayLists';
     }
 
     get current_obj_id() {
-        return this._current_obj_id || "";
+        return this._current_obj_id || '';
     }
 
     get player_name() {
-        return this._player_name || "";
+        return this._player_name || '';
     }
 
     set player_name(player_name) {
         this._player_name = player_name;
-        this.notify("player-name");
+        this.notify('player-name');
     }
 
     get metadata() {
@@ -1025,7 +1034,7 @@ const PlayListProxyHandler = GObject.registerClass({
                 }
             }
         }
-        return "";
+        return '';
     }
 
     _getCount() {
@@ -1042,10 +1051,10 @@ const PlayListProxyHandler = GObject.registerClass({
         if (this._proxy) {
             let orderings = this._proxy.Orderings;
             if (Array.isArray(orderings)) {
-                return orderings.includes("Alphabetical") ? "Alphabetical" : orderings[0];
+                return orderings.includes('Alphabetical') ? 'Alphabetical' : orderings[0];
             }
         }
-        return "";
+        return '';
     }
 
     _playListsIncludes(playlistId) {
@@ -1054,7 +1063,7 @@ const PlayListProxyHandler = GObject.registerClass({
     }
 
     _goodPlayListId(playlistId) {
-        return playlistId && playlistId !== "/" && !playlistId.startsWith(FORBIDDEN_OBJ_ID_PREFIX);
+        return playlistId && playlistId !== '/' && !playlistId.startsWith(FORBIDDEN_OBJ_ID_PREFIX);
     }
 
     _goodPlayList(playlist) {
@@ -1073,9 +1082,9 @@ const PlayListProxyHandler = GObject.registerClass({
 
     _getListTitle(activeId) {
         if (activeId && Array.isArray(this._playlists)) {
-            return this._playlists.find(i => i[0] === activeId)[1] || "PlayLists";
+            return this._playlists.find(i => i[0] === activeId)[1] || 'PlayLists';
         }
-        return "PlayLists";
+        return 'PlayLists';
     }
 
     _syncPlayListProps() {
@@ -1085,15 +1094,15 @@ const PlayListProxyHandler = GObject.registerClass({
 
         if (this._show_list !== show_list) {
             this._show_list = show_list;
-            this.notify("show-list");
+            this.notify('show-list');
         }
         if (this._show_list) {
-            this.notify("current-obj-id");
+            this.notify('current-obj-id');
         }
         if (this._list_title !== list_title) {
             this._list_title = list_title;
             if (this._show_list) {
-                this.notify("list-title");
+                this.notify('list-title');
             }
         }
     }
@@ -1105,7 +1114,7 @@ const PlayListProxyHandler = GObject.registerClass({
         if (count && ordering) {
             this._proxy.GetPlaylistsRemote(0, count, ordering, false, ([playLists]) => {
                 this._playlists = this._cleanPlayLists(playLists);
-                this.emit("new-metadata");
+                this.emit('new-metadata');
                 this._syncPlayListProps();
             });
         } else {
@@ -1114,16 +1123,16 @@ const PlayListProxyHandler = GObject.registerClass({
     }
 
     _finish_init() {
-        this._propChangeId = this._proxy.connect("g-properties-changed", (_, props) => {
+        this._propChangeId = this._proxy.connect('g-properties-changed', (_, props) => {
             props = Object.keys(props.deep_unpack());
-            if (props.includes("PlaylistCount") || props.includes("Orderings")) {
+            if (props.includes('PlaylistCount') || props.includes('Orderings')) {
                 this._getPlayLists();
             }
-            if (props.includes("ActivePlaylist")) {
+            if (props.includes('ActivePlaylist')) {
                 this._syncPlayListProps();
             }
         });
-        this._playlistChangedId = this._proxy.connectSignal("PlaylistChanged", (...[,,[playlist]]) => {
+        this._playlistChangedId = this._proxy.connectSignal('PlaylistChanged', (...[,,[playlist]]) => {
             if (this._goodPlayList(playlist) && this._playListsIncludes(playlist[0])) {
                 let playlistId = playlist[0];
                 let playlistTitle = playlist[1];
@@ -1132,7 +1141,7 @@ const PlayListProxyHandler = GObject.registerClass({
                         p[1] = playlistTitle;
                     }
                 });
-                this.emit("metadata-changed", playlistId, playlistId, playlistTitle);
+                this.emit('metadata-changed', playlistId, playlistId, playlistTitle);
                 this._syncPlayListProps();
             }
         });
@@ -1155,175 +1164,175 @@ const PlayListProxyHandler = GObject.registerClass({
 });
 
 const MprisProxyHandler = GObject.registerClass({
-    GTypeName: "MprisProxyHandler",
+    GTypeName: 'MprisProxyHandler',
     Signals: {
-        "update-indicator": {
+        'update-indicator': {
             flags: GObject.SignalFlags.RUN_FIRST
         }
     },
     Properties: {
-        "show-stop": GObject.ParamSpec.boolean(
-            "show-stop",
-            "show-stop-prop",
-            "If the stop button should be shown",
+        'show-stop': GObject.ParamSpec.boolean(
+            'show-stop',
+            'show-stop-prop',
+            'If the stop button should be shown',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "show-close": GObject.ParamSpec.boolean(
-            "show-close",
-            "show-close-prop",
-            "If the close button should be shown",
+        'show-close': GObject.ParamSpec.boolean(
+            'show-close',
+            'show-close-prop',
+            'If the close button should be shown',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "prev-reactive": GObject.ParamSpec.boolean(
-            "prev-reactive",
-            "prev-reactive-prop",
-            "If the prev button should be reactive",
+        'prev-reactive': GObject.ParamSpec.boolean(
+            'prev-reactive',
+            'prev-reactive-prop',
+            'If the prev button should be reactive',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "playpause-reactive": GObject.ParamSpec.boolean(
-            "playpause-reactive",
-            "playpause-reactive-prop",
-            "If the playpause button should be reactive",
+        'playpause-reactive': GObject.ParamSpec.boolean(
+            'playpause-reactive',
+            'playpause-reactive-prop',
+            'If the playpause button should be reactive',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "playpause-icon-name": GObject.ParamSpec.string(
-            "playpause-icon-name",
-            "playpause-icon-name-prop",
-            "The name of the icon in the playpause button",
+        'playpause-icon-name': GObject.ParamSpec.string(
+            'playpause-icon-name',
+            'playpause-icon-name-prop',
+            'The name of the icon in the playpause button',
             GObject.ParamFlags.READABLE,
-            "media-playback-start-symbolic"
+            'media-playback-start-symbolic'
         ),
-        "next-reactive": GObject.ParamSpec.boolean(
-            "next-reactive",
-            "next-reactive-prop",
-            "If the next button should be reactive",
-            GObject.ParamFlags.READABLE,
-            false
-        ),
-        "show-shuffle-repeat": GObject.ParamSpec.boolean(
-            "show-shuffle-repeat",
-            "show-shuffle-repeat-prop",
-            "If the shuffle and repeat buttons should be shown",
+        'next-reactive': GObject.ParamSpec.boolean(
+            'next-reactive',
+            'next-reactive-prop',
+            'If the next button should be reactive',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "shuffle-reactive": GObject.ParamSpec.boolean(
-            "shuffle-reactive",
-            "shuffle-reactive-prop",
-            "If the shuffle button should be reactive",
+        'show-shuffle-repeat': GObject.ParamSpec.boolean(
+            'show-shuffle-repeat',
+            'show-shuffle-repeat-prop',
+            'If the shuffle and repeat buttons should be shown',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "shuffle-active": GObject.ParamSpec.boolean(
-            "shuffle-active",
-            "shuffle-active-prop",
-            "If the shuffle button should appear active",
+        'shuffle-reactive': GObject.ParamSpec.boolean(
+            'shuffle-reactive',
+            'shuffle-reactive-prop',
+            'If the shuffle button should be reactive',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "repeat-reactive": GObject.ParamSpec.boolean(
-            "repeat-reactive",
-            "repeat-reactive-prop",
-            "If the repeat button should be reactive",
+        'shuffle-active': GObject.ParamSpec.boolean(
+            'shuffle-active',
+            'shuffle-active-prop',
+            'If the shuffle button should appear active',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "repeat-active": GObject.ParamSpec.boolean(
-            "repeat-active",
-            "repeat-active-prop",
-            "If the repeat button should appear active",
+        'repeat-reactive': GObject.ParamSpec.boolean(
+            'repeat-reactive',
+            'repeat-reactive-prop',
+            'If the repeat button should be reactive',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "repeat-icon-name": GObject.ParamSpec.string(
-            "repeat-icon-name",
-            "repeat-icon-name-prop",
-            "The name of the icon in the repeat button",
+        'repeat-active': GObject.ParamSpec.boolean(
+            'repeat-active',
+            'repeat-active-prop',
+            'If the repeat button should appear active',
             GObject.ParamFlags.READABLE,
-            "media-playlist-repeat-symbolic"
+            false
         ),
-        "player-state": GObject.ParamSpec.string(
-            "player-state",
-            "player-state-prop",
-            "A string representing the current player state",
+        'repeat-icon-name': GObject.ParamSpec.string(
+            'repeat-icon-name',
+            'repeat-icon-name-prop',
+            'The name of the icon in the repeat button',
             GObject.ParamFlags.READABLE,
-            ""
+            'media-playlist-repeat-symbolic'
         ),
-        "cover-url": GObject.ParamSpec.string(
-            "cover-url",
-            "cover-url-prop",
-            "The url of the current track's cover art",
+        'player-state': GObject.ParamSpec.string(
+            'player-state',
+            'player-state-prop',
+            'A string representing the current player state',
             GObject.ParamFlags.READABLE,
-            ""
+            ''
         ),
-        "accessible-name": GObject.ParamSpec.string(
-            "accessible-name",
-            "accessible-name-prop",
-            "The accessible-name to be used by the player widget",
+        'cover-url': GObject.ParamSpec.string(
+            'cover-url',
+            'cover-url-prop',
+            'The url of the current track\'s cover art',
             GObject.ParamFlags.READABLE,
-            ""
+            ''
         ),
-        "obj-id": GObject.ParamSpec.string(
-            "obj-id",
-            "obj-id-prop",
-            "The current track's trackId",
+        'accessible-name': GObject.ParamSpec.string(
+            'accessible-name',
+            'accessible-name-prop',
+            'The accessible-name to be used by the player widget',
             GObject.ParamFlags.READABLE,
-            ""
+            ''
         ),
-        "player-name": GObject.ParamSpec.string(
-            "player-name",
-            "player-name-prop",
-            "The player's name",
+        'obj-id': GObject.ParamSpec.string(
+            'obj-id',
+            'obj-id-prop',
+            'The current track\'s trackId',
             GObject.ParamFlags.READABLE,
-            ""
+            ''
         ),
-        "artist": GObject.ParamSpec.string(
-            "artist",
-            "artist-prop",
-            "The current track's artist",
+        'player-name': GObject.ParamSpec.string(
+            'player-name',
+            'player-name-prop',
+            'The player\'s name',
             GObject.ParamFlags.READABLE,
-            ""
+            ''
         ),
-        "title": GObject.ParamSpec.string(
-            "title",
-            "title-prop",
-            "The current track's title",
+        'artist': GObject.ParamSpec.string(
+            'artist',
+            'artist-prop',
+            'The current track\'s artist',
             GObject.ParamFlags.READABLE,
-            ""
+            ''
         ),
-        "volume": GObject.ParamSpec.double(
-            "volume",
-            "volume-prop",
-            "The current volume",
+        'title': GObject.ParamSpec.string(
+            'title',
+            'title-prop',
+            'The current track\'s title',
+            GObject.ParamFlags.READABLE,
+            ''
+        ),
+        'volume': GObject.ParamSpec.double(
+            'volume',
+            'volume-prop',
+            'The current volume',
             GObject.ParamFlags.READWRITE,
             0.0,
             1.0,
             0.0
         ),
-        "show-volume": GObject.ParamSpec.boolean(
-            "show-volume",
-            "show-volume-prop",
-            "If the volume slider should be shown",
+        'show-volume': GObject.ParamSpec.boolean(
+            'show-volume',
+            'show-volume-prop',
+            'If the volume slider should be shown',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "show-controls": GObject.ParamSpec.boolean(
-            "show-controls",
-            "show-controls-prop",
-            "If the media controls should be shown",
+        'show-controls': GObject.ParamSpec.boolean(
+            'show-controls',
+            'show-controls-prop',
+            'If the media controls should be shown',
             GObject.ParamFlags.READABLE,
             false
         ),
-        "gicon": GObject.ParamSpec.object(
-            "gicon",
-            "gicon-prop",
-            "a gicon for the player",
+        'gicon': GObject.ParamSpec.object(
+            'gicon',
+            'gicon-prop',
+            'a gicon for the player',
             GObject.ParamFlags.READABLE,
-            Gio.ThemedIcon.new("audio-x-generic-symbolic")
+            Gio.ThemedIcon.new('audio-x-generic-symbolic')
         )
     }
 }, class MprisProxyHandler extends GObject.Object {
@@ -1334,44 +1343,44 @@ const MprisProxyHandler = GObject.registerClass({
         this._playerProxy = player;
         this._signals = [];
         this._appWrapper = null;
-        this._player_name = "";
-        this._desktop_entry = "";
+        this._player_name = '';
+        this._desktop_entry = '';
         this._show_controls = false;
         this._show_stop = false;
         this._prev_reactive = false;
         this._playpause_reactive = false;
-        this._playpause_icon_name = "media-playback-start-symbolic";
+        this._playpause_icon_name = 'media-playback-start-symbolic';
         this._next_reactive = false;
         this._show_shuffle_repeat = false;
         this._shuffle_reactive = false;
         this._shuffle_active = false;
         this._repeat_reactive = false;
         this._repeat_active = false;
-        this._repeat_icon_name = "media-playlist-repeat-symbolic";
-        this._obj_id = "";
-        this._cover_url = "";
-        this._artist = "";
-        this._title = "";
-        this._accessible_name = "";
+        this._repeat_icon_name = 'media-playlist-repeat-symbolic';
+        this._obj_id = '';
+        this._cover_url = '';
+        this._artist = '';
+        this._title = '';
+        this._accessible_name = '';
         this._playback_status = 0;
         this._status_time = 0;
         this._volume = 0.0;
         this._show_volume = false;
-        this._mimetype_icon_name = "audio-x-generic-symbolic";
+        this._mimetype_icon_name = 'audio-x-generic-symbolic';
         this._gicon = Gio.ThemedIcon.new(this._mimetype_icon_name);
         this._finish_init();
     }
 
     get busName() {
-        return this._mprisProxy && this._playerProxy ? this._mprisProxy.g_name || this._playerProxy.g_name : "";
+        return this._mprisProxy && this._playerProxy ? this._mprisProxy.g_name || this._playerProxy.g_name : '';
     }
 
     get player_name() {
-        return this._appWrapper && this._appWrapper.name ? this._appWrapper.name : this._player_name || "";
+        return this._appWrapper && this._appWrapper.name ? this._appWrapper.name : this._player_name || '';
     }
 
     get accessible_name() {
-        return this._accessible_name || "";
+        return this._accessible_name || '';
     }
 
     get show_stop() {
@@ -1391,7 +1400,7 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     get playpause_icon_name() {
-        return this._playpause_icon_name || "media-playback-start-symbolic";
+        return this._playpause_icon_name || 'media-playback-start-symbolic';
     }
 
     get show_shuffle_repeat() {
@@ -1419,23 +1428,23 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     get repeat_icon_name() {
-        return this._repeat_icon_name || "media-playlist-repeat-symbolic";
+        return this._repeat_icon_name || 'media-playlist-repeat-symbolic';
     }
 
     get obj_id() {
-        return this._obj_id || "";
+        return this._obj_id || '';
     }
 
     get cover_url() {
-        return this._cover_url || "";
+        return this._cover_url || '';
     }
 
     get artist() {
-        return this._artist || "";
+        return this._artist || '';
     }
 
     get title() {
-        return this._title || "";
+        return this._title || '';
     }
 
     get playback_status() {
@@ -1508,14 +1517,14 @@ const MprisProxyHandler = GObject.registerClass({
         } else if (this._mprisProxy && this._mprisProxy.CanQuit) {
             // The async QuitRemote helper method throws this error with some players:
             //
-            // "Object Gio.DBusProxy, has been already deallocated — impossible to access it.
+            // 'Object Gio.DBusProxy, has been already deallocated — impossible to access it.
             // This might be caused by the object having been destroyed from C code
-            // using something such as destroy(), dispose(), or remove() vfuncs."
+            // using something such as destroy(), dispose(), or remove() vfuncs.'
             //
             // If I had to guess it's because Quit causes the proxy to be destroyed here
             // before asyncCallback in _proxyInvoker in the Gio overrides is called.
             // So for now we'll just do it the old fashioned way and skip the helper.
-            this._mprisProxy.call_with_unix_fd_list("Quit", null, 0, -1, null, null, null);
+            this._mprisProxy.call_with_unix_fd_list('Quit', null, 0, -1, null, null, null);
         }
     }
 
@@ -1523,8 +1532,8 @@ const MprisProxyHandler = GObject.registerClass({
         let gicon = this._getSymbolicIcon() || this._getFullColorIcon() || this._getMimeTypeIcon();
         if (!this._gicon.equal(gicon)) {
             this._gicon = gicon;
-            this.notify("gicon");
-            this.emit("update-indicator");
+            this.notify('gicon');
+            this.emit('update-indicator');
         }
     }
 
@@ -1593,10 +1602,10 @@ const MprisProxyHandler = GObject.registerClass({
 
     cycleRepeat() {
         if (this._repeat_reactive && this._playerProxy.CanControl) {
-            let loopStatus = this._playerProxy.LoopStatus || "None";
-            this._playerProxy.LoopStatus = loopStatus === "None" ? "Playlist"
-                : loopStatus === "Playlist" ? "Track"
-                : "None";
+            let loopStatus = this._playerProxy.LoopStatus || 'None';
+            this._playerProxy.LoopStatus = loopStatus === 'None' ? 'Playlist'
+                : loopStatus === 'Playlist' ? 'Track'
+                : 'None';
             return true;
         }
         return false;
@@ -1611,12 +1620,12 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     _finish_init() {
-        this.pushSignal(this._mprisProxy, "g-properties-changed", () => {
+        this.pushSignal(this._mprisProxy, 'g-properties-changed', () => {
             this._updateMprisProps();
         });
-        this.pushSignal(this._playerProxy, "g-properties-changed", (_, props) => {
+        this.pushSignal(this._playerProxy, 'g-properties-changed', (_, props) => {
             props = Object.keys(props.deep_unpack());
-            if (props.includes("CanControl")) {
+            if (props.includes('CanControl')) {
                 let show_controls = this._playerProxy.CanControl;
                 if (this._show_controls !== show_controls) {
                     if (show_controls) {
@@ -1624,25 +1633,25 @@ const MprisProxyHandler = GObject.registerClass({
                         this._testVolume();
                     }
                     this._show_controls = show_controls;
-                    this.notify("show-controls");
+                    this.notify('show-controls');
                 }
             }
-            if (props.includes("PlaybackStatus") || props.some(prop => prop.startsWith("Can"))) {
+            if (props.includes('PlaybackStatus') || props.some(prop => prop.startsWith('Can'))) {
                 this._updatePlayerProps();
             }
-            if (props.includes("Metadata")) {
+            if (props.includes('Metadata')) {
                 this._updateMetadata();
             }
-            if (props.includes("Shuffle")) {
+            if (props.includes('Shuffle')) {
                 this._updateShuffle();
             }
-            if (props.includes("LoopStatus")) {
+            if (props.includes('LoopStatus')) {
                 this._updateLoopStatus();
             }
-            if (props.includes("Volume")) {
+            if (props.includes('Volume')) {
                 if (!this._show_volume && this._show_controls) {
                     this._show_volume = true;
-                    this.notify("show-volume");
+                    this.notify('show-volume');
                 }
                 this._updateVolume();
             }
@@ -1653,22 +1662,22 @@ const MprisProxyHandler = GObject.registerClass({
         if (this._playerProxy.CanControl) {
             this._testShuffleLoopStatus();
             this._show_controls = true;
-            this.notify("show-controls");
+            this.notify('show-controls');
             this._testVolume();
         }
     }
 
     _updateMprisProps() {
-        let playerName = this._mprisProxy.Identity || "";
+        let playerName = this._mprisProxy.Identity || '';
         if (this._player_name !== playerName) {
             this._player_name = playerName;
-            this.notify("player-name");
+            this.notify('player-name');
         }
-        let desktop_entry = (this._mprisProxy.DesktopEntry || "").split("/").pop().replace(".desktop", "");
+        let desktop_entry = (this._mprisProxy.DesktopEntry || '').split('/').pop().replace('.desktop', '');
         if (this._desktop_entry !== desktop_entry) {
             this._desktop_entry = desktop_entry;
             if (!this._appWrapper && this._desktop_entry) {
-                let desktopId = this._desktop_entry + ".desktop";
+                let desktopId = this._desktop_entry + '.desktop';
                 let identity = this.player_name;
                 let lcIdentity = identity.toLowerCase();
                 let appSystem = Shell.AppSystem.get_default();
@@ -1691,11 +1700,11 @@ const MprisProxyHandler = GObject.registerClass({
                         this._pid,
                         this._mprisProxy.g_name_owner
                     );
-                    this.pushSignal(this._appWrapper, "notify::focused", () => {
-                        this.emit("update-indicator");
+                    this.pushSignal(this._appWrapper, 'notify::focused', () => {
+                        this.emit('update-indicator');
                     });
                     if (this._appWrapper.name) {
-                        this.notify("player-name");
+                        this.notify('player-name');
                     }
                 }
             }
@@ -1704,11 +1713,11 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     _updatePlayerProps() {
-        let playPauseIconName = "media-playback-start-symbolic";
+        let playPauseIconName = 'media-playback-start-symbolic';
         let playPauseReactive = false;
         let showStop = false;
-        let status = (this._playerProxy.PlaybackStatus ||  "").toLowerCase();
-        status = (status === "playing") ? 2 : (status === "paused") ? 1 : 0;
+        let status = (this._playerProxy.PlaybackStatus ||  '').toLowerCase();
+        status = (status === 'playing') ? 2 : (status === 'paused') ? 1 : 0;
         let isPlaying = status === 2;
         let canPlay = this._playerProxy.CanPlay || false;
         let canPause = this._playerProxy.CanPause || false;
@@ -1716,73 +1725,73 @@ const MprisProxyHandler = GObject.registerClass({
         let canGoNext = this._playerProxy.CanGoNext || false;
 
         if (canPause && canPlay) {
-            playPauseIconName = isPlaying ? "media-playback-pause-symbolic" : "media-playback-start-symbolic";
+            playPauseIconName = isPlaying ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
             playPauseReactive = true;
         } else {
             if (canPlay) {
                 showStop = true;
             }
-            playPauseIconName = "media-playback-start-symbolic";
+            playPauseIconName = 'media-playback-start-symbolic';
             playPauseReactive = canPlay;
         }
 
         if (this._show_stop !== showStop) {
             this._show_stop = showStop;
-            this.notify("show-stop");
+            this.notify('show-stop');
         }
         if (this._prev_reactive !== canGoPrevious) {
             this._prev_reactive = canGoPrevious;
-            this.notify("prev-reactive");
+            this.notify('prev-reactive');
         }
         if (this._playpause_icon_name !== playPauseIconName) {
             this._playpause_icon_name = playPauseIconName;
-            this.notify("playpause-icon-name");
+            this.notify('playpause-icon-name');
         }
         if (this._playpause_reactive !== playPauseReactive) {
             this._playpause_reactive = playPauseReactive;
-            this.notify("playpause-reactive");
+            this.notify('playpause-reactive');
         }
         if (this._next_reactive !== canGoNext) {
             this._next_reactive = canGoNext;
-            this.notify("next-reactive");
+            this.notify('next-reactive');
         }
         if (this._playback_status !== status) {
             this._playback_status = status;
             this._status_time = GLib.get_monotonic_time();
-            this.emit("update-indicator");
+            this.emit('update-indicator');
         }
     }
 
     _updateMetadata() {
         let [obj_id, cover_url, artist, title, mimetype_icon] = parseMetadata(this._playerProxy.Metadata, this.player_name);
         this._cover_url = cover_url;
-        this.notify("cover-url");
-        let accessible_name = (artist == this.player_name) ? "" : this.player_name;
+        this.notify('cover-url');
+        let accessible_name = (artist == this.player_name) ? '' : this.player_name;
         if (this._accessible_name !== accessible_name) {
             this._accessible_name = accessible_name;
-            this.notify("accessible-name");
+            this.notify('accessible-name');
         }
         // For the tooltip
         let emitUpdateIndicator = this._artist !== artist || this._title !== title;
 
         if (this._artist !== artist) {
             this._artist = artist;
-            this.notify("artist");
+            this.notify('artist');
         }
         if (this._title !== title) {
             this._title = title;
-            this.notify("title");
+            this.notify('title');
         }
         if (this._obj_id !== obj_id) {
             this._obj_id = obj_id;
-            this.notify("obj-id");
+            this.notify('obj-id');
         }
         if (this._mimetype_icon_name !== mimetype_icon) {
             this._mimetype_icon_name = mimetype_icon;
             this.refreshIcon();
         }
         if (emitUpdateIndicator) {
-            this.emit("update-indicator");
+            this.emit('update-indicator');
         }
     }
 
@@ -1799,10 +1808,10 @@ const MprisProxyHandler = GObject.registerClass({
             this._playerProxy.Shuffle = initialShuffle;
         }
         if (this._playerProxy.LoopStatus !== null) {
-            let initialLoopStatus = this._playerProxy.LoopStatus || "None";
-            this._playerProxy.LoopStatus = initialLoopStatus === "None" ? "Playlist"
-                : initialLoopStatus === "Playlist" ? "Track"
-                : "None";
+            let initialLoopStatus = this._playerProxy.LoopStatus || 'None';
+            this._playerProxy.LoopStatus = initialLoopStatus === 'None' ? 'Playlist'
+                : initialLoopStatus === 'Playlist' ? 'Track'
+                : 'None';
             this._playerProxy.LoopStatus = initialLoopStatus;
         }
     }
@@ -1814,42 +1823,42 @@ const MprisProxyHandler = GObject.registerClass({
 
         if (this._shuffle_reactive !== shuffle_reactive) {
             this._shuffle_reactive = shuffle_reactive;
-            this.notify("shuffle-reactive");
+            this.notify('shuffle-reactive');
         }
         if (this._shuffle_active !== shuffle_active) {
             this._shuffle_active = shuffle_active;
-            this.notify("shuffle-active");
+            this.notify('shuffle-active');
         }
         if (this._show_shuffle_repeat !== show_shuffle_repeat) {
             this._show_shuffle_repeat = show_shuffle_repeat;
-            this.notify("show-shuffle-repeat");
+            this.notify('show-shuffle-repeat');
         }
     }
 
     _updateLoopStatus() {
         let repeat_reactive = this._playerProxy.LoopStatus !== null;
         let show_shuffle_repeat = this._shuffle_reactive || repeat_reactive;
-        let loopStatus = this._playerProxy.LoopStatus || "None";
-        let repeat_active = loopStatus !== "None";
-        let repeat_icon_name = loopStatus === "Track"
-            ? "media-playlist-repeat-song-symbolic"
-            : "media-playlist-repeat-symbolic";
+        let loopStatus = this._playerProxy.LoopStatus || 'None';
+        let repeat_active = loopStatus !== 'None';
+        let repeat_icon_name = loopStatus === 'Track'
+            ? 'media-playlist-repeat-song-symbolic'
+            : 'media-playlist-repeat-symbolic';
 
         if (this._repeat_reactive !== repeat_reactive) {
             this._repeat_reactive = repeat_reactive;
-            this.notify("repeat-reactive");
+            this.notify('repeat-reactive');
         }
         if (this._repeat_active !== repeat_active) {
             this._repeat_active = repeat_active;
-            this.notify("repeat-active");
+            this.notify('repeat-active');
         }
         if (this._repeat_icon_name !== repeat_icon_name) {
             this._repeat_icon_name = repeat_icon_name;
-            this.notify("repeat-icon-name");
+            this.notify('repeat-icon-name');
         }
         if (this._show_shuffle_repeat !== show_shuffle_repeat) {
             this._show_shuffle_repeat = show_shuffle_repeat;
-            this.notify("show-shuffle-repeat");
+            this.notify('show-shuffle-repeat');
         }
     }
 
@@ -1874,7 +1883,7 @@ const MprisProxyHandler = GObject.registerClass({
         let newVolume = this._playerProxy.Volume ? Math.max(0.0, Math.min(Math.round(this._playerProxy.Volume * 100) / 100, 1.0)) : 0.0;
         if (this._volume !== newVolume) {
             this._volume = newVolume;
-            this.notify("volume");
+            this.notify('volume');
         }
     }
 
