@@ -30,6 +30,7 @@ const ROLE = 'mprisindicatorbutton';
 
 function init(extensionMeta) {
     imports.gi.Gtk.IconTheme.get_default().append_search_path(extensionMeta.path + '/icons');
+    imports.gettext.bindtextdomain(ROLE, extensionMeta.path + '/locale');
 }
 
 function enable() {

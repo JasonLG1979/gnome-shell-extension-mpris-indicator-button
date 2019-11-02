@@ -19,6 +19,8 @@
  */
 
 const { Atk, Clutter, GLib, Gio, GObject, Gtk, St } = imports.gi;
+const Gettext = imports.gettext.domain('mprisindicatorbutton');
+const _ = Gettext.gettext;
 
 const { AggregateLayout } = imports.ui.panel;
 const { Button } = imports.ui.panelMenu;
@@ -29,6 +31,72 @@ const { DBusProxyHandler, logMyError } = imports.misc.extensionUtils.getCurrentE
 const { ToolTipBase } = imports.misc.extensionUtils.getCurrentExtension().imports.indicatorToolTip;
 
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
+
+// TRANSLATORS: These are all of the translatable strings.
+// Any new translatable strings will be added to the end
+// as to not break previous translations.
+const TRANSLATED = {
+    // TRANSLATORS: Non proper noun part of the extension's name.
+    'Indicator Button': _("Indicator Button"),
+
+    // TRANSLATORS: The section of the extension's menu
+    // that contains media control buttons like shuffle, previous, play pause and so on.
+    // Will be prepended with the player's name.
+    'Media Controls': _("Media Controls"),
+
+    // TRANSLATORS: Button Name. Random playback order.
+    // Should be very short, ideally one word. Do not add "button",
+    // the name is what it does not what it is.
+    'Shuffle': _("Shuffle"),
+
+    // TRANSLATORS: Button Name. Skip back to the previous track.
+    // Should be very short, ideally one word. Do not add "button",
+    // the name is what it does not what it is.
+    'Previous': _("Previous"),
+
+    // TRANSLATORS: Button Name. Dual function start playback or pause playback.
+    // Should be very short, ideally no more than two word but at least two words, to represent
+    // the dual function. Do not add "button" the name is what it does not what it is.
+    'Play Pause': _("Play Pause"),
+
+    // TRANSLATORS: Button Name. Stop playback.
+    // Should be very short, ideally one word. Do not add "button",
+    // the name is what it does not what it is.
+    'Stop': _("Stop"),
+
+    // TRANSLATORS: Button Name. Skip forward to the next track.
+    // Should be very short, ideally one word. Do not add "button",
+    // the name is what it does not what it is.
+    'Next': _("Next"),
+
+    // TRANSLATORS: Button Name. Repeat the track or track list.
+    // Should be very short, ideally one word. Do not add "button",
+    // the name is what it does not what it is.
+    'Repeat': _("Repeat"),
+
+    // TRANSLATORS: The section of the extension's menu that contains the volume control.
+    // Will be prepended with the player's name and appended with the volume value.
+    'Volume': _("Volume"),
+
+    // TRANSLATORS: The section of the extension's menu that contains the trackList menu.
+    // TrackList is a list of tracks but not necessarily a playlist.
+    // Do NOT translate this as "playlist".
+    // Will be prepended with the player's name.
+    'TrackList': _("TrackList"),
+
+    // TRANSLATORS: The section of the extension's menu that contains the playlists menu.
+    // PlayLists is a list of playlists.
+    // Will be prepended with the player's name.
+    'PlayLists': _("PlayLists"),
+
+    // TRANSLATORS: An item in the Playlists menu.
+    // Will be prepended with the player's name and appended with the playlist's name.
+    'PlayList Item': _("PlayList Item"),
+
+    // TRANSLATORS: An item in the TrackList menu.
+    // Will be prepended with the player's name and appended with the TrackList Item's info.
+    'TrackList Item': _("TrackList Item")
+};
 
 const VOULME_ICONS = [
     'audio-volume-muted-symbolic',
@@ -438,8 +506,7 @@ const ToolTip = GObject.registerClass({
         super._init(
             indicator,
             true,
-            // TRANSLATORS: Mpris is an acronym do not translate Mpris.
-            'Mpris' + " Indicator Button",
+            'Mpris' + ' ' + TRANSLATED['Indicator Button'],
             'media-playback-stop-symbolic',
             'osd-window tool-tip',
             'popup-menu-arrow tool-tip-icon'
@@ -556,7 +623,7 @@ const MediaControlsItem = GObject.registerClass({
         this._ornamentLabel.destroy();
         this.add_style_class_name('media-controls-item');
         this._signals = [];
-        this.accessible_name = "Media Controls";
+        this.accessible_name = TRANSLATED['Media Controls'];
         this._player_name = '';
         this.pushSignal(this, 'destroy', this._onDestroy.bind(this));
         this.hide();
@@ -572,42 +639,42 @@ const MediaControlsItem = GObject.registerClass({
 
         this.shuffleButton = new MediaButton(
             'media-playlist-shuffle-symbolic',
-            "Shuffle"
+            TRANSLATED['Shuffle']
         );
 
         box.add(this.shuffleButton);
 
         this.prevButton = new MediaButton(
             'media-skip-backward-symbolic',
-            "Previous"
+            TRANSLATED['Previous']
         );
 
         box.add(this.prevButton);
 
         this.playPauseButton = new MediaButton(
             'media-playback-start-symbolic',
-            "Play Pause"
+            TRANSLATED['Play Pause']
         );
 
         box.add(this.playPauseButton);
 
         this.stopButton = new MediaButton(
             'media-playback-stop-symbolic',
-            "Stop"
+            TRANSLATED['Stop']
         );
 
         box.add(this.stopButton);
 
         this.nextButton = new MediaButton(
             'media-skip-forward-symbolic',
-            "Next"
+            TRANSLATED['Next']
         );
 
         box.add(this.nextButton);
 
         this.repeatButton = new MediaButton(
             'media-playlist-repeat-symbolic',
-            "Repeat"
+            TRANSLATED['Repeat']
         );
 
         box.add(this.repeatButton);
@@ -623,7 +690,7 @@ const MediaControlsItem = GObject.registerClass({
     set player_name(player_name) {
         if (this._player_name !== player_name) {
             this._player_name = player_name;
-            this.accessible_name = player_name + ' ' + "Media Controls";
+            this.accessible_name = player_name + ' ' + TRANSLATED['Media Controls'];
             this.notify('player-name');
         }
     }
@@ -679,7 +746,7 @@ const Volume = GObject.registerClass({
         this.add(this._icon);
 
         this._slider = new Slider(0);
-        this._slider.accessible_name = "Volume";
+        this._slider.accessible_name = TRANSLATED['Volume'];
 
         this.add(this._slider, {expand: true});
 
@@ -723,13 +790,13 @@ const Volume = GObject.registerClass({
         this._mpris = mpris;
         this.value = this._mprisVolume;
         if (this._mpris.player_name) {
-            this._slider.accessible_name = this._mpris.player_name + ' ' + "Volume";
+            this._slider.accessible_name = this._mpris.player_name + ' ' + TRANSLATED['Volume'];
         }
         this._volumeChangedId = this._mpris.pushSignal(this._mpris, 'notify::volume', () => {
             this.value = this._mprisVolume;
         });
         this._mpris.pushSignal(this._mpris, 'notify::player-name', () => {
-            this._slider.accessible_name = this._mpris.player_name + ' ' + "Volume";
+            this._slider.accessible_name = this._mpris.player_name + ' ' + TRANSLATED['Volume'];
         });
         this._mpris.bind_property(
             'show-volume',
@@ -849,8 +916,7 @@ const PlayListSubMenuItem = GObject.registerClass({
     }
 
     updatePlayerName(player_name) {
-        // TRANSLATORS: The semicolon is important leave it alone.
-        this.accessible_name = player_name + ' ' + "PlayList Item" +';';
+        this.accessible_name = player_name + ' ' + TRANSLATED['PlayList Item'] +';';
     }
 
     updateMetadata([obj_id, title]) {
@@ -925,7 +991,7 @@ const TrackListSubMenuItem = GObject.registerClass({
     }
 
     updatePlayerName(player_name) {
-        this.accessible_name = player_name + ' ' + "TrackList Item" +';';
+        this.accessible_name = player_name + ' ' + TRANSLATED['TrackList Item'] +';';
     }
 
     updateMetadata([obj_id, cover_url, artist, title, mimetype_icon]) {
@@ -972,15 +1038,15 @@ const SubMenu = GObject.registerClass({
 
         let updatePlayerName = (proxy) => {
             let listTile = proxy.list_title == 'TrackList'
-                ? "TrackList"
+                ? TRANSLATED['TrackList']
                 : proxy.list_title == 'PlayLists'
-                ? "PlayLists"
+                ? TRANSLATED['PlayLists']
                 : proxy.list_title;
             this.label.text = listTile;
             let ifaceName = proxy.ifaceName.split('.').pop();
             let menuType = ifaceName == 'TrackList'
-                ? "TrackList"
-                : "PlayLists";
+                ? TRANSLATED['TrackList']
+                : TRANSLATED['PlayLists'];
             this.accessible_name = ifaceName !== proxy.list_title
                 ? proxy.player_name + ' ' + menuType + ';'
                 : proxy.player_name;
