@@ -20,6 +20,7 @@
 
 // No translatable strings in this file.
 const Panel = imports.ui.main.panel;
+const Config = imports.misc.config;
 
 const stockMpris = Panel.statusArea.dateMenu._messageList._mediaSection;
 const shouldShow = stockMpris._shouldShow;
@@ -29,9 +30,10 @@ const { MprisIndicatorButton } = imports.misc.extensionUtils.getCurrentExtension
 const ROLE = 'mprisindicatorbutton';
 
 function init(extensionMeta) {
-    let extPath = extensionMeta.path;
-    imports.gi.Gtk.IconTheme.get_default().append_search_path(extPath + '/icons');
-    imports.gettext.bindtextdomain(ROLE, extPath + '/locale');
+    imports.gi.Gtk.IconTheme.get_default().append_search_path(extensionMeta.path + '/icons');
+    let localeDir = extensionMeta.dir.get_child('locale');
+    let localePath = localeDir.query_exists(null) ? localeDir.get_path() : Config.LOCALEDIR;
+    imports.gettext.bindtextdomain(ROLE, localePath);
 }
 
 function enable() {
