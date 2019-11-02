@@ -18,9 +18,8 @@
  * If this extension breaks your desktop you get to keep all of the pieces...
  */
 
+// No translatable strings in this file.
 const { Atk, Clutter, GLib, Gio, GObject, Gtk, St } = imports.gi;
-const Gettext = imports.gettext.domain('mprisindicatorbutton');
-const _ = Gettext.gettext;
 
 const { AggregateLayout } = imports.ui.panel;
 const { Button } = imports.ui.panelMenu;
@@ -29,74 +28,8 @@ const { Slider } = imports.ui.slider;
 
 const { DBusProxyHandler, logMyError } = imports.misc.extensionUtils.getCurrentExtension().imports.dbus;
 const { ToolTipBase } = imports.misc.extensionUtils.getCurrentExtension().imports.indicatorToolTip;
-
+const { TRANSLATED } = imports.misc.extensionUtils.getCurrentExtension().imports.translations;
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
-
-// TRANSLATORS: These are all of the translatable strings.
-// Any new translatable strings will be added to the end
-// as to not break previous translations.
-const TRANSLATED = {
-    // TRANSLATORS: Non proper noun part of the extension's name.
-    get ['Indicator Button']() {return _("Indicator Button");},
-
-    // TRANSLATORS: The section of the extension's menu
-    // that contains media control buttons like shuffle, previous, play pause and so on.
-    // Will be prepended with the player's name.
-    get ['Media Controls']() {return _("Media Controls");},
-
-    // TRANSLATORS: Button Name. Random playback order.
-    // Should be very short, ideally one word. Do not add "button",
-    // the name is what it does not what it is.
-    get ['Shuffle']() {return _("Shuffle");},
-
-    // TRANSLATORS: Button Name. Skip back to the previous track.
-    // Should be very short, ideally one word. Do not add "button",
-    // the name is what it does not what it is.
-    get ['Previous']() {return _("Previous");},
-
-    // TRANSLATORS: Button Name. Dual function start playback or pause playback.
-    // Should be very short, ideally no more than two word but at least two words, to represent
-    // the dual function. Do not add "button" the name is what it does not what it is.
-    get ['Play Pause']() {return _("Play Pause");},
-
-    // TRANSLATORS: Button Name. Stop playback.
-    // Should be very short, ideally one word. Do not add "button",
-    // the name is what it does not what it is.
-    get ['Stop']() {return _("Stop");},
-
-    // TRANSLATORS: Button Name. Skip forward to the next track.
-    // Should be very short, ideally one word. Do not add "button",
-    // the name is what it does not what it is.
-    get ['Next']() {return _("Next");},
-
-    // TRANSLATORS: Button Name. Repeat the track or track list.
-    // Should be very short, ideally one word. Do not add "button",
-    // the name is what it does not what it is.
-    get ['Repeat']() {return _("Repeat");},
-
-    // TRANSLATORS: The section of the extension's menu that contains the volume control.
-    // Will be prepended with the player's name and appended with the volume value.
-    get ['Volume']() {return _("Volume");},
-
-    // TRANSLATORS: The section of the extension's menu that contains the trackList menu.
-    // TrackList is a list of tracks but not necessarily a playlist.
-    // Do NOT translate this as "playlist".
-    // Will be prepended with the player's name.
-    get ['TrackList']() {return _("TrackList");},
-
-    // TRANSLATORS: The section of the extension's menu that contains the playlists menu.
-    // PlayLists is a list of playlists.
-    // Will be prepended with the player's name.
-    get ['PlayLists']() {return _("PlayLists");},
-
-    // TRANSLATORS: An item in the Playlists menu.
-    // Will be prepended with the player's name and appended with the playlist's name.
-    get ['PlayList Item']() {return _("PlayList Item");},
-
-    // TRANSLATORS: An item in the TrackList menu.
-    // Will be prepended with the player's name and appended with the TrackList Item's info.
-    get ['TrackList Item']() {return _("TrackList Item");}
-};
 
 const VOULME_ICONS = [
     'audio-volume-muted-symbolic',
