@@ -41,3 +41,7 @@ Search your logs for "mpris".
 **Additional Notes:**
 
 Add any addtional information about the problem or your system.
+
+#### Please delete this line and everything below before submitting your request
+
+Please read [Bug Reports and Feature Requests](https://github.com/JasonLG1979/gnome-shell-extension-mpris-indicator-button/wiki/Bug-Reports-and-Feature-Requests) before submitting a feature request.
