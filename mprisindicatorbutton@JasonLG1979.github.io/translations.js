@@ -18,8 +18,7 @@
  * If this extension breaks your desktop you get to keep all of the pieces...
  */
 
-const Gettext = imports.gettext.domain('mprisindicatorbutton');
-const _ = Gettext.gettext;
+const _ = imports.gettext.domain('mprisindicatorbutton').gettext;
 
 // TRANSLATORS: These are all of the translatable strings in this extension.
 // Any new translatable strings will be added to the end as to not break previous translations.
