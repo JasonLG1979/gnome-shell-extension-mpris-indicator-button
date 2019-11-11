@@ -1868,7 +1868,7 @@ const MprisProxyHandler = GObject.registerClass({
         // which in turn should cause the volume slider to show itself.
         // Spotify's Volume prop is broken for example so the volume slider
         // remains hidden since it's pointless to show a widget that doesn't do anything...
-        if (this._playerProxy.Volume !== null) {
+        if (this._playerProxy.Volume) {
             let initialVolume = this._playerProxy.Volume || 0.0;
             this._playerProxy.Volume = initialVolume <= 0.0
                 ? 0.1
