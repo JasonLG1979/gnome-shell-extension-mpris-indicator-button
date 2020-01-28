@@ -559,7 +559,6 @@ const MediaControlsItem = GObject.registerClass({
         this.accessible_name = TRANSLATED['Media Controls'];
         this._player_name = '';
         this.pushSignal(this, 'destroy', this._onDestroy.bind(this));
-        this.hide();
 
         let box = new St.BoxLayout({
             y_expand: true,
@@ -1299,13 +1298,6 @@ class Player extends PopupMenuSection {
             'accessible-name',
             this._playerItem,
             'accessible-name',
-            DEFAULT_SYNC_CREATE_PROP_FLAGS
-        );
-
-        this._mpris.bind_property(
-            'show-controls',
-            this._controls,
-            'visible',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
 
