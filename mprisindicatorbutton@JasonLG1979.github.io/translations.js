@@ -1,6 +1,6 @@
 /*
  * Mpris Indicator Button extension for Gnome Shell 3.34+
- * Copyright 2019 Jason Gray (JasonLG1979)
+ * Copyright 2020 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ const _ = imports.gettext.domain('mprisindicatorbutton').gettext;
 // Any new translatable strings will be added to the end as to not break previous translations.
 var TRANSLATED = {
     // TRANSLATORS: Non proper noun part of the extension's name.
-    // User visible string and used by accessibility software. 
+    // User visible string and used by accessibility software.
     get ['Indicator Button']() {return _("Indicator Button");},
 
     // TRANSLATORS: The section of the extension's menu

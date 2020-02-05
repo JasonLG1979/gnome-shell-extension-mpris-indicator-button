@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Jason Gray (JasonLG1979)
+ * Copyright 2020 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -329,7 +329,7 @@ var ToolTipBase = GObject.registerClass({
         // when the indicator is destroyed.
         // In theory Objects should not emit signals
         // after destruction, but that assumption is often
-        // times false with St widgets and Clutter.  
+        // times false with St widgets and Clutter.
         let signalId = obj.connect(signalName, callback);
         this._signals.push({
             obj: obj,
@@ -362,7 +362,7 @@ var ToolTipBase = GObject.registerClass({
         // All cleanup happens here.
         // The tooltip is destroyed with the indicator.
         // If you override this function you MUST chain up otherwise
-        // clean up will not happen. 
+        // clean up will not happen.
         this.remove_all_transitions();
         this._signals.forEach(signal => signal.obj.disconnect(signal.signalId));
         this.indicator = null;
@@ -463,7 +463,7 @@ var ToolTipBase = GObject.registerClass({
     // plan on animating anything.
     // Doing so can leave the tooltip
     // in an undefined state of scale
-    // and/or opacity.  
+    // and/or opacity.
     animatedShow() {
         this.remove_all_transitions();
         this.show();
@@ -481,7 +481,7 @@ var ToolTipBase = GObject.registerClass({
             // on the way to other UI elements,
             // it also prevents the tooltip
             // from strobing in the event of rapid updates,
-            // which is potentially an accessibility issue. 
+            // which is potentially an accessibility issue.
             delay: TOOL_TIP_HOVER_DELAY,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onStopped: (isFinished) => {
@@ -507,7 +507,7 @@ var ToolTipBase = GObject.registerClass({
                     this.hide();
                 }
                 if (onComplete) {
-                   onComplete(); 
+                   onComplete();
                 }
             }
         });

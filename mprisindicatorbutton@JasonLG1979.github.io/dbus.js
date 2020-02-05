@@ -1,6 +1,6 @@
 /*
  * Mpris Indicator Button extension for Gnome Shell 3.34+
- * Copyright 2019 Jason Gray (JasonLG1979)
+ * Copyright 2020 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -129,33 +129,6 @@ const Node = Gio.DBusNodeInfo.new_for_xml(
 </interface>
 </node>`);
 
-function testCompliance(proxy) {
-    // Check for the existence of the required properties of the mpris and player interfaces
-    // that are used in this extension.
-    //
-    // It is considered a player implementation bug if a player puts up an mpris or player interface
-    // that is missing required properties.
-    if (proxy.g_interface_name === 'org.mpris.MediaPlayer2') {
-        if (proxy.CanQuit === null
-            || proxy.CanRaise === null
-            || proxy.Identity === null) {
-            return false;
-        }
-    } else if (proxy.g_interface_name === 'org.mpris.MediaPlayer2.Player') {
-        if (proxy.PlaybackStatus === null
-            || proxy.Metadata === null
-            || proxy.Volume === null
-            || proxy.CanGoNext === null
-            || proxy.CanGoPrevious === null
-            || proxy.CanPlay === null
-            || proxy.CanPause === null
-            || proxy.CanControl === null) {
-            return false;
-        }
-    }
-    return true; 
-}
-
 function makeProxy(ifaceName, busName, objectPath, flags, asyncCallback) {
     let cancellable = null;
     let error = null;
@@ -186,23 +159,6 @@ function makeProxy(ifaceName, busName, objectPath, flags, asyncCallback) {
                             error = Gio.DBusError.new_for_dbus_error(
                                 ' No Name Owner',
                                 `${busName} has no owner.`
-                            );
-                        } else if (!testCompliance(proxy)) {
-                            error = Gio.DBusError.new_for_dbus_error(
-                                ' Noncompliant implementation',
-                                `${busName} is not MPRIS spec complaint.`
-                            );
-                        } else if (ifaceName === 'org.mpris.MediaPlayer2.Player' && !proxy.CanControl) {
-                            // By spec canControl is an explicitly static property.
-                            // Ignore players where CanControl is false.
-                            // We are not interested in players that we can not control.
-                            //
-                            // It is considered a player implementation bug if a player puts up a player interface
-                            // with a canControl property that is initially false but that is otherwise
-                            // expected to be controllable at any future point.
-                            error = Gio.DBusError.new_for_dbus_error(
-                                ` CanControl is false`,
-                                `The CanControl property of ${busName} is expected to be true to indicate that the player can be controlled via MPRIS.`
                             );
                         }
                     } else if (!error) {
@@ -507,7 +463,7 @@ var DBusProxyHandler = GObject.registerClass({
             this._proxy.run_dispose();
         }
         this._proxy = null;
-        this._nameOwnerId = null
+        this._nameOwnerId = null;
         this._cancellable = null;
         this._ignoredPlayers = null;
         super.run_dispose();
@@ -1223,6 +1179,13 @@ const MprisProxyHandler = GObject.registerClass({
         }
     },
     Properties: {
+        'visible': GObject.ParamSpec.boolean(
+            'visible',
+            'visible-prop',
+            'If the player should be shown',
+            GObject.ParamFlags.READABLE,
+            false
+        ),
         'show-stop': GObject.ParamSpec.boolean(
             'show-stop',
             'show-stop-prop',
@@ -1388,6 +1351,7 @@ const MprisProxyHandler = GObject.registerClass({
         this._playerProxy = player;
         this._signals = [];
         this._appWrapper = null;
+        this._visible = false;
         this._player_name = '';
         this._desktop_entry = '';
         this._show_stop = false;
@@ -1425,6 +1389,10 @@ const MprisProxyHandler = GObject.registerClass({
 
     get accessible_name() {
         return this._accessible_name || '';
+    }
+
+    get visible() {
+        return this._visible || false;
     }
 
     get show_stop() {
@@ -1676,10 +1644,6 @@ const MprisProxyHandler = GObject.registerClass({
                 this._updateLoopStatus();
             }
             if (props.includes('Volume')) {
-                if (!this._show_volume) {
-                    this._show_volume = true;
-                    this.notify('show-volume');
-                }
                 this._updateVolume();
             }
         });
@@ -1692,7 +1656,7 @@ const MprisProxyHandler = GObject.registerClass({
 
     _updateMprisProps() {
         let playerName = this._mprisProxy.Identity || '';
-        if (this._player_name !== playerName) {
+        if (!this._player_name && playerName && this._player_name !== playerName) {
             this._player_name = playerName;
             this.notify('player-name');
         }
@@ -1726,7 +1690,8 @@ const MprisProxyHandler = GObject.registerClass({
                     this.pushSignal(this._appWrapper, 'notify::focused', () => {
                         this.emit('update-indicator');
                     });
-                    if (this._appWrapper.name) {
+                    if (this._appWrapper.name && this._player_name !== this._appWrapper.name) {
+                        this._player_name = this._appWrapper.name;
                         this.notify('player-name');
                     }
                 }
@@ -1736,6 +1701,7 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     _updatePlayerProps() {
+        let visible = this._playerProxy.CanControl || false;
         let playPauseIconName = 'media-playback-start-symbolic';
         let playPauseReactive = false;
         let showStop = false;
@@ -1758,6 +1724,12 @@ const MprisProxyHandler = GObject.registerClass({
             playPauseReactive = canPlay;
         }
 
+        let emitUpdateIndicator = this._visible !== visible || this._playback_status !== status;
+
+        if (this._visible !== visible) {
+            this._visible = visible;
+            this.notify('visible');
+        }
         if (this._show_stop !== showStop) {
             this._show_stop = showStop;
             this.notify('show-stop');
@@ -1781,6 +1753,8 @@ const MprisProxyHandler = GObject.registerClass({
         if (this._playback_status !== status) {
             this._playback_status = status;
             this._status_time = GLib.get_monotonic_time();
+        }
+        if (emitUpdateIndicator) {
             this.emit('update-indicator');
         }
     }
@@ -1908,6 +1882,10 @@ const MprisProxyHandler = GObject.registerClass({
             this._volume = newVolume;
             this.notify('volume');
         }
+        if (!this._show_volume) {
+            this._show_volume = true;
+            this.notify('show-volume');
+        }
     }
 
     _getSymbolicIcon() {
@@ -1946,6 +1924,7 @@ const MprisProxyHandler = GObject.registerClass({
         if (this._appWrapper) {
             this._appWrapper.destroy();
         }
+        this._visible = null;
         this._pid = null;
         this._mprisProxy = null;
         this._playerProxy = null;

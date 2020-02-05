@@ -1,6 +1,6 @@
 /*
  * Mpris Indicator Button extension for Gnome Shell 3.34+
- * Copyright 2019 Jason Gray (JasonLG1979)
+ * Copyright 2020 Jason Gray (JasonLG1979)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  */
 
 // No translatable strings in this file.
-const { Atk, Clutter, GLib, Gio, GObject, Gtk, St } = imports.gi;
+const { Atk, Clutter, Gio, GObject, Gtk, St } = imports.gi;
 
 const { AggregateLayout } = imports.ui.panel;
 const { Button } = imports.ui.panelMenu;
@@ -47,7 +47,7 @@ const Ornament = {
 function getSymbolicGiconByName(name) {
     // Something is broken in Gio in regards to using custom/local icons.
     // Gtk.IconTheme.get_default().append_search_path seems to work correctly in init
-    // as Gtk.IconTheme.get_default().has_icon(name) returns true, 
+    // as Gtk.IconTheme.get_default().has_icon(name) returns true,
     // but creating a St.Icon with the icon_name of name fails for some reason,
     // so this little hack is needed for the time being.
     let gicon = null;
@@ -445,13 +445,13 @@ const ToolTip = GObject.registerClass({
             'popup-menu-arrow tool-tip-icon'
         );
 
-        this.focused = false; 
+        this.focused = false;
 
         this.iconNames = [
             'media-playback-stop-symbolic',
             'media-playback-pause-symbolic',
-            'media-playback-start-symbolic'           
-        ]       
+            'media-playback-start-symbolic'
+        ];
 
         this.pushSignal(this.indicator, 'update-tooltip', this.onUpdateToolTip.bind(this));
     }
@@ -479,7 +479,7 @@ const ToolTip = GObject.registerClass({
 
     onIndicatorDestroy(indicator) {
         super.onIndicatorDestroy(indicator);
-        this.focused = null; 
+        this.focused = null;
         this.iconNames = null;
     }
 });
@@ -843,7 +843,7 @@ const PlayListSubMenuItem = GObject.registerClass({
             style_class: 'normal-label'
         });
         this.add(this.label);
-        this.updateMetadata(proxy.player_name);
+        this.updatePlayerName(proxy.player_name);
         this.updateMetadata(metadata);
     }
 
@@ -867,9 +867,8 @@ const TrackItem = GObject.registerClass({
         this.add(this.coverIcon);
         this.info = new TrackInfo();
         this.add(this.info, {expand: true});
-        this.pushSignal(this.info, 'notify::height', () => {
-            let scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-            let size = Math.ceil(this.info.height > 0 ? this.info.height : 32 / scaleFactor); 
+        this.pushSignal(this.info, 'notify::height', (info) => {
+            let size = Math.ceil(info.height > 0 ? info.height : 32 / St.ThemeContext.get_for_stage(global.stage).scale_factor);
             this.coverIcon.icon_size = size;
             this.coverIcon.set_size(size, size);
         });
@@ -983,7 +982,7 @@ const SubMenu = GObject.registerClass({
                 ? proxy.player_name + ' ' + menuType + ';'
                 : proxy.player_name;
             this.menu._getMenuItems().forEach(item => item.updatePlayerName(proxy.player_name));
-        }
+        };
 
         updatePlayerName(proxy);
 
@@ -1008,7 +1007,7 @@ const SubMenu = GObject.registerClass({
                 this.menu._getMenuItems().forEach(i => {
                     let ornament = current_obj_id === i.obj_id
                         ? Ornament.SHOW
-                        : Ornament.NONE
+                        : Ornament.NONE;
                     i.setOrnament(ornament);
                 });
             }
@@ -1066,6 +1065,7 @@ const SubMenu = GObject.registerClass({
 class Player extends PopupMenuSection {
     constructor(mpris, trackList, playList, updateIndicator) {
         super();
+        this.actor.visible = false;
         this._mpris = null;
 
         this._playerItem = new PlayerItem();
@@ -1142,7 +1142,7 @@ class Player extends PopupMenuSection {
             this.cycleRepeat();
         });
 
-        let destroyId = this.connect( 'destroy', () => {
+        let destroyId = this.connect('destroy', () => {
             this.disconnect(destroyId);
             if (this._mpris) {
                 this._mpris.destroy();
@@ -1293,6 +1293,13 @@ class Player extends PopupMenuSection {
         this._volume.setProxy(mpris);
         this._playListSubMenu.setProxy(playList);
         this._trackListSubMenu.setProxy(trackList);
+
+        this._mpris.bind_property(
+            'visible',
+            this.actor,
+            'visible',
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
 
         this._mpris.bind_property(
             'accessible-name',
@@ -1506,7 +1513,7 @@ var MprisIndicatorButton = GObject.registerClass({
             });
         };
 
-        let getPlayers = () => this.menu._getMenuItems().filter(i => i instanceof Player);
+        let getPlayers = () => this.menu._getMenuItems().filter(i => i instanceof Player && i.actor.visible);
 
         let getLastActivePlayer = (players) => {
             players = players || getPlayers();
@@ -1561,14 +1568,20 @@ var MprisIndicatorButton = GObject.registerClass({
             });
             indicator.gicon = activePlayer ? activePlayer.gicon : null;
             let visible = indicator.gicon ? true : false;
-            if (this.menu.isOpen && !visible) {
+            if (this.menu.isOpen) {
+                if (visible) {
+                    this.menu._getMenuItems().filter(i => i instanceof PopupSeparatorMenuItem).forEach(sep => {
+                        this.menu._updateSeparatorVisibility(sep);
+                    });
+                } else {
                     this.menu.toggle();
+                }
             }
             this.visible = visible;
         };
 
         pushSignal(St.TextureCache.get_default(), 'icon-theme-changed', () => {
-            getPlayers().forEach(p => p.refreshIcon());
+            this.menu._getMenuItems().filter(i => i instanceof Player).forEach(p => p.refreshIcon());
         });
 
         pushSignal(this, 'key-press-event', (actor, event) => {
