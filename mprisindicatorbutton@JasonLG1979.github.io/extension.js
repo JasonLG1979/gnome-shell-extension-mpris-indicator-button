@@ -29,7 +29,7 @@ const { MprisIndicatorButton } = imports.misc.extensionUtils.getCurrentExtension
 const ROLE = 'mprisindicatorbutton';
 
 function init(extensionMeta) {
-    imports.gi.Gtk.IconTheme.get_default().append_search_path(extensionMeta.path + '/icons');
+    imports.gi.Gtk.IconTheme.get_default().append_search_path(`${extensionMeta.path}/icons`);
     let localeDir = extensionMeta.dir.get_child('locale');
     let localePath = localeDir.query_exists(null) ? localeDir.get_path() : imports.misc.config.LOCALEDIR;
     imports.gettext.bindtextdomain(ROLE, localePath);

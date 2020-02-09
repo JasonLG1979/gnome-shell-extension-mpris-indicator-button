@@ -439,7 +439,7 @@ const ToolTip = GObject.registerClass({
         super._init(
             indicator,
             true,
-            'Mpris' + ' ' + TRANSLATED['Indicator Button'],
+            `Mpris ${TRANSLATED['Indicator Button']}`,
             'media-playback-stop-symbolic',
             'osd-window tool-tip',
             'popup-menu-arrow tool-tip-icon'
@@ -622,7 +622,7 @@ const MediaControlsItem = GObject.registerClass({
     set player_name(player_name) {
         if (this._player_name !== player_name) {
             this._player_name = player_name;
-            this.accessible_name = player_name + ' ' + TRANSLATED['Media Controls'];
+            this.accessible_name = `${player_name} ${TRANSLATED['Media Controls']}`;
             this.notify('player-name');
         }
     }
@@ -722,13 +722,13 @@ const Volume = GObject.registerClass({
         this._mpris = mpris;
         this.value = this._mprisVolume;
         if (this._mpris.player_name) {
-            this._slider.accessible_name = this._mpris.player_name + ' ' + TRANSLATED['Volume'];
+            this._slider.accessible_name = `${this._mpris.player_name} ${TRANSLATED['Volume']}`;
         }
         this._volumeChangedId = this._mpris.pushSignal(this._mpris, 'notify::volume', () => {
             this.value = this._mprisVolume;
         });
         this._mpris.pushSignal(this._mpris, 'notify::player-name', () => {
-            this._slider.accessible_name = this._mpris.player_name + ' ' + TRANSLATED['Volume'];
+            this._slider.accessible_name = `${this._mpris.player_name} ${TRANSLATED['Volume']}`;
         });
         this._mpris.bind_property(
             'show-volume',
@@ -848,7 +848,7 @@ const PlayListSubMenuItem = GObject.registerClass({
     }
 
     updatePlayerName(player_name) {
-        this.accessible_name = player_name + ' ' + TRANSLATED['PlayList Item'] +';';
+        this.accessible_name = `${player_name} ${TRANSLATED['PlayList Item']};`;
     }
 
     updateMetadata([obj_id, title]) {
@@ -922,7 +922,7 @@ const TrackListSubMenuItem = GObject.registerClass({
     }
 
     updatePlayerName(player_name) {
-        this.accessible_name = player_name + ' ' + TRANSLATED['TrackList Item'] +';';
+        this.accessible_name = `${player_name} ${TRANSLATED['TrackList Item']};`;
     }
 
     updateMetadata([obj_id, cover_url, artist, title, mimetype_icon]) {
@@ -974,12 +974,12 @@ const SubMenu = GObject.registerClass({
                 ? TRANSLATED['PlayLists']
                 : proxy.list_title;
             this.label.text = listTile;
-            let ifaceName = proxy.ifaceName.split('.').pop();
+            let ifaceName = proxy.ifaceName;
             let menuType = ifaceName == 'TrackList'
                 ? TRANSLATED['TrackList']
                 : TRANSLATED['PlayLists'];
             this.accessible_name = ifaceName !== proxy.list_title
-                ? proxy.player_name + ' ' + menuType + ';'
+                ? `${proxy.player_name} ${menuType};`
                 : proxy.player_name;
             this.menu._getMenuItems().forEach(item => item.updatePlayerName(proxy.player_name));
         };

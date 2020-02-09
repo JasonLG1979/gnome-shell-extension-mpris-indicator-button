@@ -745,8 +745,9 @@ const TrackListProxyHandler = GObject.registerClass({
         this._proxy = proxy;
         this._signals = [];
         this._current_obj_id = '';
+        this._ifaceName = this._proxy.g_interface_name.split('.').pop();
         this._show_list = false;
-        this._list_title = 'TrackList';
+        this._list_title = this._ifaceName;
         this._trackIds = [];
         this._metadata = [];
         this._player_name = '';
@@ -754,7 +755,7 @@ const TrackListProxyHandler = GObject.registerClass({
     }
 
     get ifaceName() {
-        return this._proxy ? this._proxy.g_interface_name : '';
+        return this._ifaceName || '';
     }
 
     get busName() {
@@ -766,7 +767,7 @@ const TrackListProxyHandler = GObject.registerClass({
     }
 
     get list_title() {
-        return this._list_title || 'TrackList';
+        return this._list_title || '';
     }
 
     get player_name() {
@@ -920,6 +921,7 @@ const TrackListProxyHandler = GObject.registerClass({
         this._signals = null;
         this._proxy = null;
         this._current_obj_id = null;
+        this._ifaceName = null;
         this._show_list = null;
         this._list_title = null;
         this._trackIds = null;
@@ -981,15 +983,16 @@ const PlayListProxyHandler = GObject.registerClass({
         this._playlists = [];
         this._player_name = '';
         this._current_obj_id = '';
+        this._ifaceName = this._proxy.g_interface_name.split('.').pop();
         this._show_list = false;
-        this._list_title = 'PlayLists';
+        this._list_title = this._ifaceName;
         this._propChangeId = null;
         this._getPlayListsId = null;
         this._finish_init();
     }
 
     get ifaceName() {
-        return this._proxy ? this._proxy.g_interface_name : '';
+        return this._ifaceName || '';
     }
 
     get busName() {
@@ -1001,7 +1004,7 @@ const PlayListProxyHandler = GObject.registerClass({
     }
 
     get list_title() {
-        return this._list_title || 'PlayLists';
+        return this._list_title || '';
     }
 
     get current_obj_id() {
@@ -1090,9 +1093,9 @@ const PlayListProxyHandler = GObject.registerClass({
 
     _getListTitle(activeId) {
         if (activeId && Array.isArray(this._playlists)) {
-            return this._playlists.find(i => i[0] === activeId)[1] || 'PlayLists';
+            return this._playlists.find(i => i[0] === activeId)[1] || this._ifaceName;
         }
-        return 'PlayLists';
+        return this._ifaceName;
     }
 
     _syncPlayListProps() {
@@ -1144,11 +1147,12 @@ const PlayListProxyHandler = GObject.registerClass({
             if (this._goodPlayList(playlist) && this._playListsIncludes(playlist[0])) {
                 let playlistId = playlist[0];
                 let playlistTitle = playlist[1];
-                this._playlists.forEach(p => {
+                for (let p of this._playlists) {
                     if (p[0] === playlistId) {
                         p[1] = playlistTitle;
+                        break;
                     }
-                });
+                };
                 this.emit('metadata-changed', playlistId, playlistId, playlistTitle);
                 this._syncPlayListProps();
             }
@@ -1165,6 +1169,7 @@ const PlayListProxyHandler = GObject.registerClass({
         this._playlists = null;
         this._player_name = null;
         this._list_title = null;
+        this._ifaceName = null;
         this._show_list = false;
         this._propChangeId = null;
         super.run_dispose();
@@ -1664,7 +1669,7 @@ const MprisProxyHandler = GObject.registerClass({
         if (this._desktop_entry !== desktop_entry) {
             this._desktop_entry = desktop_entry;
             if (!this._appWrapper && this._desktop_entry) {
-                let desktopId = this._desktop_entry + '.desktop';
+                let desktopId = `${this._desktop_entry}.desktop`;
                 let identity = this.player_name;
                 let lcIdentity = identity.toLowerCase();
                 let appSystem = Shell.AppSystem.get_default();
