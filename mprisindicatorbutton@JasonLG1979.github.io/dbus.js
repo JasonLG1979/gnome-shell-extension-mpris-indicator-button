@@ -1504,7 +1504,7 @@ const MprisProxyHandler = GObject.registerClass({
 
     volumeUp() {
         if (this._show_volume) {
-            this.volume = this._volume + 0.02;
+            this.volume = Math.min(this._volume + 0.02, 1.0);
             return true;
         }
         return false;
@@ -1512,7 +1512,7 @@ const MprisProxyHandler = GObject.registerClass({
 
     volumeDown() {
         if (this._show_volume) {
-            this.volume = this._volume - 0.02;
+            this.volume = Math.max(this._volume - 0.02, 0.0);
             return true;
         }
         return false;
