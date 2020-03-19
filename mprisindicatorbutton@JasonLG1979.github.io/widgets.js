@@ -834,14 +834,17 @@ const PlayerItem = GObject.registerClass({
         this.coverIcon.pushSignal(this.coverIcon, 'notify::gicon', () => {
             iconEffect.enabled = this.coverIcon.gicon instanceof Gio.BytesIcon ? false : true;
         });
+        this.pushSignal(this, 'button-release-event', (actor, event) => {
+            actor.remove_style_pseudo_class('active');
+            if (event.get_button() !== Clutter.BUTTON_SECONDARY) {
+                this.activate(event);
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
     }
 
-    _onButtonReleaseEvent(actor, event) {
-        actor.remove_style_pseudo_class('active');
-        if (event.get_button() !== Clutter.BUTTON_SECONDARY) {
-            this.activate(event);
-            return Clutter.EVENT_STOP;
-        }
+    vfunc_event(event) {
         return Clutter.EVENT_PROPAGATE;
     }
 });
