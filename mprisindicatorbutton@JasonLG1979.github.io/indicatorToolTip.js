@@ -195,6 +195,7 @@ var ToolTipBase = GObject.registerClass({
         this._signals = [];
 
         this._icon = new St.Icon({
+            icon_size: 16,
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.START
         });

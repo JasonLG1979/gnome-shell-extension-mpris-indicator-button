@@ -23,9 +23,10 @@ const { Atk, Clutter, Gio, GObject, Gtk, St } = imports.gi;
 
 const { AggregateLayout } = imports.ui.panel;
 const { Button } = imports.ui.panelMenu;
-const { PopupBaseMenuItem, PopupSubMenuMenuItem, PopupMenuSection, PopupSeparatorMenuItem } = imports.ui.popupMenu;
+const { PopupBaseMenuItem, PopupSubMenuMenuItem, PopupMenuSection, PopupSeparatorMenuItem, Ornament} = imports.ui.popupMenu;
 const { Slider } = imports.ui.slider;
 
+const Me = imports.misc.extensionUtils.getCurrentExtension();
 const { DBusProxyHandler, logMyError } = imports.misc.extensionUtils.getCurrentExtension().imports.dbus;
 const { ToolTipBase } = imports.misc.extensionUtils.getCurrentExtension().imports.indicatorToolTip;
 const { TRANSLATED } = imports.misc.extensionUtils.getCurrentExtension().imports.translations;
@@ -37,39 +38,6 @@ const VOULME_ICONS = [
     'audio-volume-medium-symbolic',
     'audio-volume-high-symbolic'
 ];
-
-const Ornament = {
-    NONE: 0,
-    SHOW: 1,
-    CHECK: 2,
-};
-
-function getSymbolicGiconByName(name) {
-    // Something is broken in Gio in regards to using custom/local icons.
-    // Gtk.IconTheme.get_default().append_search_path seems to work correctly in init
-    // as Gtk.IconTheme.get_default().has_icon(name) returns true,
-    // but creating a St.Icon with the icon_name of name fails for some reason,
-    // so this little hack is needed for the time being.
-    let gicon = null;
-    let theme = Gtk.IconTheme.get_default();
-    if (theme.has_icon(name)) {
-        let iconInfo = theme.lookup_icon(
-            name,
-            -1,
-            Gtk.IconLookupFlags.FORCE_SVG | Gtk.IconLookupFlags.FORCE_SYMBOLIC
-        );
-        if (iconInfo) {
-            let iconPath = iconInfo.get_filename();
-            if (iconPath) {
-                gicon = Gio.Icon.new_for_string(iconPath);
-            }
-        }
-    }
-    if (!gicon) {
-        gicon = Gio.ThemedIcon.new('message-indicator-symbolic');
-    }
-    return gicon;
-}
 
 class CoverArtIOHandler {
     // For it to work as intended there can only
@@ -111,27 +79,18 @@ class CoverArtIOHandler {
         }
     }
 
-    cancel(callback) {
+    cancel (callback) {
         let cover_url = this._callbacks.get(callback);
-        if (cover_url) {
-            this._callbacks.delete(callback);
-            let duplicates = false;
-            for (let [key, value] of this._callbacks) {
-                if (value === cover_url) {
-                    duplicates = true;
-                    break;
-                }
+        this._callbacks.delete(callback);
+        if (cover_url && !Array.from(this._callbacks.values()).includes(cover_url)) {
+            let cancellable = this._cancellables.get(cover_url);
+            if (cancellable && !cancellable.is_cancelled()) {
+                cancellable.cancel();
             }
-            if (!duplicates) {
-                let cancellable = this._cancellables.get(cover_url);
-                if (cancellable) {
-                    if (!cancellable.is_cancelled()) {
-                        cancellable.cancel();
-                    }
-                    cancellable.run_dispose();
-                    this._cancellables.delete(cover_url);
-                }
+            if (cancellable) {
+                cancellable.run_dispose();
             }
+            this._cancellables.delete(cover_url);
         }
     }
 
@@ -199,6 +158,7 @@ const CoverIcon = GObject.registerClass({
 }, class CoverIcon extends St.Icon {
     _init() {
         super._init({
+            style_class: 'popup-menu-icon',
             accessible_role: Atk.Role.ICON
         });
         this._useFallback = true;
@@ -402,6 +362,7 @@ const TrackInfo = GObject.registerClass({
     _init() {
         super._init({
             x_expand: true,
+            y_expand: false,
             y_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.INTERNAL_FRAME,
             vertical: true
@@ -409,17 +370,21 @@ const TrackInfo = GObject.registerClass({
 
         this.artistLabel = new St.Label({
             x_expand: true,
+            y_expand: false,
+            y_align: Clutter.ActorAlign.END,
             style_class: 'normal-label'
         });
 
-        this.add(this.artistLabel, {expand: true});
+        this.add_child(this.artistLabel);
 
         this.titleLabel = new St.Label({
             x_expand: true,
+            y_expand: false,
+            y_align: Clutter.ActorAlign.START,
             style_class: 'lighter-label'
         });
 
-        this.add(this.titleLabel, {expand: true});
+        this.add_child(this.titleLabel);
     }
 
     update(artist, title) {
@@ -442,7 +407,7 @@ const ToolTip = GObject.registerClass({
             `Mpris ${TRANSLATED['Indicator Button']}`,
             'media-playback-stop-symbolic',
             'osd-window tool-tip',
-            'popup-menu-arrow tool-tip-icon'
+            'tool-tip-icon'
         );
 
         this.focused = false;
@@ -490,18 +455,8 @@ const MainItem = GObject.registerClass({
 }, class MainItem extends PopupBaseMenuItem {
     _init() {
         super._init();
-        // We use an icon to visually infer
-        // the current item instead of
-        // the ornamentLabel because
-        // the screenreader will read
-        // aloud the name of the unicode
-        // character in ornamentLabel...
-        this._ornamentLabel.destroy();
-        this._bulletIcon = new St.Icon({
-            style_class: 'popup-menu-arrow',
-            opacity: 0
-        });
-        this.add(this._bulletIcon);
+        this._ornamentLabel.y_align = Clutter.ActorAlign.CENTER;
+        this._ornamentLabel.y_expand = true;
         this._signals = [];
         this.pushSignal(this, 'destroy', this._onDestroy.bind(this));
     }
@@ -513,22 +468,6 @@ const MainItem = GObject.registerClass({
             signalId: signalId
         });
         return signalId;
-    }
-
-    setOrnament(ornament) {
-        if (this._ornament !== ornament) {
-            this._ornament = ornament;
-            if (ornament === Ornament.SHOW) {
-                this._bulletIcon.opacity = 255;
-                this.add_accessible_state(Atk.StateType.CHECKED);
-            } else if (ornament === Ornament.CHECK) {
-                this._bulletIcon.opacity = 0;
-                this.add_accessible_state(Atk.StateType.CHECKED);
-            } else if (ornament === Ornament.NONE) {
-                this._bulletIcon.opacity = 0;
-                this.remove_accessible_state(Atk.StateType.CHECKED);
-            }
-        }
     }
 
     _onDestroy() {
@@ -562,54 +501,54 @@ const MediaControlsItem = GObject.registerClass({
 
         let box = new St.BoxLayout({
             y_expand: true,
-            x_expand: false,
+            x_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
             accessible_role: Atk.Role.INTERNAL_FRAME
         });
 
-        this.add(box, {expand: true});
+        this.add_child(box);
 
         this.shuffleButton = new MediaButton(
             'media-playlist-shuffle-symbolic',
             TRANSLATED['Shuffle']
         );
 
-        box.add(this.shuffleButton);
+        box.add_child(this.shuffleButton);
 
         this.prevButton = new MediaButton(
             'media-skip-backward-symbolic',
             TRANSLATED['Previous']
         );
 
-        box.add(this.prevButton);
+        box.add_child(this.prevButton);
 
         this.playPauseButton = new MediaButton(
             'media-playback-start-symbolic',
             TRANSLATED['Play Pause']
         );
 
-        box.add(this.playPauseButton);
+        box.add_child(this.playPauseButton);
 
         this.stopButton = new MediaButton(
             'media-playback-stop-symbolic',
             TRANSLATED['Stop']
         );
 
-        box.add(this.stopButton);
+        box.add_child(this.stopButton);
 
         this.nextButton = new MediaButton(
             'media-skip-forward-symbolic',
             TRANSLATED['Next']
         );
 
-        box.add(this.nextButton);
+        box.add_child(this.nextButton);
 
         this.repeatButton = new MediaButton(
             'media-playlist-repeat-symbolic',
             TRANSLATED['Repeat']
         );
 
-        box.add(this.repeatButton);
+        box.add_child(this.repeatButton);
     }
 
     setOrnament(ornament) {
@@ -667,20 +606,18 @@ const Volume = GObject.registerClass({
         this._preMuteValue = 0.0;
         this._preDragValue = 0.0;
         this._muted = false;
-        // It doesn't matter what the icon is.
-        // It's just a spacer. It will never be seen.
-        this._bulletIcon.icon_name = 'pan-end-symbolic';
         this._icon = new St.Icon({
             icon_name: 'audio-volume-muted-symbolic',
             style_class: 'popup-menu-icon',
         });
 
-        this.add(this._icon);
+        this.add_child(this._icon);
 
         this._slider = new Slider(0);
         this._slider.accessible_name = TRANSLATED['Volume'];
+        this._slider.x_expand = true;
 
-        this.add(this._slider, {expand: true});
+        this.add_child(this._slider);
 
         this.pushSignal(this, 'scroll-event', (actor, event) => {
             return this._slider._onScrollEvent(actor, event);
@@ -838,11 +775,10 @@ const PlayListSubMenuItem = GObject.registerClass({
 }, class PlayListSubMenuItem extends SubMenuItem {
     _init(proxy, metadata) {
         super._init(proxy);
-        this._bulletIcon.gicon = getSymbolicGiconByName('current-item-left-symbolic');
         this.label = new St.Label({
             style_class: 'normal-label'
         });
-        this.add(this.label);
+        this.add_child(this.label);
         this.updatePlayerName(proxy.player_name);
         this.updateMetadata(metadata);
     }
@@ -864,9 +800,9 @@ const TrackItem = GObject.registerClass({
     _init(proxy) {
         super._init(proxy);
         this.coverIcon = new CoverIcon();
-        this.add(this.coverIcon);
+        this.add_child(this.coverIcon);
         this.info = new TrackInfo();
-        this.add(this.info, {expand: true});
+        this.add_child(this.info);
         this.pushSignal(this.info, 'notify::height', (info) => {
             let size = Math.ceil(info.height > 0 ? info.height : 32 / St.ThemeContext.get_for_stage(global.stage).scale_factor);
             this.coverIcon.icon_size = size;
@@ -880,8 +816,11 @@ const PlayerItem = GObject.registerClass({
 }, class PlayerItem extends TrackItem {
     _init() {
         super._init();
-        this._bulletIcon.gicon = getSymbolicGiconByName('current-item-right-symbolic');
         this.closeButton = new St.Button({
+            x_expand: false,
+            y_expand: false,
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
             style_class: 'player-quit-button',
             child: new St.Icon({
                 style_class: 'popup-menu-arrow',
@@ -889,11 +828,7 @@ const PlayerItem = GObject.registerClass({
             })
         });
         this.closeButton.hide();
-        this.add(
-            new St.Bin({
-                child: this.closeButton
-            })
-        );
+        this.add_child(this.closeButton);
         let iconEffect = new Clutter.DesaturateEffect();
         this.coverIcon.add_effect(iconEffect);
         this.coverIcon.pushSignal(this.coverIcon, 'notify::gicon', () => {
@@ -916,7 +851,6 @@ const TrackListSubMenuItem = GObject.registerClass({
 }, class TrackListSubMenuItem extends TrackItem {
     _init(proxy, metadata) {
         super._init(proxy);
-        this._bulletIcon.gicon = getSymbolicGiconByName('current-item-left-symbolic');
         this.updatePlayerName(proxy.player_name);
         this.updateMetadata(metadata);
     }
@@ -939,13 +873,6 @@ const SubMenu = GObject.registerClass({
         super._init('', true);
         this.label_actor = null;
         this.hide();
-        this._ornamentLabel.destroy();
-        let spacer = new St.Icon({
-            style_class: 'popup-menu-arrow',
-            icon_name: 'pan-end-symbolic',
-            opacity: 0
-        });
-        this.insert_child_at_index(spacer, 0);
         this._proxy = null;
         this._itemClass = itemClass;
         this._current_obj_id = '';
@@ -1006,7 +933,7 @@ const SubMenu = GObject.registerClass({
                 this._current_obj_id = current_obj_id;
                 this.menu._getMenuItems().forEach(i => {
                     let ornament = current_obj_id === i.obj_id
-                        ? Ornament.SHOW
+                        ? Ornament.DOT
                         : Ornament.NONE;
                     i.setOrnament(ornament);
                 });
@@ -1055,10 +982,6 @@ const SubMenu = GObject.registerClass({
             obj: obj,
             signalId: signalId
         });
-    }
-
-    setOrnament(ornament) {
-        return;
     }
 });
 
@@ -1556,12 +1479,8 @@ var MprisIndicatorButton = GObject.registerClass({
                 );
             }
             players.forEach(player => {
-                if (player === activePlayer) {
-                    if (numOfPlayers > 1) {
-                        player.setOrnament(Ornament.SHOW);
-                    } else {
-                        player.setOrnament(Ornament.CHECK);
-                    }
+                if (player === activePlayer && numOfPlayers > 1) {
+                    player.setOrnament(Ornament.DOT);
                 } else {
                     player.setOrnament(Ornament.NONE);
                 }
@@ -1694,7 +1613,7 @@ var MprisIndicatorButton = GObject.registerClass({
         });
     }
 
-    _onEvent(actor, event) {
+    vfunc_event(event) {
         return Clutter.EVENT_PROPAGATE;
     }
 });

@@ -29,7 +29,6 @@ const { MprisIndicatorButton } = imports.misc.extensionUtils.getCurrentExtension
 const ROLE = 'mprisindicatorbutton';
 
 function init(extensionMeta) {
-    imports.gi.Gtk.IconTheme.get_default().append_search_path(`${extensionMeta.path}/icons`);
     let localeDir = extensionMeta.dir.get_child('locale');
     let localePath = localeDir.query_exists(null) ? localeDir.get_path() : imports.misc.config.LOCALEDIR;
     imports.gettext.bindtextdomain(ROLE, localePath);
@@ -37,7 +36,7 @@ function init(extensionMeta) {
 
 function enable() {
     if (!Panel.statusArea[ROLE]) {
-        stockMpris.actor.visible = false;
+        stockMpris.visible = false;
         stockMpris._shouldShow = () => false;
         Panel.addToStatusArea(ROLE, new MprisIndicatorButton());
     }
@@ -47,7 +46,7 @@ function disable() {
     let indicator = Panel.statusArea[ROLE];
     if (indicator) {
         stockMpris._shouldShow = shouldShow;
-        stockMpris.actor.visible = stockMpris._shouldShow();
+        stockMpris.visible = stockMpris._shouldShow();
         // Avoid - 'JS ERROR: Exception in callback for signal:
         // open-state-changed: Error: Argument 'descendant' (type interface) may not be null
         // _onMenuSet/indicator.menu._openChangedId'
