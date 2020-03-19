@@ -158,7 +158,7 @@ const CoverIcon = GObject.registerClass({
 }, class CoverIcon extends St.Icon {
     _init() {
         super._init({
-            style_class: 'popup-menu-icon',
+            style_class: 'popup-menu-icon cover-icon',
             accessible_role: Atk.Role.ICON
         });
         this._useFallback = true;
