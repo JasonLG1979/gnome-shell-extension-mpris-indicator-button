@@ -79,7 +79,7 @@ class CoverArtIOHandler {
         }
     }
 
-    cancel (callback) {
+    cancel(callback) {
         let cover_url = this._callbacks.get(callback);
         this._callbacks.delete(callback);
         if (cover_url && !Array.from(this._callbacks.values()).includes(cover_url)) {
@@ -158,7 +158,7 @@ const CoverIcon = GObject.registerClass({
 }, class CoverIcon extends St.Icon {
     _init() {
         super._init({
-            style_class: 'popup-menu-icon cover-icon',
+            style_class: 'popup-menu-icon',
             accessible_role: Atk.Role.ICON
         });
         this._useFallback = true;
