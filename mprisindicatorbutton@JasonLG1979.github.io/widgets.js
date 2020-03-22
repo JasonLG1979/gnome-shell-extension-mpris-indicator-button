@@ -31,6 +31,8 @@ const { DBusProxyHandler, logMyError } = imports.misc.extensionUtils.getCurrentE
 const { ToolTipBase } = imports.misc.extensionUtils.getCurrentExtension().imports.indicatorToolTip;
 const { TRANSLATED } = imports.misc.extensionUtils.getCurrentExtension().imports.translations;
 const DEFAULT_SYNC_CREATE_PROP_FLAGS = GObject.BindingFlags.DEFAULT | GObject.BindingFlags.SYNC_CREATE;
+const MOUSE_BUTTON_BACK = 8;
+const MOUSE_BUTTON_FORWARD = 9;
 
 const VOULME_ICONS = [
     'audio-volume-muted-symbolic',
@@ -834,14 +836,6 @@ const PlayerItem = GObject.registerClass({
         this.coverIcon.pushSignal(this.coverIcon, 'notify::gicon', () => {
             iconEffect.enabled = this.coverIcon.gicon instanceof Gio.BytesIcon ? false : true;
         });
-        this.pushSignal(this, 'button-release-event', (actor, event) => {
-            actor.remove_style_pseudo_class('active');
-            if (event.get_button() !== Clutter.BUTTON_SECONDARY) {
-                this.activate(event);
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
     }
 
     vfunc_event(event) {
@@ -1024,7 +1018,21 @@ class Player extends PopupMenuSection {
         this._controls.pushSignal(this._controls, 'scroll-event', this._onScrollEvent.bind(this));
 
         this._playerItem.pushSignal(this._playerItem, 'button-release-event', (actor, event) => {
-            return this.toggleWindow(true);
+            actor.remove_style_pseudo_class('active');
+            let button = event.get_button();
+            if (button === Clutter.BUTTON_PRIMARY) {
+                this._playerItem.activate(event);
+                return Clutter.EVENT_STOP;
+            } else if (button === Clutter.BUTTON_MIDDLE) {
+                return player.playPauseStop();
+            } else if (button === Clutter.BUTTON_SECONDARY) {
+                return this.toggleWindow(true);
+            } else if (button === MOUSE_BUTTON_FORWARD) {
+                return this.volumeUp();
+            } else if (button === MOUSE_BUTTON_BACK) {
+                return this.volumeDown();
+            }
+            return Clutter.EVENT_PROPAGATE;
         });
 
         this._controls.pushSignal(this._controls, 'button-release-event', (actor, event) => {
@@ -1550,6 +1558,10 @@ var MprisIndicatorButton = GObject.registerClass({
                     return player.playPauseStop();
                 } else if (button === Clutter.BUTTON_SECONDARY) {
                     return player.toggleWindow(true);
+                } else if (button === MOUSE_BUTTON_FORWARD) {
+                    return player.volumeUp();
+                } else if (button === MOUSE_BUTTON_BACK) {
+                    return player.volumeDown();
                 }
             }
             return Clutter.EVENT_PROPAGATE;
