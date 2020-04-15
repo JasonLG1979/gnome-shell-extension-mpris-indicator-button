@@ -296,6 +296,10 @@ function parseMetadata(metadata, playerName) {
         });
 
         cover_url = metadata['mpris:artUrl'];
+        if (playerName === 'Spotify' && cover_url) {
+            // workaround https://community.spotify.com/t5/Desktop-Linux/MPRIS-cover-art-url-file-not-found/m-p/4929877
+            cover_url = cover_url.replace('open.spotify.com', 'i.scdn.co');
+        }
         obj_id = metadata['mpris:trackid'] || NO_TRACK_PATH;
 
         let trackUrl = metadata['xesam:url'];
