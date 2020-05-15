@@ -1808,17 +1808,24 @@ const MprisProxyHandler = GObject.registerClass({
         // Otherwise they remain hidden since it's pointless to show widgets that don't do anything...
         // For the sake of UI symmetry if either Shuffle or Loopstatus works both buttons will be shown,
         // the button shown for whichever non-functional prop will just be non-reactive.
-        if (this._playerProxy.Shuffle !== null) {
-            let initialShuffle = this._playerProxy.Shuffle || false;
-            this._playerProxy.Shuffle = !initialShuffle;
-            this._playerProxy.Shuffle = initialShuffle;
-        }
-        if (this._playerProxy.LoopStatus !== null) {
-            let initialLoopStatus = this._playerProxy.LoopStatus || 'None';
-            this._playerProxy.LoopStatus = initialLoopStatus === 'None' ? 'Playlist'
-                : initialLoopStatus === 'Playlist' ? 'Track'
-                : 'None';
-            this._playerProxy.LoopStatus = initialLoopStatus;
+        if (this._player_name === 'Headset') {
+            // Headset has valid reasons for Shuffle and LoopStatus to be non-reactive initially upon interface creation.
+            // https://github.com/JasonLG1979/gnome-shell-extension-mpris-indicator-button/issues/35
+            this._updateShuffle();
+            this._updateLoopStatus();
+        } else {
+            if (this._playerProxy.Shuffle !== null) {
+                let initialShuffle = this._playerProxy.Shuffle || false;
+                this._playerProxy.Shuffle = !initialShuffle;
+                this._playerProxy.Shuffle = initialShuffle;
+            }
+            if (this._playerProxy.LoopStatus !== null) {
+                let initialLoopStatus = this._playerProxy.LoopStatus || 'None';
+                this._playerProxy.LoopStatus = initialLoopStatus === 'None' ? 'Playlist'
+                    : initialLoopStatus === 'Playlist' ? 'Track'
+                    : 'None';
+                this._playerProxy.LoopStatus = initialLoopStatus;
+            }
         }
     }
 
