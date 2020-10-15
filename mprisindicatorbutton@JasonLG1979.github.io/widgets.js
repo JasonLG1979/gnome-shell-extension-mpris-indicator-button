@@ -19,7 +19,7 @@
  */
 
 // No translatable strings in this file.
-const { Atk, Clutter, Gio, GObject, Gtk, St } = imports.gi;
+const { Atk, Clutter, Gio, GObject, St } = imports.gi;
 
 const { AggregateLayout } = imports.ui.panel;
 const { Button } = imports.ui.panelMenu;
