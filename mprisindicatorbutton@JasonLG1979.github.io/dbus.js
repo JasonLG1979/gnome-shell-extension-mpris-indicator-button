@@ -1915,7 +1915,7 @@ const MprisProxyHandler = GObject.registerClass({
 
     _getIcon(symbolic) {
         let iconName = symbolic ? `${this.app_id}-symbolic` : this.app_id;
-        return this.app_id && Gtk.IconTheme.get_default().has_icon(iconName) ? Gio.ThemedIcon.new(iconName) : null;
+        return this.app_id && (Gtk.IconTheme.get_default() ? Gtk.IconTheme.get_default().has_icon(iconName) : false) ? Gio.ThemedIcon.new(iconName) : null;
     }
 
     _getMimeTypeIcon() {
