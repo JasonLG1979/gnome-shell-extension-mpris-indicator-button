@@ -23,15 +23,14 @@ const Panel = imports.ui.main.panel;
 
 const stockMpris = Panel.statusArea.dateMenu._messageList._mediaSection;
 const shouldShow = stockMpris._shouldShow;
+const extensionUtils = imports.misc.extensionUtils;
+const { MprisIndicatorButton } =
+    extensionUtils.getCurrentExtension().imports.widgets;
 
-const { MprisIndicatorButton } = imports.misc.extensionUtils.getCurrentExtension().imports.widgets;
-
-const ROLE = 'mprisindicatorbutton';
+const ROLE = "mprisindicatorbutton@JasonLG1979.github.io";
 
 function init(extensionMeta) {
-    let localeDir = extensionMeta.dir.get_child('locale');
-    let localePath = localeDir.query_exists(null) ? localeDir.get_path() : imports.misc.config.LOCALEDIR;
-    imports.gettext.bindtextdomain(ROLE, localePath);
+    extensionUtils.initTranslations(ROLE);
 }
 
 function enable() {

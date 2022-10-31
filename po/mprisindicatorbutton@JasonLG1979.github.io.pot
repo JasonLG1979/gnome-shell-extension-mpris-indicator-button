@@ -1,0 +1,70 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-10-31 08:34+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.1.1\n"
+
+#: translations.js:28
+msgid "Indicator Button"
+msgstr ""
+
+#: translations.js:34
+msgid "Media Controls"
+msgstr ""
+
+#: translations.js:40
+msgid "Shuffle"
+msgstr ""
+
+#: translations.js:46
+msgid "Previous"
+msgstr ""
+
+#: translations.js:52
+msgid "Play Pause"
+msgstr ""
+
+#: translations.js:58
+msgid "Stop"
+msgstr ""
+
+#: translations.js:64
+msgid "Next"
+msgstr ""
+
+#: translations.js:70
+msgid "Repeat"
+msgstr ""
+
+#: translations.js:75
+msgid "Volume"
+msgstr ""
+
+#: translations.js:82
+msgid "TrackList"
+msgstr ""
+
+#: translations.js:88
+msgid "PlayLists"
+msgstr ""
+
+#: translations.js:93
+msgid "PlayList Item"
+msgstr ""
+
+#: translations.js:98
+msgid "TrackList Item"
+msgstr ""
