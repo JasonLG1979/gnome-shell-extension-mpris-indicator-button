@@ -1,0 +1,71 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-10-31 08:34+0100\n"
+"PO-Revision-Date: 2022-10-31 08:38+0100\n"
+"Last-Translator: Christian Lauinger <christian@lauinger-clan.de>\n"
+"Language-Team: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.1.1\n"
+
+#: translations.js:28
+msgid "Indicator Button"
+msgstr "Indikator Schaltfläche"
+
+#: translations.js:34
+msgid "Media Controls"
+msgstr "Mediensteuerung"
+
+#: translations.js:40
+msgid "Shuffle"
+msgstr "Zufallswiedergabe"
+
+#: translations.js:46
+msgid "Previous"
+msgstr "Verheriges"
+
+#: translations.js:52
+msgid "Play Pause"
+msgstr "Abspielen Pausieren"
+
+#: translations.js:58
+msgid "Stop"
+msgstr "Stop"
+
+#: translations.js:64
+msgid "Next"
+msgstr "Nächstes"
+
+#: translations.js:70
+msgid "Repeat"
+msgstr "Wiederholen"
+
+#: translations.js:75
+msgid "Volume"
+msgstr "Lautsärke"
+
+#: translations.js:82
+msgid "TrackList"
+msgstr "Titelliste"
+
+#: translations.js:88
+msgid "PlayLists"
+msgstr "Wiedergabeliste"
+
+#: translations.js:93
+msgid "PlayList Item"
+msgstr "Wiedergabelisteneintrag"
+
+#: translations.js:98
+msgid "TrackList Item"
+msgstr "Titellisteneintrag"
