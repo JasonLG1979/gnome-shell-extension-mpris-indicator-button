@@ -21,7 +21,9 @@ function fillPreferencesWindow(window) {
     page.add(group);
 
     group.add(addToggle(settings,'Show album name','show-album'));
-    
+    group.add(addToggle(settings,'Show playlists','show-playlists'));
+    group.add(addToggle(settings,'Show volume','show-volume'));
+	    
     // Add our page to the window
     window.add(page);
 }

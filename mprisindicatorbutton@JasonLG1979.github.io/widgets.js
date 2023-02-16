@@ -1020,6 +1020,20 @@ class Player extends PopupMenuSection {
             Gio.SettingsBindFlags.DEFAULT
         );
         
+        settings.bind(
+            'show-playlists',
+            this._playListSubMenu,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        
+        settings.bind(
+            'show-volume',
+            this._volume,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );        
+        
         this._trackListSubMenu = new SubMenu(TrackListSubMenuItem);
         this.addMenuItem(this._trackListSubMenu);
 

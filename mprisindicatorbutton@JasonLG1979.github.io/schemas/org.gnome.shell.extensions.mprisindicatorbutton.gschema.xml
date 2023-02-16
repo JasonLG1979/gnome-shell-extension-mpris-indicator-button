@@ -4,5 +4,11 @@
     <key name="show-album" type="b">
       <default>true</default>
     </key>
+    <key name="show-playlists" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-volume" type="b">
+      <default>true</default>
+    </key>
   </schema>
 </schemalist>
