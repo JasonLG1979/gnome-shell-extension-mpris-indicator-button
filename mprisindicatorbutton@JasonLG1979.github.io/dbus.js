@@ -285,6 +285,7 @@ function parseMetadata(metadata, playerName) {
     let cover_url = '';
     let artist = playerName;
     let title = '';
+    let album = '';
 
     if (Object.keys(metadata).length) {
         // Unpack all Metadata keys that we care about in place.
@@ -311,14 +312,17 @@ function parseMetadata(metadata, playerName) {
                 if (artist_title.length > 1) {
                     artist = artist_title.shift().trim() || playerName;
                     title = artist_title.join(delimiter).trim();
+                    album = metadata['xesam:album'];
                 } else {
                     delimiter = metadata['xesam:album'].includes(' - ') ? ' - ' : ': ';
                     artist = metadata['xesam:album'].split(delimiter)[0].trim() || playerName;
                     title = metadata['xesam:title'];
+                    album = metadata['xesam:album'];
                 }
             } else {
                 artist = metadata['xesam:artist'];
                 title = metadata['xesam:title'];
+                album = metadata['xesam:album'];
             }
         } else {
             // There are better ways to sniff the mimetype of the track
@@ -359,10 +363,11 @@ function parseMetadata(metadata, playerName) {
                     && metadata['xesam:album'])
                 ? `${metadata['xesam:trackNumber']} - ${metadata['xesam:album']}`
                 : '';
+            album = metadata['xesam:album'] ? metadata['xesam:album'] : '';
        }
     }
 
-    return [obj_id, cover_url, artist, title, mimetype_icon];
+    return [obj_id, cover_url, artist, album, title, mimetype_icon];
 }
 
 function logMyError(error) {
@@ -705,6 +710,7 @@ const TrackListProxyHandler = GObject.registerClass({
                 GObject.TYPE_STRING, // obj_id
                 GObject.TYPE_STRING, // cover_url
                 GObject.TYPE_STRING, // artist
+                GObject.TYPE_STRING, // album
                 GObject.TYPE_STRING, // title
                 GObject.TYPE_STRING  // mimetype_icon
             ]
@@ -890,10 +896,10 @@ const TrackListProxyHandler = GObject.registerClass({
         });
         this.pushSignal('TrackMetadataChanged', (...[,,[oldtrackId, metadata]]) => {
             if (this._trackListIncludes(oldtrackId)) {
-                let [newTrackId, cover_url, artist, title, mimetype_icon] = parseMetadata(metadata, this._player_name);
+                let [newTrackId, cover_url, artist, album, title, mimetype_icon] = parseMetadata(metadata, this._player_name);
                 if (this._goodTrackListId(newTrackId)) {
                     let index = this._trackIds.indexOf(oldtrackId);
-                    this._metadata[index] = [newTrackId, cover_url, artist, title, mimetype_icon];
+                    this._metadata[index] = [newTrackId, cover_url, artist, album, title, mimetype_icon];
                     this._trackIds[index] = newTrackId;
                     this.emit(
                         'metadata-changed',
@@ -901,6 +907,7 @@ const TrackListProxyHandler = GObject.registerClass({
                         newTrackId,
                         cover_url,
                         artist,
+                        album,
                         title,
                         mimetype_icon
                     );
@@ -1318,6 +1325,13 @@ const MprisProxyHandler = GObject.registerClass({
             GObject.ParamFlags.READABLE,
             ''
         ),
+        'album': GObject.ParamSpec.string(
+            'album',
+            'album-prop',
+            'The current track\'s album',
+            GObject.ParamFlags.READABLE,
+            ''
+        ),
         'title': GObject.ParamSpec.string(
             'title',
             'title-prop',
@@ -1374,6 +1388,7 @@ const MprisProxyHandler = GObject.registerClass({
         this._obj_id = '';
         this._cover_url = '';
         this._artist = '';
+        this._album = '';
         this._title = '';
         this._accessible_name = '';
         this._playback_status = 0;
@@ -1459,6 +1474,10 @@ const MprisProxyHandler = GObject.registerClass({
 
     get artist() {
         return this._artist || '';
+    }
+    
+    get album() {
+        return this._album || '';
     }
 
     get title() {
@@ -1766,7 +1785,7 @@ const MprisProxyHandler = GObject.registerClass({
     }
 
     _updateMetadata() {
-        let [obj_id, cover_url, artist, title, mimetype_icon] = parseMetadata(this._playerProxy.Metadata, this.player_name);
+        let [obj_id, cover_url, artist, album, title, mimetype_icon] = parseMetadata(this._playerProxy.Metadata, this.player_name);
         this._cover_url = cover_url;
         this.notify('cover-url');
         let accessible_name = (artist == this.player_name) ? '' : this.player_name;
@@ -1780,6 +1799,10 @@ const MprisProxyHandler = GObject.registerClass({
         if (this._artist !== artist) {
             this._artist = artist;
             this.notify('artist');
+        }
+        if (this._album !== album) {
+            this._album = album;
+            this.notify('album');
         }
         if (this._title !== title) {
             this._title = title;
@@ -1959,6 +1982,7 @@ const MprisProxyHandler = GObject.registerClass({
         this._obj_id = null;
         this._cover_url = null;
         this._artist = null;
+        this._album = null;
         this._title = null;
         this._accessible_name = null;
         this._playback_status = null;

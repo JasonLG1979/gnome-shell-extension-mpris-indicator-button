@@ -20,6 +20,7 @@
 
 // No translatable strings in this file.
 const Panel = imports.ui.main.panel;
+const ExtensionUtils = imports.misc.extensionUtils;
 
 const stockMpris = Panel.statusArea.dateMenu._messageList._mediaSection;
 const shouldShow = stockMpris._shouldShow;
@@ -37,7 +38,8 @@ function enable() {
     if (!Panel.statusArea[ROLE]) {
         stockMpris.visible = false;
         stockMpris._shouldShow = () => false;
-        Panel.addToStatusArea(ROLE, new MprisIndicatorButton());
+        this.settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.mprisindicatorbutton');
+        Panel.addToStatusArea(ROLE, new MprisIndicatorButton(this.settings));
     }
 }
 

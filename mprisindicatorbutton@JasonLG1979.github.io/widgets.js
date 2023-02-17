@@ -379,25 +379,38 @@ const TrackInfo = GObject.registerClass({
 
         this.add_child(this.artistLabel);
 
+        this.albumLabel = new St.Label({
+            x_expand: true,
+            y_expand: false,
+            y_align: Clutter.ActorAlign.END,
+            style_class: 'lighter-label'
+        });
+
+        this.add_child(this.albumLabel);
+
         this.titleLabel = new St.Label({
             x_expand: true,
             y_expand: false,
             y_align: Clutter.ActorAlign.START,
-            style_class: 'lighter-label'
+            style_class: 'light-label'
         });
 
         this.add_child(this.titleLabel);
     }
 
-    update(artist, title) {
+    update(artist, album, title) {
         if (this.artistLabel.text !== artist) {
             this.artistLabel.text = artist;
+        }
+        if (this.albumLabel.text !== album) {
+            this.albumLabel.text = album;
         }
         if (this.titleLabel.text !== title) {
             this.titleLabel.text = title;
         }
     }
 });
+
 
 const ToolTip = GObject.registerClass({
     GTypeName: 'ToolTip'
@@ -423,13 +436,13 @@ const ToolTip = GObject.registerClass({
         this.pushSignal(this.indicator, 'update-tooltip', this.onUpdateToolTip.bind(this));
     }
 
-    onUpdateToolTip(indicator, artist, title, focused, playbackStatus) {
+    onUpdateToolTip(indicator, artist, album, title, focused, playbackStatus) {
         // Never show the tool tip if a player is focused. At that point it's
         // redundant information. Also hide the tool tip if a player becomes
         // focused while it is visible. (As in maybe the user secondary clicked the indicator)
         this.focused = focused;
         let iconName = this.iconNames[playbackStatus];
-        let text = title ? artist + ' • ' + title : artist;
+        let text = title ? artist + ' • ' + title + ' • ' + album : artist;
         this.animatedUpdate(text, iconName);
         if ((this.focused && this.visible) || !this.text) {
            this.updateAfterHide(text, iconName);
@@ -856,10 +869,10 @@ const TrackListSubMenuItem = GObject.registerClass({
         this.accessible_name = `${player_name} ${TRANSLATED['TrackList Item']};`;
     }
 
-    updateMetadata([obj_id, cover_url, artist, title, mimetype_icon]) {
+    updateMetadata([obj_id, cover_url, artist, album, title, mimetype_icon]) {
         this._obj_id = obj_id;
         this.coverIcon.update(mimetype_icon, cover_url);
-        this.info.update(artist, title);
+        this.info.update(artist, album, title);
     }
 });
 
@@ -983,7 +996,7 @@ const SubMenu = GObject.registerClass({
 });
 
 class Player extends PopupMenuSection {
-    constructor(mpris, trackList, playList, updateIndicator) {
+    constructor(mpris, trackList, playList, updateIndicator, settings) {
         super();
         this.actor.visible = false;
         this._mpris = null;
@@ -1000,6 +1013,13 @@ class Player extends PopupMenuSection {
         this._playListSubMenu = new SubMenu(PlayListSubMenuItem);
         this.addMenuItem(this._playListSubMenu);
 
+        settings.bind(
+            'show-album',
+            this._playerItem.info.albumLabel,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        
         this._trackListSubMenu = new SubMenu(TrackListSubMenuItem);
         this.addMenuItem(this._trackListSubMenu);
 
@@ -1097,6 +1117,10 @@ class Player extends PopupMenuSection {
 
     get artist() {
         return this._mpris ? this._mpris.artist : '';
+    }
+    
+    get album() {
+        return this._mpris ? this._mpris.album : '';
     }
 
     get trackTitle() {
@@ -1353,7 +1377,14 @@ class Player extends PopupMenuSection {
             'text',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
-
+        
+        this._mpris.bind_property(
+            'album',
+            this._playerItem.info.albumLabel,
+            'text',
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+        
         this._mpris.bind_property(
             'title',
             this._playerItem.info.titleLabel,
@@ -1414,6 +1445,7 @@ var MprisIndicatorButton = GObject.registerClass({
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING,  // artist
+                GObject.TYPE_STRING,  // album
                 GObject.TYPE_STRING,  // title
                 GObject.TYPE_BOOLEAN, // focused
                 GObject.TYPE_INT      // playbackStatus
@@ -1421,11 +1453,12 @@ var MprisIndicatorButton = GObject.registerClass({
         }
     }
 }, class MprisIndicatorButton extends Button {
-    _init() {
+    _init(settings) {
         super._init(0.5, 'Mpris Indicator Button');
         this.accessible_name = 'Mpris';
         this.menu.actor.add_style_class_name('aggregate-menu');
         this.menu.box.set_layout_manager(new AggregateLayout());
+        this.settings = settings;
 
         this.hide();
 
@@ -1484,6 +1517,7 @@ var MprisIndicatorButton = GObject.registerClass({
                 this.emit(
                     'update-tooltip',
                     activePlayer.artist,
+                    activePlayer.album,
                     activePlayer.trackTitle,
                     activePlayer.focused,
                     activePlayer.playbackStatus
@@ -1603,7 +1637,7 @@ var MprisIndicatorButton = GObject.registerClass({
                     sep.busName = busName;
                     this.menu.addMenuItem(sep);
                 }
-                this.menu.addMenuItem(new Player(mpris, trackList, playList, updateIndicator));
+                this.menu.addMenuItem(new Player(mpris, trackList, playList, updateIndicator, settings));
             }
             updateIndicator();
         });
