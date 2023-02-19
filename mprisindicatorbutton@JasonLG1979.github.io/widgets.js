@@ -245,6 +245,34 @@ const CoverIcon = GObject.registerClass({
     }
 });
 
+
+const PlaybackStatusIndicator = GObject.registerClass({
+    GTypeName: 'PlaybackStatusIndicator'
+}, class PlaybackStatusIndicator extends St.Icon {
+    _init() {
+        super._init({
+            icon_size: 16,
+            icon_name: 'media-playback-pause-symbolic',
+            style_class: 'system-status-icon',
+            opacity: 125,
+            accessible_role: Atk.Role.ICON
+        });
+
+        this.add_effect(new Clutter.DesaturateEffect());
+        this.iconNames = [
+            'media-playback-stop-symbolic',
+            'media-playback-pause-symbolic',
+            'media-playback-start-symbolic'
+        ];
+     }
+
+
+   update(playbackStatus) {
+        let iconName = this.iconNames[playbackStatus];
+        this.icon_name = iconName;
+   }
+});
+
 const MediaButton = GObject.registerClass({
     GTypeName: 'MediaButton',
     Signals: {
@@ -1488,13 +1516,20 @@ var MprisIndicatorButton = GObject.registerClass({
 
         this.hide();
 
+        let box = new St.BoxLayout();
+
+        this.InlineIndicator = new InlineIndicator(this, this.settings);
+        box.add(this.InlineIndicator);
+
         let indicator = new St.Icon({
             style_class: 'system-status-icon'
         });
 
         indicator.add_effect(new Clutter.DesaturateEffect());
 
-        this.add_child(indicator);
+        box.add(indicator);
+
+		this.add_child(box);
 
         let signals = [];
 
@@ -1691,4 +1726,58 @@ var MprisIndicatorButton = GObject.registerClass({
     vfunc_event(event) {
         return Clutter.EVENT_PROPAGATE;
     }
+});
+
+var InlineIndicator = GObject.registerClass({
+    GTypeName: 'InlineIndicator'
+}, class InlineIndicator extends St.BoxLayout {
+    _init(mainIndicator, settings) {
+        super._init();
+        this.settings = settings;
+        this.hide();
+        this._signals = [];
+
+        this._mainIndicator = mainIndicator;
+        this.playbackStatusIndicator = new PlaybackStatusIndicator();
+        this.add(this.playbackStatusIndicator);
+
+        this.songTitle = new St.Label({ style_class:'song', text : "", x_align: Clutter.ActorAlign.END, y_align: Clutter.ActorAlign.CENTER, });
+        this.add(this.songTitle);
+
+        this.pushSignal(this._mainIndicator, 'update-tooltip', this.onUpdate.bind(this));
+
+        this.settings.bind(
+            'show-playbackstatus',
+            this.playbackStatusIndicator,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        this.settings.bind(
+            'show-playback-tracktitle',
+            this.songTitle,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+    }
+
+    pushSignal(obj, signalName, callback) {
+        // This is a convenience function for connecting signals.
+        // Use this to make sure all signal are disconnected
+        // when the indicator is destroyed.
+        // In theory Objects should not emit signals
+        // after destruction, but that assumption is often
+        // times false with St widgets and Clutter.
+        let signalId = obj.connect(signalName, callback);
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
+        });
+        return signalId;
+    }
+     
+     onUpdate(indicator, artist, album, title, focused, playbackStatus) {
+        playbackStatus == 0 ? this.hide() : this.show();
+        this.playbackStatusIndicator.update(playbackStatus);
+        this.songTitle.set_text(title);
+     }
 });

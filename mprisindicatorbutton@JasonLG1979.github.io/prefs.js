@@ -33,8 +33,15 @@ function fillPreferencesWindow(window) {
 
     tooltipGroup.add(addToggle(settings,'Enable tooltip','tooltip-enable'));
     tooltipGroup.add(addToggle(settings,'Show playback status','tooltip-show-status'));
-
     tooltipGroup.add(addText(settings,'Tooltip pattern','tooltip-pattern'));
+
+    // Create a group for playback indicator preferences
+    const pbIndicatorGroup = new Adw.PreferencesGroup();
+    pbIndicatorGroup.set_title('Playback indicator preferences');
+    page.add(pbIndicatorGroup);
+
+    pbIndicatorGroup.add(addToggle(settings,'Show playback indicator','show-playbackstatus'));
+    pbIndicatorGroup.add(addToggle(settings,'Show track title','show-playback-tracktitle'));
 
     // Add our page to the window
     window.add(page);
