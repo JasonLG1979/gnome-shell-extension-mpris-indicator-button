@@ -1507,8 +1507,8 @@ var MprisIndicatorButton = GObject.registerClass({
         }
     }
 }, class MprisIndicatorButton extends Button {
-    _init(settings) {
-        super._init(0.5, 'Mpris Indicator Button');
+    _init(position, settings) {
+        super._init(position, 'Mpris Indicator Button');
         this.accessible_name = 'Mpris';
         this.menu.actor.add_style_class_name('aggregate-menu');
         this.menu.box.set_layout_manager(new AggregateLayout());

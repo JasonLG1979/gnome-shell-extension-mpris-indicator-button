@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.mprisindicatorbutton" path="/org/gnome/shell/extensions/mprisindicatorbutton/">
+    <key name="popup-alignment" type="s">
+      <default>"center"</default>
+    </key>
     <key name="show-album" type="b">
       <default>true</default>
     </key>

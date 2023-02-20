@@ -17,6 +17,13 @@ function fillPreferencesWindow(window) {
     // Create a preferences page
     const page = new Adw.PreferencesPage();
 
+    // Sub item group
+    const subItemGroup = new Adw.PreferencesGroup();
+    subItemGroup.set_title('Main preferences');
+    page.add(subItemGroup);
+    subItemGroup.add(addPositionCombo(settings));
+
+
     // Player group
     const playerGroup = new Adw.PreferencesGroup();
     playerGroup.set_title('Player preferences');
@@ -47,11 +54,37 @@ function fillPreferencesWindow(window) {
     window.add(page);
 }
 
+function addPositionCombo(settings) {
+    // Create a new preferences row
+    const row = new Adw.ActionRow({ title: 'Menu horizontal alignment' });
+
+    // Create widget
+    const widget = new Gtk.ComboBoxText({
+       active: settings.get_value('popup-alignment'), 
+       valign: Gtk.Align.CENTER
+    });
+    widget.append('center', 'Center');
+    widget.append('left', 'Left');
+    widget.append('right', 'Right');
+        
+    settings.bind(
+        'popup-alignment',
+        widget,
+        'active-id',
+        Gio.SettingsBindFlags.DEFAULT
+    );
+
+    // Add the switch to the row
+    row.add_suffix(widget);
+    row.activatable_widget = widget;
+
+    return row;
+}
+
 function addText(settings, title, property) {
 	// Create a new preferences row
     const row = new Adw.ActionRow({ title: title });
 
-    // Create the switch and bind its value to the `show-indicator` key
     const text = new Gtk.Text({
         text: settings.get_string (property),
         valign: Gtk.Align.CENTER,
@@ -63,7 +96,7 @@ function addText(settings, title, property) {
         Gio.SettingsBindFlags.DEFAULT
     );
 
-    text.set_alignment(1.0, 0.0);
+    text.set_alignment(1.0);
 
     // Add the switch to the row
     row.add_suffix(text);
@@ -77,7 +110,6 @@ function addToggle(settings, title, property) {
     // Create a new preferences row
     const row = new Adw.ActionRow({ title: title });
 
-    // Create the switch and bind its value to the `show-indicator` key
     const toggle = new Gtk.Switch({
         active: settings.get_boolean (property),
         valign: Gtk.Align.CENTER,
