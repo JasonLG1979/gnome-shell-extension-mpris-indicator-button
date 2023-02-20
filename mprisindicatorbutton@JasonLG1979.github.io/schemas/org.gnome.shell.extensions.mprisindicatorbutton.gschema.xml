@@ -10,5 +10,14 @@
     <key name="show-volume" type="b">
       <default>true</default>
     </key>
+    <key name="tooltip-enable" type="b">
+      <default>true</default>
+    </key>
+    <key name="tooltip-show-status" type="b">
+      <default>true</default>
+    </key>
+    <key name="tooltip-pattern" type="s">
+      <default>"$artist - $album - $title"</default>
+    </key>
   </schema>
 </schemalist>

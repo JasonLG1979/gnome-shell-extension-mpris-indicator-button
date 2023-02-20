@@ -415,7 +415,7 @@ const TrackInfo = GObject.registerClass({
 const ToolTip = GObject.registerClass({
     GTypeName: 'ToolTip'
 }, class ToolTip extends ToolTipBase {
-    _init(indicator) {
+    _init(indicator, settings) {
         super._init(
             indicator,
             true,
@@ -425,6 +425,7 @@ const ToolTip = GObject.registerClass({
             'tool-tip-icon'
         );
 
+		this.settings = settings;
         this.focused = false;
 
         this.iconNames = [
@@ -442,7 +443,16 @@ const ToolTip = GObject.registerClass({
         // focused while it is visible. (As in maybe the user secondary clicked the indicator)
         this.focused = focused;
         let iconName = this.iconNames[playbackStatus];
-        let text = title ? artist + ' • ' + title + ' • ' + album : artist;
+
+		if (!this.settings.get_boolean('tooltip-show-status')) {
+			iconName = '';
+		}
+
+        let pattern = this.settings.get_string('tooltip-pattern');
+        let text = pattern.replace('$artist', artist);
+        text = text.replace('$title', title);
+        text = text.replace('$album', album);
+
         this.animatedUpdate(text, iconName);
         if ((this.focused && this.visible) || !this.text) {
            this.updateAfterHide(text, iconName);
@@ -450,10 +460,12 @@ const ToolTip = GObject.registerClass({
     }
 
     onIndicatorHover(indicator, pspec) {
-        if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.focused && !this.visible) {
-            this.animatedShow();
-        } else {
-            this.animatedHide();
+        if (this.settings.get_boolean('tooltip-enable')) {
+	        if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.focused && !this.visible) {
+	            this.animatedShow();
+	        } else {
+	            this.animatedHide();
+	        }
         }
     }
 
@@ -1667,7 +1679,7 @@ var MprisIndicatorButton = GObject.registerClass({
             updateIndicator();
         });
 
-        let toolTip = new ToolTip(this);
+        let toolTip = new ToolTip(this, this.settings);
 
         pushSignal(this, 'destroy', () => {
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));

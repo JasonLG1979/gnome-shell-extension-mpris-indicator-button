@@ -14,19 +14,57 @@ function fillPreferencesWindow(window) {
     const settings = ExtensionUtils.getSettings(
         'org.gnome.shell.extensions.mprisindicatorbutton');
     
-    // Create a preferences page and group
+    // Create a preferences page
     const page = new Adw.PreferencesPage();
-    const group = new Adw.PreferencesGroup();
-    group.set_title('Player preferences');
-    page.add(group);
 
-    group.add(addToggle(settings,'Show album name','show-album'));
-    group.add(addToggle(settings,'Show playlists','show-playlists'));
-    group.add(addToggle(settings,'Show volume','show-volume'));
+    // Player group
+    const playerGroup = new Adw.PreferencesGroup();
+    playerGroup.set_title('Player preferences');
+    page.add(playerGroup);
+
+    playerGroup.add(addToggle(settings,'Show album name','show-album'));
+    playerGroup.add(addToggle(settings,'Show playlists','show-playlists'));
+    playerGroup.add(addToggle(settings,'Show volume','show-volume'));
 	    
+    // tooltip group
+    const tooltipGroup = new Adw.PreferencesGroup();
+    tooltipGroup.set_title('Tooltip preferences');
+    page.add(tooltipGroup);
+
+    tooltipGroup.add(addToggle(settings,'Enable tooltip','tooltip-enable'));
+    tooltipGroup.add(addToggle(settings,'Show playback status','tooltip-show-status'));
+
+    tooltipGroup.add(addText(settings,'Tooltip pattern','tooltip-pattern'));
+
     // Add our page to the window
     window.add(page);
 }
+
+function addText(settings, title, property) {
+	// Create a new preferences row
+    const row = new Adw.ActionRow({ title: title });
+
+    // Create the switch and bind its value to the `show-indicator` key
+    const text = new Gtk.Text({
+        text: settings.get_string (property),
+        valign: Gtk.Align.CENTER,
+    });
+    settings.bind(
+        property,
+        text,
+        'text',
+        Gio.SettingsBindFlags.DEFAULT
+    );
+
+    text.set_alignment(1.0, 0.0);
+
+    // Add the switch to the row
+    row.add_suffix(text);
+    row.activatable_widget = text;
+
+    return row;
+}
+
 
 function addToggle(settings, title, property) {
     // Create a new preferences row
