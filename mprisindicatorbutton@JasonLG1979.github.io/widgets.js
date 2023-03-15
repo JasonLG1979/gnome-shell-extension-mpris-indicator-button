@@ -21,7 +21,6 @@
 // No translatable strings in this file.
 const { Atk, Clutter, Gio, GObject, St } = imports.gi;
 
-const { AggregateLayout } = imports.ui.panel;
 const { Button } = imports.ui.panelMenu;
 const { PopupBaseMenuItem, PopupSubMenuMenuItem, PopupMenuSection, PopupSeparatorMenuItem, Ornament} = imports.ui.popupMenu;
 const { Slider } = imports.ui.slider;
@@ -1632,3 +1631,33 @@ var MprisIndicatorButton = GObject.registerClass({
         return Clutter.EVENT_PROPAGATE;
     }
 });
+
+var AggregateLayout = GObject.registerClass(
+class AggregateLayout extends Clutter.BoxLayout {
+    _init(params = {}) {
+        params['orientation'] = Clutter.Orientation.VERTICAL;
+        super._init(params);
+
+        this._sizeChildren = [];
+    }
+
+    addSizeChild(actor) {
+        this._sizeChildren.push(actor);
+        this.layout_changed();
+    }
+
+    vfunc_get_preferred_width(container, forHeight) {
+        let themeNode = container.get_theme_node();
+        let minWidth = themeNode.get_min_width();
+        let natWidth = minWidth;
+
+        for (let i = 0; i < this._sizeChildren.length; i++) {
+            let child = this._sizeChildren[i];
+            let [childMin, childNat] = child.get_preferred_width(forHeight);
+            minWidth = Math.max(minWidth, childMin);
+            natWidth = Math.max(natWidth, childNat);
+        }
+        return [minWidth, natWidth];
+    }
+});
+
