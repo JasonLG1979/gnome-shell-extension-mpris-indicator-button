@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.mprisindicatorbutton" path="/org/gnome/shell/extensions/mprisindicatorbutton/">
+    <key name="popup-alignment" type="s">
+      <default>"center"</default>
+    </key>
+    <key name="show-album" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-playlists" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-volume" type="b">
+      <default>true</default>
+    </key>
+    <key name="tooltip-enable" type="b">
+      <default>true</default>
+    </key>
+    <key name="tooltip-show-status" type="b">
+      <default>true</default>
+    </key>
+    <key name="tooltip-pattern" type="s">
+      <default>"$artist - $album - $title"</default>
+    </key>
+    <key name="show-playbackstatus" type="b">
+      <default>true</default>
+    </key>
+    <key name="show-playback-tracktitle" type="b">
+      <default>true</default>
+    </key>
+  </schema>
+</schemalist>

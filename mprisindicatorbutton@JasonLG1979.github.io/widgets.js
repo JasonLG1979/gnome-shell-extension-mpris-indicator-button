@@ -245,6 +245,34 @@ const CoverIcon = GObject.registerClass({
     }
 });
 
+
+const PlaybackStatusIndicator = GObject.registerClass({
+    GTypeName: 'PlaybackStatusIndicator'
+}, class PlaybackStatusIndicator extends St.Icon {
+    _init() {
+        super._init({
+            icon_size: 16,
+            icon_name: 'media-playback-pause-symbolic',
+            style_class: 'system-status-icon',
+            opacity: 125,
+            accessible_role: Atk.Role.ICON
+        });
+
+        this.add_effect(new Clutter.DesaturateEffect());
+        this.iconNames = [
+            'media-playback-stop-symbolic',
+            'media-playback-pause-symbolic',
+            'media-playback-start-symbolic'
+        ];
+     }
+
+
+   update(playbackStatus) {
+        let iconName = this.iconNames[playbackStatus];
+        this.icon_name = iconName;
+   }
+});
+
 const MediaButton = GObject.registerClass({
     GTypeName: 'MediaButton',
     Signals: {
@@ -379,19 +407,31 @@ const TrackInfo = GObject.registerClass({
 
         this.add_child(this.artistLabel);
 
+        this.albumLabel = new St.Label({
+            x_expand: true,
+            y_expand: false,
+            y_align: Clutter.ActorAlign.END,
+            style_class: 'lighter-label'
+        });
+
+        this.add_child(this.albumLabel);
+
         this.titleLabel = new St.Label({
             x_expand: true,
             y_expand: false,
             y_align: Clutter.ActorAlign.START,
-            style_class: 'lighter-label'
+            style_class: 'light-label'
         });
 
         this.add_child(this.titleLabel);
     }
 
-    update(artist, title) {
+    update(artist, album, title) {
         if (this.artistLabel.text !== artist) {
             this.artistLabel.text = artist;
+        }
+        if (this.albumLabel.text !== album) {
+            this.albumLabel.text = album;
         }
         if (this.titleLabel.text !== title) {
             this.titleLabel.text = title;
@@ -399,10 +439,11 @@ const TrackInfo = GObject.registerClass({
     }
 });
 
+
 const ToolTip = GObject.registerClass({
     GTypeName: 'ToolTip'
 }, class ToolTip extends ToolTipBase {
-    _init(indicator) {
+    _init(indicator, settings) {
         super._init(
             indicator,
             true,
@@ -412,6 +453,7 @@ const ToolTip = GObject.registerClass({
             'tool-tip-icon'
         );
 
+		this.settings = settings;
         this.focused = false;
 
         this.iconNames = [
@@ -423,13 +465,22 @@ const ToolTip = GObject.registerClass({
         this.pushSignal(this.indicator, 'update-tooltip', this.onUpdateToolTip.bind(this));
     }
 
-    onUpdateToolTip(indicator, artist, title, focused, playbackStatus) {
+    onUpdateToolTip(indicator, artist, album, title, focused, playbackStatus) {
         // Never show the tool tip if a player is focused. At that point it's
         // redundant information. Also hide the tool tip if a player becomes
         // focused while it is visible. (As in maybe the user secondary clicked the indicator)
         this.focused = focused;
         let iconName = this.iconNames[playbackStatus];
-        let text = title ? artist + ' • ' + title : artist;
+
+		if (!this.settings.get_boolean('tooltip-show-status')) {
+			iconName = '';
+		}
+
+        let pattern = this.settings.get_string('tooltip-pattern');
+        let text = pattern.replace('$artist', artist);
+        text = text.replace('$title', title);
+        text = text.replace('$album', album);
+
         this.animatedUpdate(text, iconName);
         if ((this.focused && this.visible) || !this.text) {
            this.updateAfterHide(text, iconName);
@@ -437,10 +488,12 @@ const ToolTip = GObject.registerClass({
     }
 
     onIndicatorHover(indicator, pspec) {
-        if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.focused && !this.visible) {
-            this.animatedShow();
-        } else {
-            this.animatedHide();
+        if (this.settings.get_boolean('tooltip-enable')) {
+	        if (this.indicator.hover && this.text && !this.indicatorMenuIsOpen && !this.focused && !this.visible) {
+	            this.animatedShow();
+	        } else {
+	            this.animatedHide();
+	        }
         }
     }
 
@@ -856,10 +909,10 @@ const TrackListSubMenuItem = GObject.registerClass({
         this.accessible_name = `${player_name} ${TRANSLATED['TrackList Item']};`;
     }
 
-    updateMetadata([obj_id, cover_url, artist, title, mimetype_icon]) {
+    updateMetadata([obj_id, cover_url, artist, album, title, mimetype_icon]) {
         this._obj_id = obj_id;
         this.coverIcon.update(mimetype_icon, cover_url);
-        this.info.update(artist, title);
+        this.info.update(artist, album, title);
     }
 });
 
@@ -983,7 +1036,7 @@ const SubMenu = GObject.registerClass({
 });
 
 class Player extends PopupMenuSection {
-    constructor(mpris, trackList, playList, updateIndicator) {
+    constructor(mpris, trackList, playList, updateIndicator, settings) {
         super();
         this.actor.visible = false;
         this._mpris = null;
@@ -1000,6 +1053,27 @@ class Player extends PopupMenuSection {
         this._playListSubMenu = new SubMenu(PlayListSubMenuItem);
         this.addMenuItem(this._playListSubMenu);
 
+        settings.bind(
+            'show-album',
+            this._playerItem.info.albumLabel,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        
+        settings.bind(
+            'show-playlists',
+            this._playListSubMenu,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        
+        settings.bind(
+            'show-volume',
+            this._volume,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );        
+        
         this._trackListSubMenu = new SubMenu(TrackListSubMenuItem);
         this.addMenuItem(this._trackListSubMenu);
 
@@ -1097,6 +1171,10 @@ class Player extends PopupMenuSection {
 
     get artist() {
         return this._mpris ? this._mpris.artist : '';
+    }
+    
+    get album() {
+        return this._mpris ? this._mpris.album : '';
     }
 
     get trackTitle() {
@@ -1353,7 +1431,14 @@ class Player extends PopupMenuSection {
             'text',
             DEFAULT_SYNC_CREATE_PROP_FLAGS
         );
-
+        
+        this._mpris.bind_property(
+            'album',
+            this._playerItem.info.albumLabel,
+            'text',
+            DEFAULT_SYNC_CREATE_PROP_FLAGS
+        );
+        
         this._mpris.bind_property(
             'title',
             this._playerItem.info.titleLabel,
@@ -1414,6 +1499,7 @@ var MprisIndicatorButton = GObject.registerClass({
             flags: GObject.SignalFlags.RUN_FIRST,
             param_types: [
                 GObject.TYPE_STRING,  // artist
+                GObject.TYPE_STRING,  // album
                 GObject.TYPE_STRING,  // title
                 GObject.TYPE_BOOLEAN, // focused
                 GObject.TYPE_INT      // playbackStatus
@@ -1421,13 +1507,19 @@ var MprisIndicatorButton = GObject.registerClass({
         }
     }
 }, class MprisIndicatorButton extends Button {
-    _init() {
-        super._init(0.5, 'Mpris Indicator Button');
+    _init(position, settings) {
+        super._init(position, 'Mpris Indicator Button');
         this.accessible_name = 'Mpris';
         this.menu.actor.add_style_class_name('aggregate-menu');
         this.menu.box.set_layout_manager(new AggregateLayout());
+        this.settings = settings;
 
         this.hide();
+
+        let box = new St.BoxLayout();
+
+        this.InlineIndicator = new InlineIndicator(this, this.settings);
+        box.add(this.InlineIndicator);
 
         let indicator = new St.Icon({
             style_class: 'system-status-icon'
@@ -1435,7 +1527,9 @@ var MprisIndicatorButton = GObject.registerClass({
 
         indicator.add_effect(new Clutter.DesaturateEffect());
 
-        this.add_child(indicator);
+        box.add(indicator);
+
+		this.add_child(box);
 
         let signals = [];
 
@@ -1484,6 +1578,7 @@ var MprisIndicatorButton = GObject.registerClass({
                 this.emit(
                     'update-tooltip',
                     activePlayer.artist,
+                    activePlayer.album,
                     activePlayer.trackTitle,
                     activePlayer.focused,
                     activePlayer.playbackStatus
@@ -1603,7 +1698,7 @@ var MprisIndicatorButton = GObject.registerClass({
                     sep.busName = busName;
                     this.menu.addMenuItem(sep);
                 }
-                this.menu.addMenuItem(new Player(mpris, trackList, playList, updateIndicator));
+                this.menu.addMenuItem(new Player(mpris, trackList, playList, updateIndicator, settings));
             }
             updateIndicator();
         });
@@ -1619,7 +1714,7 @@ var MprisIndicatorButton = GObject.registerClass({
             updateIndicator();
         });
 
-        let toolTip = new ToolTip(this);
+        let toolTip = new ToolTip(this, this.settings);
 
         pushSignal(this, 'destroy', () => {
             signals.forEach(signal => signal.obj.disconnect(signal.signalId));
@@ -1631,4 +1726,58 @@ var MprisIndicatorButton = GObject.registerClass({
     vfunc_event(event) {
         return Clutter.EVENT_PROPAGATE;
     }
+});
+
+var InlineIndicator = GObject.registerClass({
+    GTypeName: 'InlineIndicator'
+}, class InlineIndicator extends St.BoxLayout {
+    _init(mainIndicator, settings) {
+        super._init();
+        this.settings = settings;
+        this.hide();
+        this._signals = [];
+
+        this._mainIndicator = mainIndicator;
+        this.playbackStatusIndicator = new PlaybackStatusIndicator();
+        this.add(this.playbackStatusIndicator);
+
+        this.songTitle = new St.Label({ style_class:'song', text : "", x_align: Clutter.ActorAlign.END, y_align: Clutter.ActorAlign.CENTER, });
+        this.add(this.songTitle);
+
+        this.pushSignal(this._mainIndicator, 'update-tooltip', this.onUpdate.bind(this));
+
+        this.settings.bind(
+            'show-playbackstatus',
+            this.playbackStatusIndicator,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+        this.settings.bind(
+            'show-playback-tracktitle',
+            this.songTitle,
+            'visible',
+            Gio.SettingsBindFlags.DEFAULT
+        );
+    }
+
+    pushSignal(obj, signalName, callback) {
+        // This is a convenience function for connecting signals.
+        // Use this to make sure all signal are disconnected
+        // when the indicator is destroyed.
+        // In theory Objects should not emit signals
+        // after destruction, but that assumption is often
+        // times false with St widgets and Clutter.
+        let signalId = obj.connect(signalName, callback);
+        this._signals.push({
+            obj: obj,
+            signalId: signalId
+        });
+        return signalId;
+    }
+     
+     onUpdate(indicator, artist, album, title, focused, playbackStatus) {
+        playbackStatus == 0 ? this.hide() : this.show();
+        this.playbackStatusIndicator.update(playbackStatus);
+        this.songTitle.set_text(title);
+     }
 });
